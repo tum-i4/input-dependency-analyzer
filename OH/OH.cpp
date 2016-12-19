@@ -9,8 +9,9 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h" 
-using namespace llvm;
+#include "../CutVertice/CutVerticesPass.h"
 
+using namespace llvm;
 namespace {
 	struct OHPass : public FunctionPass {
 		static char ID;
@@ -18,6 +19,12 @@ namespace {
 		virtual bool runOnFunction(Function &F){
 			bool didModify = false;
 			for (auto& B : F) {
+				std::vector<const char*> CutVertices=getAnalysis<CutVerticesPass>().getArray();
+				if(!CutVertices.empty()&& std::find(CutVertices.begin(),CutVertices.end(),
+					B.getName())!=CutVertices.end()){
+					errs() << "Cut Vertices: " << B.getName() << "\n";
+				}
+                continue;
 				for (auto& I : B) {
 					//dbgs() << I << I.getOpcodeName() << "\n";
 					if (auto* op = dyn_cast<BinaryOperator>(&I)) {
@@ -40,6 +47,12 @@ namespace {
 			}
 			return didModify;
 		}
+
+		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+			AU.addRequired<CutVerticesPass>();
+			AU.setPreservesAll();
+		}
+
 		bool handleStore(StoreInst *storeInst, BasicBlock *BB){
 			dbgs() << "**HandleStore**\n";
 			if(storeInst->getNumOperands()>0){
@@ -131,7 +144,8 @@ char OHPass::ID = 0;
 // http://adriansampson.net/blog/clangpass.html
 static void registerOHPass(const PassManagerBuilder &,
 		legacy::PassManagerBase &PM) {
-	PM.add(new OHPass());
+	PM.add(new CutVerticesPass());
+    PM.add(new OHPass());
 }
 static RegisterStandardPasses
 RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible,

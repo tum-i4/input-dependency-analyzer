@@ -1,7 +1,7 @@
-add_library(OHPass MODULE
+add_library(CutVerticesPass MODULE
     # List your source files here.
-    #CVPass.cpp
-    OH.cpp
+    #Graph.h
+    #CutVerticesPass.h
 )
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).

@@ -9,7 +9,9 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h" 
-#include "../CutVertice/CutVerticesPass.h"
+
+#include "CutVertice/CutVerticesPass.h"
+#include "Analysis/InputDependencyAnalysis.h"
 
 using namespace llvm;
 namespace {
@@ -19,6 +21,7 @@ namespace {
 		virtual bool runOnFunction(Function &F){
 			bool didModify = false;
 			for (auto& B : F) {
+                                auto FI = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
 				std::vector<const char*> CutVertices=getAnalysis<CutVerticesPass>().getArray();
 				if(!CutVertices.empty()&& std::find(CutVertices.begin(),CutVertices.end(),
 					B.getName())!=CutVertices.end()){
@@ -27,6 +30,9 @@ namespace {
                 continue;
 				for (auto& I : B) {
 					//dbgs() << I << I.getOpcodeName() << "\n";
+                                        if (FI->isInputDependent(&I)) {
+                                            continue;
+                                        }
 					if (auto* op = dyn_cast<BinaryOperator>(&I)) {
 						// Insert *after* `op`.
 						updateHash(&B, &I, op, false);
@@ -50,6 +56,7 @@ namespace {
 
 		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 			AU.addRequired<CutVerticesPass>();
+			AU.addRequired<input_dependency::InputDependencyAnalysis>();
 			AU.setPreservesAll();
 		}
 

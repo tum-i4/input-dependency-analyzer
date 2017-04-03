@@ -2,6 +2,7 @@
 
 #include "definitions.h"
 #include "DependencyAnaliser.h"
+#include "FunctionCallDepInfo.h"
 
 namespace input_dependency {
 
@@ -46,7 +47,10 @@ public:
 //    virtual const ValueSet& getValueDependencies(llvm::Value* val) = 0;
     virtual const DepInfo& getReturnValueDependencies() const = 0;
     virtual const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const = 0;
-    virtual const DependencyAnaliser::FunctionArgumentsDependencies& getFunctionsCallInfo() const = 0;
+    virtual const DependencyAnaliser::FunctionCallsArgumentDependencies& getFunctionsCallInfo() const = 0;
+    virtual const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const = 0;
+    virtual bool hasFunctionCallInfo(llvm::Function* F) const = 0;
+    virtual const FunctionSet& getCallSitesData() const = 0;
     /// \}
 
 protected:

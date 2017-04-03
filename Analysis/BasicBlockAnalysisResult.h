@@ -49,6 +49,9 @@ protected:
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
+    DepInfo getDependenciesFromAliases(llvm::Value* val) override;
+    void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) override;
+
     /// \}
 
     /// \name Implementation of DependencyAnalysisResult interface
@@ -63,14 +66,16 @@ public:
     //const ValueSet& getValueDependencies(llvm::Value* val) override;
     const DepInfo& getReturnValueDependencies() const override;
     const ArgumentDependenciesMap& getOutParamsDependencies() const override;
-    const FunctionArgumentsDependencies& getFunctionsCallInfo() const override;
+    const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const override;
+    const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
+    bool hasFunctionCallInfo(llvm::Function* F) const override;
+    const FunctionSet& getCallSitesData() const override;
     /// \}
 
 private:
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
 
-// TODO: move already existing fields of FunctionAnaliserImpl to here
 private:
     llvm::BasicBlock* m_BB;
 }; // class BasicBlockAnalysisResult

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DependencyAnaliser.h"
+#include "definitions.h"
 
 #include <memory>
 
@@ -39,7 +40,9 @@ public:
     void finalize(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
 
     /// Get call site info collected by \link analize function.
-    DependencyAnaliser::FunctionArgumentsDependencies getCallSitesData() const;
+    FunctionSet getCallSitesData() const;
+
+    DependencyAnaliser::ArgumentDependenciesMap getCallArgumentInfo(llvm::Function* F) const;
 
     /**
      * \brief Checks if instruction is input dependent.
@@ -69,9 +72,9 @@ public:
     //bool isInputDependent(llvm::Instruction* instr, const ArgNos& inputDepArgs) const;
 
     bool isOutArgInputDependent(llvm::Argument* arg) const;
-    ArgumentSet getOutArgDependencies(llvm::Argument* arg) const;
+    DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputDependent() const;
-    ArgumentSet getRetValueDependencies() const;
+    const DepInfo& getRetValueDependencies() const;
 
     void dump() const;
 

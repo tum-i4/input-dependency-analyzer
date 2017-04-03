@@ -37,14 +37,12 @@ void BasicBlockAnalysisResult::finalizeResults(const ArgumentDependenciesMap& de
 
 void BasicBlockAnalysisResult::dumpResults() const
 {
-    llvm::dbgs() << "\nDump block " << m_BB->getName() << "\n";
     dump();
 }
 
 void BasicBlockAnalysisResult::analize()
 {
     for (auto& I : *m_BB) {
-        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
@@ -68,7 +66,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
 {
     auto deppos = m_inputDependentInstrs.find(instr);
     if (deppos != m_inputDependentInstrs.end()) {
-        return DepInfo(DepInfo::DepInfo::INPUT_DEP, deppos->second);
+        return deppos->second;
     }
     auto indeppos = m_inputIndependentInstrs.find(instr);
     if (indeppos != m_inputIndependentInstrs.end()) {
@@ -89,11 +87,11 @@ DepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
 {
     switch (info.getDependency()) {
-    case DepInfo::DepInfo::INPUT_DEP:
-        m_inputDependentInstrs[instr].insert(info.getArgumentDependencies().begin(),
-                                             info.getArgumentDependencies().end());
+    case DepInfo::INPUT_DEP:
+    case DepInfo::INPUT_ARGDEP:
+        m_inputDependentInstrs[instr].mergeDependencies(info);
         break;
-    case DepInfo::DepInfo::INPUT_INDEP:
+    case DepInfo::INPUT_INDEP:
         m_inputIndependentInstrs.insert(instr);
         break;
     default:
@@ -103,22 +101,45 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
 
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
 {
-    assert(info.isInputDep() || info.isInputIndep());
+    assert(info.isInputDep() || info.isInputIndep() || info.isInputArgumentDep());
     m_valueDependencies[value] = info;
+    updateAliasesDependencies(value, info);
 }
 
 void BasicBlockAnalysisResult::updateReturnValueDependencies(const DepInfo& info)
 {
     switch (info.getDependency()) {
     case DepInfo::INPUT_DEP:
-        m_returnValueDependencies.setDependency(info.getDependency());
-        m_returnValueDependencies.mergeDependencies(info.getArgumentDependencies());
+    case DepInfo::INPUT_ARGDEP:
+        m_returnValueDependencies.mergeDependencies(info);
         break;
     case DepInfo::INPUT_INDEP:
         break;
     default:
         assert(false);
     };
+}
+
+DepInfo BasicBlockAnalysisResult::getDependenciesFromAliases(llvm::Value* val)
+{
+    DepInfo info;
+    for (const auto& dep : m_valueDependencies) {
+        auto alias = m_AAR.alias(val, dep.first);
+        if (alias != llvm::AliasResult::NoAlias) {
+            info.mergeDependencies(dep.second);
+        }
+    }
+    return info;
+}
+
+void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const DepInfo& info)
+{
+    for (auto& valDep : m_valueDependencies) {
+        auto alias = m_AAR.alias(val, valDep.first);
+        if (alias != llvm::AliasResult::NoAlias) {
+            valDep.second = info;
+        }
+    }
 }
 
 void BasicBlockAnalysisResult::setInitialValueDependencies(
@@ -171,7 +192,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     if (pos == m_inputDependentInstrs.end()) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
-    return DepInfo(DepInfo::INPUT_DEP, pos->second);
+    return pos->second;
 }
 
 const DependencyAnaliser::ValueDependencies& BasicBlockAnalysisResult::getValuesDependencies() const
@@ -195,15 +216,40 @@ BasicBlockAnalysisResult::getOutParamsDependencies() const
     return m_outArgDependencies;
 }
 
-const DependencyAnaliser::FunctionArgumentsDependencies&
+const DependencyAnaliser::FunctionCallsArgumentDependencies& 
 BasicBlockAnalysisResult::getFunctionsCallInfo() const
 {
-    return m_calledFunctionsInfo;
+    return m_functionCallInfo;
+}
+
+const FunctionCallDepInfo& BasicBlockAnalysisResult::getFunctionCallInfo(llvm::Function* F) const
+{
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    return pos->second;
+}
+
+bool BasicBlockAnalysisResult::hasFunctionCallInfo(llvm::Function* F) const
+{
+    return m_functionCallInfo.find(F) != m_functionCallInfo.end();
+}
+
+const FunctionSet& BasicBlockAnalysisResult::getCallSitesData() const
+{
+    return m_calledFunctions;
 }
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
+    DepInfo info = getDependenciesFromAliases(instr);
+    if (info.isDefined()) {
+        return info;
+    }
     auto* loadOp = instr->getPointerOperand();
+    info = getDependenciesFromAliases(loadOp);
+    if (info.isDefined()) {
+        return info;
+    }
     llvm::Value* loadedValue = getMemoryValue(loadOp);
     if (loadedValue == nullptr) {
         return getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
@@ -215,27 +261,19 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
 
 DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(llvm::Instruction* instr)
 {
-    ArgumentSet deps;
-    DepInfo::Dependency state = DepInfo::INPUT_INDEP;
+    DepInfo deps(DepInfo::INPUT_INDEP);
     for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
         if (auto* opInst = llvm::dyn_cast<llvm::Instruction>(op)) {
             const auto& c_deps = getInstructionDependencies(opInst);
-            if (c_deps.isInputDep()) {
-                state = DepInfo::INPUT_DEP;
-                const auto& argDeps = c_deps.getArgumentDependencies();
-                deps.insert(argDeps.begin(), argDeps.end());
-            }
+            deps.mergeDependencies(c_deps);
         } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {
-            if (auto* c_arg = isInput(opVal)) {
-                state = DepInfo::INPUT_DEP;
-                deps.insert(c_arg);
+            auto c_args = isInput(opVal);
+            if (!c_args.empty()) {
+                deps.mergeDependencies(DepInfo(DepInfo::INPUT_ARGDEP, c_args));
             }
         }
     }
-    if (state == DepInfo::INPUT_INDEP) {
-        assert(deps.empty());
-    }
-    return DepInfo(state, deps);
+    return deps;
 }
 
 } // namespace input_dependency

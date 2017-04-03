@@ -38,11 +38,16 @@ DependencyAnaliser::DependencyAnaliser(llvm::Function* F,
 void DependencyAnaliser::finalize(const ArgumentDependenciesMap& dependentArgs)
 {
     for (auto& item : m_inputDependentInstrs) {
-        if (item.second.empty() || Utils::haveIntersection(dependentArgs, item.second)) {
+        if (item.second.isInputDep()) {
+            m_finalInputDependentInstrs.insert(item.first);
+        } else if (item.second.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, item.second.getArgumentDependencies())) {
             m_finalInputDependentInstrs.insert(item.first);
         } else {
             m_inputIndependentInstrs.insert(item.first);
         }
+    }
+    for (auto& callInfo : m_functionCallInfo) {
+        callInfo.second.finalize(dependentArgs);
     }
     m_finalized = true;
 }
@@ -60,7 +65,10 @@ void DependencyAnaliser::dump() const
     llvm::dbgs() << "\nNot final input dependent instructions\n";
     for (auto& item : m_inputDependentInstrs) {
         llvm::dbgs() << *item.first << " depends on ---------- ";
-        for (auto& arg : item.second) {
+        if (item.second.isInputDep()) {
+            llvm::dbgs() << " new input, ";
+        }
+        for (auto& arg : item.second.getArgumentDependencies()) {
             llvm::dbgs() << arg->getArgNo() << " ";
         } 
         llvm::dbgs() << "\n";
@@ -86,8 +94,7 @@ void DependencyAnaliser::dump() const
     llvm::dbgs() << "\nReturn Value dependency\n";
     if (m_returnValueDependencies.isInputIndep()) {
         llvm::dbgs() << " is input independent\n";
-    } else if (m_returnValueDependencies.isInputDep()
-                    && m_returnValueDependencies.getArgumentDependencies().empty()) {
+    } else if (m_returnValueDependencies.isInputDep()) {
         llvm::dbgs() << " is dependent on new input\n";
     } else {
         for (const auto& item : m_returnValueDependencies.getArgumentDependencies()) {
@@ -148,7 +155,8 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
-    auto storedValue = getMemoryValue(storeInst->getPointerOperand());
+    auto storeTo = storeInst->getPointerOperand();
+    auto storedValue = getMemoryValue(storeTo);
     assert(storedValue);
     auto op = storeInst->getOperand(0);
     if (auto* constOp = llvm::dyn_cast<llvm::Constant>(op)) {
@@ -156,10 +164,17 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         updateValueDependencies(storedValue, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    llvm::Argument* arg = isInput(op);
-    if (arg != nullptr) {
-        updateInstructionDependencies(storeInst, DepInfo(DepInfo::INPUT_DEP, ArgumentSet{arg}));
-        updateValueDependencies(storedValue, DepInfo(DepInfo::INPUT_DEP, ArgumentSet{arg}));
+
+    auto args = isInput(op);
+    if (!args.empty()) {
+        updateInstructionDependencies(storeInst, DepInfo(DepInfo::INPUT_ARGDEP, args));
+        updateValueDependencies(storedValue, DepInfo(DepInfo::INPUT_ARGDEP, args));
+        return;
+    }
+    auto pos = m_valueDependencies.find(op);
+    if (pos != m_valueDependencies.end()) {
+        updateInstructionDependencies(storeInst, pos->second);
+        updateValueDependencies(storedValue, pos->second);
         return;
     }
     auto* opInstr = llvm::dyn_cast<llvm::Instruction>(op);
@@ -168,6 +183,7 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     const auto& deps = getInstructionDependencies(opInstr);
     updateInstructionDependencies(storeInst, deps);
     updateValueDependencies(storedValue, deps);
+    updateAliasesDependencies(storeTo, deps);
 }
 
 void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
@@ -176,14 +192,14 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
     if (F == nullptr) {
         return;
     }
-    llvm::dbgs() << "Function call " << F->getName() << "\n";
     const bool isExternal = (F->getParent() != m_F->getParent()
                                 || F->isDeclaration()
                                 || F->getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage);
     if (!isExternal) {
-        m_calledFunctionsInfo[F];
+        m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
+        m_calledFunctions.insert(F);
+        updateFunctionCallInfo(callInst);
     }
-    updateFunctionCallInfo(callInst, isExternal);
     updateCallOutArgDependencies(callInst, isExternal);
     updateCallInstructionDependencies(callInst);
 }
@@ -205,9 +221,8 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
         }
         auto pos = m_inputDependentInstrs.find(I);
         if (pos != m_inputDependentInstrs.end()) {
-            const auto& dependencies = pos->second;
-            item->second.setDependency(DepInfo::INPUT_DEP);
-            item->second.setArgumentDependencies(dependencies);
+            item->second = pos->second;
+            //item->second.mergeDependencies(pos->second);
         } else {
             // making output input independent
             item->second = DepInfo(DepInfo::INPUT_INDEP);
@@ -220,10 +235,10 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
 // indicates the arguments of the called function which are input dependent in this call site.
 // TODO: what will happen if collect external functions call info too. 
 // It won't break anything, the worst thing would be collecting uneccessary information
-void DependencyAnaliser::updateFunctionCallInfo(llvm::CallInst* callInst, bool isExternalF)
+void DependencyAnaliser::updateFunctionCallInfo(llvm::CallInst* callInst)
 {
     llvm::Function* F = callInst->getCalledFunction();
-    //llvm::dbgs() << "Called function " << F->getName() << "\n";
+    ArgumentDependenciesMap argDepMap;
     for (unsigned i = 0; i < callInst->getNumArgOperands(); ++i) {
         llvm::Value* argVal = callInst->getArgOperand(i);
         if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
@@ -232,22 +247,25 @@ void DependencyAnaliser::updateFunctionCallInfo(llvm::CallInst* callInst, bool i
         DepInfo deps;
         auto pos = m_valueDependencies.find(argVal);
         if (pos != m_valueDependencies.end()) {
-            //if (pos->second.dependency == DepInfo::INPUT_DEP) {
-                deps = pos->second;
-            //}
-        } else if (auto* arg = isInput(argVal)) {
-            deps = DepInfo(DepInfo::INPUT_DEP, ArgumentSet{arg});
-        } else if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
-            deps = getInstructionDependencies(argInst);
+            deps = pos->second;
+        } else {
+            auto args = isInput(argVal);
+            if (!args.empty()) {
+                deps = DepInfo(DepInfo::INPUT_ARGDEP, args);
+            } else if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
+                deps = getInstructionDependencies(argInst);
+            }
         }
         // Note: this check should not be here
-        if (deps.isInputIndep() || isExternalF) {
+        if (deps.isInputIndep()) {
             continue;
         }
         auto arg = getFunctionArgument(F, i);
-        auto& item = m_calledFunctionsInfo[F][arg];
-        item.mergeDependencies(deps);
+        argDepMap[arg] = deps;
     }
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    pos->second.addCall(callInst, argDepMap);
 }
 
 // For external functions do worst case assumption, which is:
@@ -258,7 +276,6 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::CallInst* callInst, 
     auto F = callInst->getCalledFunction();
     const FunctionAnaliser* FA = m_FAG(F);
     for (auto& arg : F->getArgumentList()) {
-        // TODO: find a way to identify constant pointers
         llvm::Value* val = getFunctionOutArgumentValue(callInst, arg);
         if (val == nullptr) {
             continue;
@@ -268,17 +285,21 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::CallInst* callInst, 
             continue;
         }
         assert(FA);
+
         if (!FA->isOutArgInputDependent(&arg)) {
             updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
             continue;
         }
         const auto& argDeps = FA->getOutArgDependencies(&arg);
-        if (argDeps.empty()) {
+        // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
+        if (argDeps.isInputDep()) {
             updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
             continue;
         }
-        auto argDependencies = getArgumentActualDependencies(argDeps,
-                                                             m_calledFunctionsInfo[F]);
+        auto pos = m_functionCallInfo.find(F);
+        assert(pos != m_functionCallInfo.end());
+        auto argDependencies = getArgumentActualDependencies(argDeps.getArgumentDependencies(),
+                                                             pos->second.getDependenciesForCall(callInst));
         updateValueDependencies(val, argDependencies);
     }
 }
@@ -293,7 +314,6 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     } else if (isExternal) {
-        //Assume return value is input dependent
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
         return;
     }
@@ -303,31 +323,42 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
     } else {
         const auto& retDeps = FA->getRetValueDependencies();
-        if (retDeps.empty()) {
+        if (retDeps.isInputDep()) {
             // is input dependent, but not dependent on arguments
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
             return;
         }
-        auto dependencies = getArgumentActualDependencies(retDeps,
-                                                          m_calledFunctionsInfo[F]);
+        auto pos = m_functionCallInfo.find(F);
+        assert(pos != m_functionCallInfo.end());
+        auto dependencies = getArgumentActualDependencies(retDeps.getArgumentDependencies(),
+                                                          pos->second.getDependenciesForCall(callInst));
         updateInstructionDependencies(callInst, dependencies);
     }
 }
 
-llvm::Argument* DependencyAnaliser::isInput(llvm::Value* val) const
+ArgumentSet DependencyAnaliser::isInput(llvm::Value* val) const
 {
     for (auto& arg : m_inputs) {
         if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
-            if (argVal == val || m_AAR.alias(argVal, val)) {
-                return arg;
+            if (argVal == val) {
+                return ArgumentSet{arg};
             }
         }
     }
-    return nullptr;
+    ArgumentSet set;
+    for (auto& arg : m_inputs) {
+        if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
+            auto aliasResult = m_AAR.alias(argVal, val);
+            if (aliasResult != llvm::AliasResult::NoAlias) {
+                set.insert(arg);
+            }
+        }
+    }
+    return set;
 }
 
 DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dependencies,
-                                                                              const ArgumentDependenciesMap& argDepInfo)
+                                                          const ArgumentDependenciesMap& argDepInfo)
 {
     DepInfo info(DepInfo::INPUT_INDEP);
     for (const auto& arg : dependencies) {
@@ -378,6 +409,12 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     if (auto* globalVal = llvm::dyn_cast<llvm::GlobalValue>(instrOp)) {
         // need more elaborate processing for globals
         return globalVal;
+    }
+    if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(instrOp)) {
+        // creating array in a heap (new).
+        // Operand 0 is a malloc call, which is marked as input dependent as calls external function.
+        // return instruction for now
+        return bitcast;
     }
     if (auto* constVal = llvm::dyn_cast<llvm::Constant>(instrOp)) {
         assert(false);

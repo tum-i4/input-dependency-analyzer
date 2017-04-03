@@ -2,6 +2,7 @@
 
 #include "definitions.h"
 #include "DependencyInfo.h"
+#include "FunctionCallDepInfo.h"
 
 namespace input_dependency {
 
@@ -12,9 +13,10 @@ namespace input_dependency {
 class DependencyAnaliser
 {
 public:
-    typedef std::unordered_map<llvm::Value*, DepInfo> ValueDependencies;
-    typedef std::unordered_map<llvm::Argument*, DepInfo> ArgumentDependenciesMap;
-    typedef std::unordered_map<llvm::Function*, ArgumentDependenciesMap> FunctionArgumentsDependencies;
+    using ValueDependencies = std::unordered_map<llvm::Value*, DepInfo>;
+    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
+    using FunctionCallsArgumentDependencies = std::unordered_map<llvm::Function*, FunctionCallDepInfo>;
+    using InstrDependencyMap = std::unordered_map<llvm::Instruction*, DepInfo>;
 
 public:
     DependencyAnaliser(llvm::Function* F,
@@ -54,18 +56,18 @@ protected:
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
     virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const DepInfo& info) = 0;
+    virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
+    virtual void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) = 0;
 
-    virtual void updateFunctionCallInfo(llvm::CallInst* callInst, bool isExternalF);
+    virtual void updateFunctionCallInfo(llvm::CallInst* callInst);
     /// \}
 
 protected:
-    llvm::Argument* isInput(llvm::Value* val) const;
-    // TODO: see if need to be virtual. looks like this might need to be virtual
+    ArgumentSet isInput(llvm::Value* val) const;
     void updateCallOutArgDependencies(llvm::CallInst* callInst, bool isExternalF);
     void updateCallInstructionDependencies(llvm::CallInst* callInst);
 
 protected:
-    // TODO: see if no derived is using this, move to source file
     static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                  const ArgumentDependenciesMap& argDepInfo);
     static llvm::Value* getFunctionOutArgumentValue(const llvm::CallInst* callInst,
@@ -81,9 +83,11 @@ protected:
 
     ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
-    FunctionArgumentsDependencies m_calledFunctionsInfo;
+    FunctionSet m_calledFunctions;
+    FunctionCallsArgumentDependencies m_functionCallInfo;
     InstrSet m_inputIndependentInstrs; // for debug purposes only
     InstrDependencyMap m_inputDependentInstrs;
+
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;
 }; // class DependencyAnaliser

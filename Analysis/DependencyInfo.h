@@ -11,42 +11,38 @@ public:
     enum Dependency {
         UNKNOWN,
         INPUT_INDEP,
-        INPUT_DEP,
-        VALUE_DEP
+        VALUE_DEP,
+        INPUT_ARGDEP,
+        INPUT_DEP
     };
 
 
 public:
     DepInfo(Dependency dep = UNKNOWN) 
         : dependency(dep)
-        , intermediateDependency(UNKNOWN)
     {
     }
 
     DepInfo(Dependency dep, ArgumentSet&& args)
         : dependency(dep)
-        , intermediateDependency(UNKNOWN)
         , argumentDependencies(std::move(args))
     {
     }
 
     DepInfo(Dependency dep, const ArgumentSet& args)
         : dependency(dep)
-        , intermediateDependency(UNKNOWN)
         , argumentDependencies(args)
     {
     }
 
     DepInfo(Dependency dep, ValueSet&& values)
         : dependency(dep)
-        , intermediateDependency(UNKNOWN)
         , valueDependencies(std::move(values))
     {
     }
 
     DepInfo(Dependency dep, const ValueSet& values)
         : dependency(dep)
-        , intermediateDependency(UNKNOWN)
         , valueDependencies(values)
     {
     }
@@ -62,6 +58,11 @@ public:
         return dependency == INPUT_INDEP;
     }
 
+    bool isInputArgumentDep() const
+    {
+        return dependency == INPUT_ARGDEP;
+    }
+
     bool isInputDep() const
     {
         return dependency == INPUT_DEP;
@@ -69,7 +70,7 @@ public:
 
     bool isValueDep() const
     {
-        return dependency == VALUE_DEP;
+        return dependency == VALUE_DEP || !valueDependencies.empty();
     }
 
     const Dependency& getDependency() const
@@ -107,11 +108,32 @@ public:
         return valueDependencies;
     }
 
+    void setValueDependencies(const ValueSet& valueDeps)
+    {
+        valueDependencies = valueDeps;
+    }
+
     void setDependency(Dependency dep)
     {
         dependency = dep;
     }
 
+    // for debugging
+    std::string getDependencyName() const
+    {
+        switch (dependency) {
+        case UNKNOWN:
+            return "unknonw";
+        case INPUT_INDEP:
+            return "input independent";
+        case VALUE_DEP:
+            return "value dependent";
+        case INPUT_ARGDEP:
+            return "input argument dependent";
+        case INPUT_DEP:
+            return "input dependent";
+        }
+    }
 public:
     void mergeDependencies(const DepInfo& info)
     {
@@ -132,20 +154,13 @@ public:
         this->valueDependencies.insert(valueDeps.begin(), valueDeps.end());
     }
 
-    void collectIntermediateDependency(Dependency dep)
+    void mergeDependency(Dependency dep)
     {
-        intermediateDependency = std::max(intermediateDependency, dep);
-    }
-
-    void appyIntermediateDependency()
-    {
-        dependency = intermediateDependency;
-        intermediateDependency = UNKNOWN;
+        this->dependency = std::max(this->dependency, dep);
     }
 
 private:
     Dependency dependency;
-    Dependency intermediateDependency;
     ArgumentSet argumentDependencies;
     ValueSet valueDependencies;
 };

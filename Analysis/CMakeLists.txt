@@ -1,16 +1,15 @@
 add_library(InputDependency MODULE
-    # List your source files here.
-    InputDependencyAnalysis.cpp
-    FunctionAnaliser.cpp
     BasicBlockAnalysisResult.cpp
     DependencyAnaliser.cpp
+    FunctionAnaliser.cpp
+    FunctionCallDepInfo.cpp
+    FunctionDOTGraphPrinter.cpp
+    InputDependencyAnalysis.cpp
     LoopAnalysisResult.cpp
     NonDeterministicBasicBlockAnaliser.cpp
-    ReflectingBasicBlockAnaliser.cpp
     NonDeterministicReflectingBasicBlockAnaliser.cpp
+    ReflectingBasicBlockAnaliser.cpp
     Utils.cpp
-    TestPass.cpp
-    FunctionDOTGraphPrinter.cpp
 )
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).

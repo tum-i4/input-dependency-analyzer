@@ -28,10 +28,8 @@ public:
     virtual ~ReflectingBasicBlockAnaliser() = default;
 
 public:
-    void dumpResults() const override; // delete later, will use parent's
-    void reflect(const DependencyAnaliser::ValueDependencies& initialDependencies) override;
-    void reflect(const std::vector<DependencyAnaliser::ValueDependencies>& dependencies,
-                 const DependencyAnaliser::ValueDependencies& initialDependencies) override;
+    //void dumpResults() const override; // delete later, will use parent's
+    void reflect(const DependencyAnaliser::ValueDependencies& dependencies) override;
     bool isReflected() const override
     {
         return m_isReflected;
@@ -53,7 +51,7 @@ private:
     void processInstrForOutputArgs(llvm::Instruction* I) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
-    void updateFunctionCallInfo(llvm::CallInst* callInst, bool isExternalF) override;
+    void updateFunctionCallInfo(llvm::CallInst* callInst) override;
     /// \}
 
 private:
@@ -66,24 +64,19 @@ private:
     void reflectOnOutArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
-    bool reflectOnSingleValue(llvm::Value* value, const DependencyAnaliser::ValueDependencies& initialDependencies);
+    bool reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep);
     void reflectOnDepInfo(llvm::Value* value,
                           DepInfo& depInfoTo,
                           const DepInfo& depInfoFrom,
                           bool eraseAfterReflection = true);
-    void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& initialDependencies);
-    void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,
-                                  const DependencyAnaliser::ValueDependencies& initialDependencies);
-    void addOnValueDependencies(const DependencyAnaliser::ValueDependencies& initialDependencies);
-    void addOnValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,
-                                const DependencyAnaliser::ValueDependencies& initialDependencies);
+    void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies);
+    DepInfo getValueFinalDependencies(llvm::Value* value);
 
 private:
-    std::unordered_map<llvm::Value*, ValueSet> m_valueDependentValues;
     std::unordered_map<llvm::Value*, InstrSet> m_valueDependentInstrs;
     std::unordered_map<llvm::Value*, ArgumentSet> m_valueDependentOutArguments; 
-    using FunctionArgumentMap = std::unordered_map<llvm::Function*, ArgumentSet>;
-    std::unordered_map<llvm::Value*, FunctionArgumentMap> m_valueDependentFunctionArguments;
+    using CallArgumentSet = std::unordered_map<llvm::CallInst*, ArgumentSet>;
+    std::unordered_map<llvm::Value*, CallArgumentSet> m_valueDependentFunctionArguments;
 
     std::unordered_map<llvm::Instruction*, DepInfo> m_instructionValueDependencies;
     bool m_isReflected;

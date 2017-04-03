@@ -23,9 +23,7 @@ public:
     /// \name Abstract interface of reflection
     /// \{
 public:
-    virtual void reflect(const DependencyAnaliser::ValueDependencies& initialDependencies) = 0;
-    virtual void reflect(const std::vector<DependencyAnaliser::ValueDependencies>& dependencies,
-                         const DependencyAnaliser::ValueDependencies& initialDependencies) = 0;
+    virtual void reflect(const DependencyAnaliser::ValueDependencies& dependencies) = 0;
     virtual bool isReflected() const = 0;
     /// \}
 

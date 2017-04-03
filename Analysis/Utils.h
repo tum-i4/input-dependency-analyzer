@@ -11,6 +11,7 @@ public:
     static bool haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& inputNums,
                                  const ArgumentSet& selfNums);
 
+    static ValueSet dissolveInstruction(llvm::Instruction* instr);
 }; // class Utils
 
 } // namespace input_dependency

@@ -35,26 +35,47 @@ public:
 
 private:
     using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
-    using FunctionArgumentsDependencies = DependencyAnaliser::FunctionArgumentsDependencies;
     using PredValDeps = DependencyAnalysisResult::InitialValueDpendencies;
     using PredArgDeps = DependencyAnalysisResult::InitialArgumentDependencies;
     using DependencyAnalysisResultT = std::unique_ptr<DependencyAnalysisResult>;
+    using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, ArgumentDependenciesMap>;
 
 public:
     bool isInputDependent(llvm::Instruction* instr) const;
     bool isOutArgInputDependent(llvm::Argument* arg) const;
-    ArgumentSet getOutArgDependencies(llvm::Argument* arg) const;
+    DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputDependent() const;
-    ArgumentSet getRetValueDependencies() const;
+    const DepInfo& getRetValueDependencies() const;
 
     void analize();
     void finalize(const ArgumentDependenciesMap& dependentArgNos);
     void dump() const;
 
     // Returns collected data for function calls in this function
-    FunctionArgumentsDependencies getCallSitesData() const
+    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const
     {
+        auto pos = m_calledFunctionsInfo.find(F);
+        if (pos == m_calledFunctionsInfo.end()) {
+            const_cast<Impl*>(this)->updateFunctionCallInfo(F);
+        }
+        pos = m_calledFunctionsInfo.find(F);
+        return pos->second;
+    }
+
+    const FunctionArgumentsDependencies& getCallArgumentInfo() const
+    {
+        if (m_calledFunctionsInfo.empty()) {
+            // not finalized yet? should not be called
+            // assert(false)
+            const_cast<Impl*>(this)->updateFunctionCallsInfo();
+        }
         return m_calledFunctionsInfo;
+
+    }
+
+    FunctionSet getCallSitesData() const
+    {
+        return m_calledFunctions;
     }
 
     llvm::Function* getFunction()
@@ -71,7 +92,11 @@ private:
     void collectArguments();
     DependencyAnalysisResultT createBasicBlockAnalysisResult(llvm::BasicBlock* B);
     DepInfo getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const;
-    void updateFunctionCallInfo(llvm::BasicBlock* B);
+    void updateFunctionCallsInfo();
+    void updateFunctionCallInfo(llvm::Function* F);
+    void updateFunctionCallsInfo(llvm::BasicBlock* B);
+    void updateFunctionCallInfo(llvm::BasicBlock* B, llvm::Function* F);
+    void updateCalledFunctionsList(llvm::BasicBlock* B);
     void updateReturnValueDependencies(llvm::BasicBlock* B);
     void updateOutArgumentDependencies(llvm::BasicBlock* B);
     PredValDeps getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
@@ -86,6 +111,7 @@ private:
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
     FunctionArgumentsDependencies m_calledFunctionsInfo;
+    FunctionSet m_calledFunctions;
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
     std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*> m_loopBlocks;
@@ -113,31 +139,30 @@ bool FunctionAnaliser::Impl::isOutArgInputDependent(llvm::Argument* arg) const
     if (pos == m_outArgDependencies.end()) {
         return false;
     }
-    return pos->second.isInputDep();
+    return pos->second.isInputDep() || pos->second.isInputArgumentDep();
 }
 
-ArgumentSet FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
+DepInfo FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
 {
     auto pos = m_outArgDependencies.find(arg);
     if (pos == m_outArgDependencies.end()) {
-        return ArgumentSet();
+        return DepInfo();
     }
-    return pos->second.getArgumentDependencies();
+    return pos->second;
 }
 
 bool FunctionAnaliser::Impl::isReturnValueInputDependent() const
 {
-    return m_returnValueDependencies.isInputDep();
+    return m_returnValueDependencies.isInputDep() || m_returnValueDependencies.isInputArgumentDep();
 }
 
-ArgumentSet FunctionAnaliser::Impl::getRetValueDependencies() const
+const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
 {
-    return m_returnValueDependencies.getArgumentDependencies();
+    return m_returnValueDependencies;
 }
 
 void FunctionAnaliser::Impl::analize()
 {
-    //llvm::dbgs() << "In function " << m_F->getName() << "\n";
     collectArguments();
     auto it = m_F->begin();
     for (; it != m_F->end(); ++it) {
@@ -152,10 +177,9 @@ void FunctionAnaliser::Impl::analize()
             // One option is having one loop analiser, mapped to the header of the loop.
             // Another opetion is mapping all blocks of the loop to the same analiser.
             // this is implementatin of the first option.
-            m_BBAnalysisResults[bb].reset(new LoopAnalysisResult(m_F, m_AAR, m_inputs, m_FAGetter, *m_currentLoop));
+            m_BBAnalysisResults[bb].reset(new LoopAnalysisResult(m_F, m_AAR, m_inputs, m_FAGetter, *m_currentLoop, m_LI));
         } else if (auto loop = m_LI.getLoopFor(bb)) {
             m_loopBlocks[bb] = m_currentLoop->getHeader();
-            //llvm::dbgs() << "skip loop block " << bb->getName() << "\n";
             continue;
         } else {
             //m_currentLoop = nullptr;
@@ -165,7 +189,7 @@ void FunctionAnaliser::Impl::analize()
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
         m_BBAnalysisResults[bb]->gatherResults();
 
-        updateFunctionCallInfo(bb);
+        updateCalledFunctionsList(bb);
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
     }
@@ -176,6 +200,7 @@ void FunctionAnaliser::Impl::finalize(const ArgumentDependenciesMap& dependentAr
 {
     for (auto& item : m_BBAnalysisResults) {
         item.second->finalizeResults(dependentArgs);
+        updateFunctionCallsInfo(item.first);
     }
 }
 
@@ -188,9 +213,6 @@ void FunctionAnaliser::Impl::dump() const
             pos->second->dumpResults();
         }
     }
-//    for (auto& item : m_BBAnalysisResults) {
-//        item.second->dumpResults();
-//    }
 }
 
 void FunctionAnaliser::Impl::collectArguments()
@@ -201,7 +223,7 @@ void FunctionAnaliser::Impl::collectArguments()
                 this->m_inputs.push_back(&arg);
                 llvm::Value* val = llvm::dyn_cast<llvm::Value>(&arg);
                 if (val->getType()->isPointerTy()) {
-                    m_outArgDependencies[&arg] = DepInfo(DepInfo::INPUT_DEP, ArgumentSet{&arg});
+                    m_outArgDependencies[&arg] = DepInfo(DepInfo::INPUT_ARGDEP, ArgumentSet{&arg});
                 }
             });
 }
@@ -210,7 +232,7 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT
 FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
 {
     const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(B);
-    if (depInfo.isInputDep()) {
+    if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
         return DependencyAnalysisResultT(
                 new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_inputs, m_FAGetter, B, depInfo));
     }
@@ -225,21 +247,32 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         auto pb = *pred;
         const auto& termInstr = pb->getTerminator();
         if (termInstr == nullptr) {
-            dep.setDependency(DepInfo::DepInfo::INPUT_DEP);
+            dep.setDependency(DepInfo::DepInfo::INPUT_ARGDEP);
             break;
+        }
+        // if all terminating instructions leading to this block are unconditional, this block will be executed not depending on input.
+        if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
+            if (branchInstr->isUnconditional()) {
+                ++pred;
+                continue;
+            }
         }
 
         auto pos = m_BBAnalysisResults.find(pb);
         if (pos == m_BBAnalysisResults.end()) {
             assert(m_LI.getLoopFor(pb) != nullptr);
+            auto loopHead = m_loopBlocks.find(pb);
+            if (loopHead == m_loopBlocks.end()) {
+                ++pred;
+                continue;
+            }
+            pos = m_BBAnalysisResults.find(loopHead->second);
             //assert(m_currentLoop != nullptr);
             //assert(*pred == m_currentLoop->getLoopLatch());
-            ++pred;
-            continue;
         }
         assert(pos != m_BBAnalysisResults.end());
         if (pos->second->isInputDependent(termInstr)) {
-            dep.setDependency(DepInfo::INPUT_DEP);
+            dep.setDependency(DepInfo::INPUT_ARGDEP);
             dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
         }
         ++pred;
@@ -247,19 +280,64 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
     return dep;
 }
 
-void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::BasicBlock* B)
+void FunctionAnaliser::Impl::updateFunctionCallsInfo()
+{
+    for (const auto& B : m_BBAnalysisResults) {
+        updateFunctionCallsInfo(B.first);
+    }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::Function* F)
+{
+    for (const auto& B : m_BBAnalysisResults) {
+        updateFunctionCallInfo(B.first, F);
+    }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallsInfo(llvm::BasicBlock* B)
 {
     const auto& info = m_BBAnalysisResults[B]->getFunctionsCallInfo();
     for (const auto& item : info) {
-        auto res = m_calledFunctionsInfo.insert(item);
-        if (res.second) {
-            continue;
-        }
-        auto& depMap = res.first->second;
-        for (const auto& depItem : item.second) {
-            depMap[depItem.first].mergeDependencies(depItem.second);
+        auto argDeps = item.second.getMergedDependencies();
+        auto res = m_calledFunctionsInfo.insert(std::make_pair(item.first, argDeps));
+        if (!res.second) {
+            for (auto& deps : res.first->second) {
+                deps.second.mergeDependencies(argDeps[deps.first]);
+            }
         }
     }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::BasicBlock* B, llvm::Function* F)
+{
+    const auto& BA = m_BBAnalysisResults[B];
+    if (!BA->hasFunctionCallInfo(F)) {
+        return;
+    }
+    const auto& info = BA->getFunctionCallInfo(F);
+    auto argDeps = info.getMergedDependencies();
+    auto res = m_calledFunctionsInfo.insert(std::make_pair(F, argDeps));
+    if (!res.second) {
+        for (auto& deps : argDeps) {
+            auto r = res.first->second.insert(deps);
+            if (!r.second) {
+                r.first->second.mergeDependencies(argDeps[r.first->first]);
+            }
+        }
+//        if (res.first->second.empty()) {
+//            res.first->second.insert(argDeps);
+//            return;
+//        }
+//        for (auto& deps : res.first->second) {
+//            deps.second.mergeDependencies(argDeps[deps.first]);
+//        }
+    }
+}
+
+void FunctionAnaliser::Impl::updateCalledFunctionsList(llvm::BasicBlock* B)
+{
+    const auto& calledFunctions = m_BBAnalysisResults[B]->getCallSitesData();
+    m_calledFunctions.insert(calledFunctions.begin(), calledFunctions.end());
 }
 
 void FunctionAnaliser::Impl::updateReturnValueDependencies(llvm::BasicBlock* B)
@@ -290,8 +368,12 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
             assert(m_LI.getLoopFor(*pred) != nullptr);
-            ++pred;
-            continue;
+            auto loopHead = m_loopBlocks.find(*pred);
+            if (loopHead == m_loopBlocks.end()) {
+                ++pred;
+                continue;
+            }
+            pos = m_BBAnalysisResults.find(loopHead->second);
         }
         assert(pos != m_BBAnalysisResults.end());
         const auto& valueDeps = pos->second->getValuesDependencies();
@@ -319,8 +401,12 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
             assert(m_LI.getLoopFor(*pred) != nullptr);
-            ++pred;
-            continue;
+            auto loopHead = m_loopBlocks.find(*pred);
+            if (loopHead == m_loopBlocks.end()) {
+                ++pred;
+                continue;
+            }
+            pos = m_BBAnalysisResults.find(loopHead->second);
         }
         assert(pos != m_BBAnalysisResults.end());
         const auto& argDeps = pos->second->getOutParamsDependencies();
@@ -350,9 +436,15 @@ void FunctionAnaliser::finalize(const DependencyAnaliser::ArgumentDependenciesMa
     m_analiser->finalize(dependentArgNos);
 }
 
-DependencyAnaliser::FunctionArgumentsDependencies FunctionAnaliser::getCallSitesData() const
+FunctionSet FunctionAnaliser::getCallSitesData() const
 {
     return m_analiser->getCallSitesData();
+}
+
+DependencyAnaliser::ArgumentDependenciesMap
+FunctionAnaliser::getCallArgumentInfo(llvm::Function* F) const
+{
+    return m_analiser->getCallArgumentInfo(F);
 }
 
 bool FunctionAnaliser::isInputDependent(llvm::Instruction* instr) const
@@ -370,7 +462,7 @@ bool FunctionAnaliser::isOutArgInputDependent(llvm::Argument* arg) const
     return m_analiser->isOutArgInputDependent(arg);
 }
 
-ArgumentSet FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
+DepInfo FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
 {
     return m_analiser->getOutArgDependencies(arg);
 }
@@ -380,7 +472,7 @@ bool FunctionAnaliser::isReturnValueInputDependent() const
     return m_analiser->isReturnValueInputDependent();
 }
 
-ArgumentSet FunctionAnaliser::getRetValueDependencies() const
+const DepInfo& FunctionAnaliser::getRetValueDependencies() const
 {
     return m_analiser->getRetValueDependencies();
 }

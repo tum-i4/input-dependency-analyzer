@@ -53,20 +53,17 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         for (llvm::CallGraphNode* node : CurSCC) {
             llvm::Function* F = node->getFunction();
             if (F == nullptr || F->isDeclaration() || F->getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage) {
-                if (F != nullptr) {
-                    llvm::dbgs() << "skip function " << F->getName() << "\n";
-                }
                 continue;
             }
-            llvm::dbgs() << "Processing function " << F->getName() << "\n";
+            m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
             auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, FAGetter)));
             assert(res.second);
             auto& analizer = res.first->second;
             analizer.analize();
-            const auto& callInfo = analizer.getCallSitesData();
-            mergeFunctionsCallInfo(callInfo);
+            const auto& calledFunctions = analizer.getCallSitesData();
+            mergeCallSitesData(F, calledFunctions);
         }
         ++CGI;
     }
@@ -89,19 +86,24 @@ void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 // doFinalize is called once
 bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
 {
-    for (auto& item : m_functionsCallInfo) {
-        llvm::dbgs() << "Finalizing " << item.first->getName() << "\n";
-        auto pos = m_functionAnalisers.find(item.first);
-        assert(pos != m_functionAnalisers.end());
-        pos->second.finalize(item.second);
-        //pos->second.dump();
+    //for (const auto& item : m_functionAnalisers) {
+    //    item.second.dump();
+    //}
+
+    for (auto F : m_moduleFunctions) {
+        auto pos = m_functionAnalisers.find(F);
+        if (pos != m_functionAnalisers.end()) {
+            if (m_calleeCallersInfo.find(F) == m_calleeCallersInfo.end()) {
+                continue;
+            }
+            const auto& callInfo = getFunctionCallInfo(F);
+            pos->second.finalize(callInfo);
+        }
     }
-    for (auto& item : m_functionAnalisers) {
-        item.second.dump();
-        //if (item.first->getName() == "main") {
-        //    item.second.dump();
-        //}
-    }
+
+    //for (const auto& item : m_functionAnalisers) {
+    //    item.second.dump();
+    //}
     return true;
 }
 
@@ -122,27 +124,6 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Instruction* instr) const
     return isInputDependent(F, instr);
 }
 
-void InputDependencyAnalysis::mergeFunctionsCallInfo(
-        const DependencyAnaliser::FunctionArgumentsDependencies& newInfo)
-{
-    for (auto& newitem : newInfo) {
-        //llvm::dbgs() << newitem.first->getName() << "\n";
-        auto res = m_functionsCallInfo.insert(newitem);
-        if (res.second) {
-            continue;
-        }
-        for (auto& item : res.first->second) {
-            auto pos = newitem.second.find(item.first);
-            if (pos == newitem.second.end()) {
-                continue;
-            }
-            const auto& newdeps = pos->second.getArgumentDependencies();
-            auto& argumentDeps = item.second.getArgumentDependencies();
-            argumentDeps.insert(newdeps.begin(), newdeps.end());
-        }
-    }
-}
-
 FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)
 {
     auto pos = m_functionAnalisers.find(F);
@@ -161,24 +142,43 @@ const FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function*
     return &pos->second;
 }
 
+void InputDependencyAnalysis::mergeCallSitesData(llvm::Function* caller, const FunctionSet& calledFunctions)
+{
+    for (const auto& F : calledFunctions) {
+        m_calleeCallersInfo[F].insert(caller);
+    }
+}
 
-//static void registerInputSlicePasses(const llvm::PassManagerBuilder&,
-//                                     llvm::legacy::PassManagerBase &PM)
-//{
-//    PM.add(new llvm::TargetLibraryInfoWrapperPass());
-//    PM.add(new llvm::LoopInfoWrapperPass());
-//    PM.add(new InputDependencyAnalysis());
-//}
-//
-//static llvm::RegisterStandardPasses
-//  RegisterMyPass(llvm::PassManagerBuilder::EP_ModuleOptimizerEarly,
-//                 registerInputSlicePasses);
-//
-//static RegisterStandardPasses
-//  RegisterMyPass1(PassManagerBuilder::EP_EnabledOnOptLevel0,
-//                 registerInputSlicePasses);
-//
-//
+void InputDependencyAnalysis::mergeArgumentDependencies(DependencyAnaliser::ArgumentDependenciesMap& mergeTo,
+                                                        const DependencyAnaliser::ArgumentDependenciesMap& mergeFrom)
+{
+    for (const auto item : mergeFrom) {
+        // only input dependent arguments were collected
+        assert(item.second.isInputDep() || item.second.isInputIndep() || item.second.isInputArgumentDep());
+        auto res = mergeTo.insert(item);
+        if (res.second) {
+            continue;
+        }
+        res.first->second.mergeDependencies(item.second);
+        assert(res.first->second.isInputDep() || res.first->second.isInputArgumentDep());
+    }
+}
+
+DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunctionCallInfo(llvm::Function* F)
+{
+    DependencyAnaliser::ArgumentDependenciesMap argDeps;
+    auto pos = m_calleeCallersInfo.find(F);
+    const auto& callers = pos->second;
+    for (const auto& caller : callers) {
+        auto fpos = m_functionAnalisers.find(caller);
+        assert(fpos != m_functionAnalisers.end());
+        auto callInfo = fpos->second.getCallArgumentInfo(F);
+        mergeArgumentDependencies(argDeps, callInfo);
+    }
+
+    return argDeps;
+}
+
 static llvm::RegisterPass<InputDependencyAnalysis> X("input-dep","runs input dependency analysis");
 
 }

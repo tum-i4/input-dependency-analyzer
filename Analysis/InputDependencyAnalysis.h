@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FunctionAnaliser.h"
+#include "definitions.h"
 
 #include "llvm/Pass.h"
 
@@ -19,6 +20,7 @@ class InputDependencyAnalysis : public llvm::ModulePass
 {
 public:
     using InputDependencyAnalysisInfo = std::unordered_map<llvm::Function*, FunctionAnaliser>;
+
 public:
     static char ID;
 
@@ -53,12 +55,20 @@ public:
 
 
 private:
-    void mergeFunctionsCallInfo(const DependencyAnaliser::FunctionArgumentsDependencies& newInfo);
+    using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, DependencyAnaliser::ArgumentDependenciesMap>;
+    void mergeCallSitesData(llvm::Function* caller, const FunctionSet& calledFunctions);
+    void mergeArgumentDependencies(DependencyAnaliser::ArgumentDependenciesMap& mergeTo,
+                                   const DependencyAnaliser::ArgumentDependenciesMap& mergeFrom);
+    DependencyAnaliser::ArgumentDependenciesMap getFunctionCallInfo(llvm::Function* F);
+
 
 private:
     // keep these because function analysis is done with two phases, and need to preserve data
     InputDependencyAnalysisInfo m_functionAnalisers;
-    DependencyAnaliser::FunctionArgumentsDependencies m_functionsCallInfo;
+    FunctionArgumentsDependencies m_functionsCallInfo;
+    CalleeCallersMap m_calleeCallersInfo;
+    // TODO: try to find out how iterate trough cfg in reverse order
+    std::vector<llvm::Function*> m_moduleFunctions;
 };
 
 }

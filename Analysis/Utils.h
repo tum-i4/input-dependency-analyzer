@@ -12,6 +12,8 @@ public:
                                  const ArgumentSet& selfNums);
 
     static ValueSet dissolveInstruction(llvm::Instruction* instr);
+
+    static bool isLibraryFunction(llvm::Function* F, llvm::Module* M);
 }; // class Utils
 
 } // namespace input_dependency

@@ -59,13 +59,17 @@ protected:
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) = 0;
 
-    virtual void updateFunctionCallInfo(llvm::CallInst* callInst);
+    virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst);
     /// \}
 
 protected:
     ArgumentSet isInput(llvm::Value* val) const;
-    void updateCallOutArgDependencies(llvm::CallInst* callInst, bool isExternalF);
+    ArgumentDependenciesMap&& gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
+    void updateCallSiteOutArgDependencies(llvm::CallInst* callInst);
     void updateCallInstructionDependencies(llvm::CallInst* callInst);
+    void updateLibFunctionCallOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
+    void updateInputDepLibFunctionCallOutArgDependencies(llvm::CallInst* callInst);
 
 protected:
     static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,

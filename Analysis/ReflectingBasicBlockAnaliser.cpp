@@ -234,11 +234,11 @@ DepInfo ReflectingBasicBlockAnaliser::determineInstructionDependenciesFromOperan
     return info;
 }
 
-void ReflectingBasicBlockAnaliser::updateFunctionCallInfo(llvm::CallInst* callInst)
+void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst)
 {
     auto F = callInst->getCalledFunction();
     assert(F != nullptr);
-    BasicBlockAnalysisResult::updateFunctionCallInfo(callInst);
+    BasicBlockAnalysisResult::updateFunctionCallSiteInfo(callInst);
     auto pos = m_functionCallInfo.find(F);
     if (pos == m_functionCallInfo.end()) {
         // is this possible?

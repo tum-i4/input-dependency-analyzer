@@ -51,7 +51,7 @@ private:
     void processInstrForOutputArgs(llvm::Instruction* I) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
-    void updateFunctionCallInfo(llvm::CallInst* callInst) override;
+    void updateFunctionCallSiteInfo(llvm::CallInst* callInst) override;
     /// \}
 
 private:

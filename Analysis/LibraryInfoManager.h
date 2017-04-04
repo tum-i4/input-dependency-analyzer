@@ -36,13 +36,11 @@ public:
     const LibFunctionInfo& getLibFunctionInfo(const std::string& funcName) const;
 
 public:
-    void resolveLibFunctionInfo(llvm::Function* F) const;
+    void resolveLibFunctionInfo(llvm::Function* F);
 
 private:
     void addLibFunctionInfo(const LibFunctionInfo& funcInfo);
     void addLibFunctionInfo(LibFunctionInfo&& funcInfo);
-
-    LibFunctionInfo& getLibFunctionInfo(const std::string& funcName);
 
 private:
     LibFunctionInfoMap m_libraryInfo;

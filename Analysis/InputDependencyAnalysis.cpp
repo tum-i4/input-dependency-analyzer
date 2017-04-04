@@ -1,5 +1,7 @@
 #include "InputDependencyAnalysis.h"
 
+#include "Utils.h"
+
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -52,7 +54,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 
         for (llvm::CallGraphNode* node : CurSCC) {
             llvm::Function* F = node->getFunction();
-            if (F == nullptr || F->isDeclaration() || F->getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage) {
+            if (F == nullptr || Utils::isLibraryFunction(F, &M)) {
                 continue;
             }
             m_moduleFunctions.insert(m_moduleFunctions.begin(), F);

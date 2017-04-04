@@ -30,33 +30,18 @@ bool LibraryInfoManager::hasLibFunctionInfo(const std::string& funcName) const
 
 const LibFunctionInfo& LibraryInfoManager::getLibFunctionInfo(const std::string& funcName) const
 {
-    return const_cast<LibraryInfoManager*>(this)->getLibFunctionInfo(funcName);
-}
-
-void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F) const
-{
-    auto& libF = const_cast<LibraryInfoManager*>(this)->getLibFunctionInfo(F->getName());
-    if (libF.isResolved()) {
-        return;
-    }
-    libF.resolve(F);
-}
-
-void LibraryInfoManager::addLibFunctionInfo(const LibFunctionInfo& funcInfo)
-{
-    m_libraryInfo.emplace(funcInfo.getName(), funcInfo);
-}
-
-void LibraryInfoManager::addLibFunctionInfo(LibFunctionInfo&& funcInfo)
-{
-    m_libraryInfo.emplace(std::make_pair(funcInfo.getName(), std::move(funcInfo)));
-}
-
-LibFunctionInfo& LibraryInfoManager::getLibFunctionInfo(const std::string& funcName)
-{
     auto pos = m_libraryInfo.find(funcName);
     assert(pos != m_libraryInfo.end());
     return pos->second;
+}
+
+void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F)
+{
+    const auto& libF = getLibFunctionInfo(F->getName());
+    if (libF.isResolved()) {
+        return;
+    }
+    const_cast<LibFunctionInfo&>(libF).resolve(F);
 }
 
 } // namespace input_dependency

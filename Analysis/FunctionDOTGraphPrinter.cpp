@@ -1,5 +1,7 @@
 #include "FunctionDOTGraphPrinter.h"
 
+#include "Utils.h"
+
 #include "llvm/IR/Function.h"
 #include "llvm/Analysis/CFGPrinter.h"
 #include "llvm/Analysis/CFG.h"
@@ -148,14 +150,11 @@ char FunctionDOTGraphPrinter::ID = 0;
 
 bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
 {
-    if (F.isDeclaration() || F.getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage) {
+    if (Utils::isLibraryFunction(&F, F.getParent())) {
         return false;
     }
     auto& Analysis = getAnalysis<InputDependencyAnalysis>();
 
-    if (F.isDeclaration()) {
-        return false;
-    }
     const FunctionAnaliser* Graph = Analysis.getAnalysisInfo(&F);
     if (Graph == nullptr) {
         llvm::errs() << "Can't find analysis info for function\n";

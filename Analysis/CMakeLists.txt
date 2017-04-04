@@ -5,6 +5,8 @@ add_library(InputDependency MODULE
     FunctionCallDepInfo.cpp
     FunctionDOTGraphPrinter.cpp
     InputDependencyAnalysis.cpp
+    LibFunctionInfo.cpp
+    LibraryInfoManager.cpp
     LoopAnalysisResult.cpp
     NonDeterministicBasicBlockAnaliser.cpp
     NonDeterministicReflectingBasicBlockAnaliser.cpp

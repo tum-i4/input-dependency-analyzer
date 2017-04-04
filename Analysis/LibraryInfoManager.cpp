@@ -1,0 +1,63 @@
+#include "LibFunctionInfo.h"
+#include "LibraryInfoManager.h"
+
+#include "llvm/IR/Function.h"
+
+#include <cassert>
+
+namespace input_dependency {
+
+LibraryInfoManager& LibraryInfoManager::get()
+{
+    static LibraryInfoManager libraryInfo;
+    return libraryInfo;
+}
+
+LibraryInfoManager::LibraryInfoManager()
+{
+    setup();
+}
+
+void LibraryInfoManager::setup()
+{
+    // TODO: create and store info for library functions
+}
+
+bool LibraryInfoManager::hasLibFunctionInfo(const std::string& funcName) const
+{
+    return m_libraryInfo.find(funcName) != m_libraryInfo.end();
+}
+
+const LibFunctionInfo& LibraryInfoManager::getLibFunctionInfo(const std::string& funcName) const
+{
+    return const_cast<LibraryInfoManager*>(this)->getLibFunctionInfo(funcName);
+}
+
+void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F) const
+{
+    auto& libF = const_cast<LibraryInfoManager*>(this)->getLibFunctionInfo(F->getName());
+    if (libF.isResolved()) {
+        return;
+    }
+    libF.resolve(F);
+}
+
+void LibraryInfoManager::addLibFunctionInfo(const LibFunctionInfo& funcInfo)
+{
+    m_libraryInfo.emplace(funcInfo.getName(), funcInfo);
+}
+
+void LibraryInfoManager::addLibFunctionInfo(LibFunctionInfo&& funcInfo)
+{
+    m_libraryInfo.emplace(std::make_pair(funcInfo.getName(), std::move(funcInfo)));
+}
+
+LibFunctionInfo& LibraryInfoManager::getLibFunctionInfo(const std::string& funcName)
+{
+    auto pos = m_libraryInfo.find(funcName);
+    assert(pos != m_libraryInfo.end());
+    return pos->second;
+}
+
+} // namespace input_dependency
+

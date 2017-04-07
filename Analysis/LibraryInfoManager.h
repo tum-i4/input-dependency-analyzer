@@ -28,9 +28,6 @@ private:
     LibraryInfoManager& operator =(const LibraryInfoManager& ) = delete;
     LibraryInfoManager& operator =(LibraryInfoManager&& ) = delete;
 
-private:
-    void setup();
-
 public:
     bool hasLibFunctionInfo(const std::string& funcName) const;
     const LibFunctionInfo& getLibFunctionInfo(const std::string& funcName) const;
@@ -39,6 +36,8 @@ public:
     void resolveLibFunctionInfo(llvm::Function* F);
 
 private:
+    void setup();
+
     void addLibFunctionInfo(const LibFunctionInfo& funcInfo);
     void addLibFunctionInfo(LibFunctionInfo&& funcInfo);
 

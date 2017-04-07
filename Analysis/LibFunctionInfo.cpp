@@ -88,6 +88,12 @@ const LibFunctionInfo::ArgumentDependenciesMap& LibFunctionInfo::getResolvedArgu
     return m_resolvedArgumentDependencies;
 }
 
+const bool LibFunctionInfo::hasResolvedArgument(llvm::Argument* arg) const
+{
+    assert(m_isResolved);
+    return m_resolvedArgumentDependencies.find(arg) != m_resolvedArgumentDependencies.end();
+}
+
 const DepInfo& LibFunctionInfo::getResolvedArgumentDependencies(llvm::Argument* arg) const
 {
     assert(m_isResolved);

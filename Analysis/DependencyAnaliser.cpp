@@ -243,7 +243,7 @@ void DependencyAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst)
     pos->second.addCall(callInst, argDepMap);
 }
 
-DependencyAnaliser::ArgumentDependenciesMap&& DependencyAnaliser::gatherFunctionCallSiteInfo(llvm::CallInst* callInst)
+DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCallSiteInfo(llvm::CallInst* callInst)
 {
     llvm::Function* F = callInst->getCalledFunction();
     ArgumentDependenciesMap argDepMap;
@@ -344,6 +344,9 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::CallInst*
     for (auto& arg : F->getArgumentList()) {
         llvm::Value* val = getFunctionOutArgumentValue(callInst, arg);
         if (val == nullptr) {
+            continue;
+        }
+        if (!libFInfo.hasResolvedArgument(&arg)) {
             continue;
         }
         const auto& libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);

@@ -40,6 +40,7 @@ public:
     const LibArgDepInfo& getArgumentDependencies(int index) const;
     const LibArgDepInfo& getReturnDependency() const;
     const ArgumentDependenciesMap& getResolvedArgumentDependencies() const;
+    const bool hasResolvedArgument(llvm::Argument* arg) const;
     const DepInfo& getResolvedArgumentDependencies(llvm::Argument* arg) const;
     const DepInfo& getResolvedReturnDependency() const;
 

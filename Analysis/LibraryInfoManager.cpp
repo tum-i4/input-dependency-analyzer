@@ -1,5 +1,6 @@
 #include "LibFunctionInfo.h"
 #include "LibraryInfoManager.h"
+#include "CLibraryInfo.h"
 
 #include "llvm/IR/Function.h"
 
@@ -20,7 +21,13 @@ LibraryInfoManager::LibraryInfoManager()
 
 void LibraryInfoManager::setup()
 {
-    // TODO: create and store info for library functions
+    const auto& libFunctionCollector =
+                    [this] (LibFunctionInfo&& libFunctionInfo) {
+                        this->addLibFunctionInfo(std::move(libFunctionInfo));
+                    };
+    // C library functions
+    CLibraryInfo clibInfo(libFunctionCollector);
+    clibInfo.setup();
 }
 
 bool LibraryInfoManager::hasLibFunctionInfo(const std::string& funcName) const
@@ -42,6 +49,16 @@ void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F)
         return;
     }
     const_cast<LibFunctionInfo&>(libF).resolve(F);
+}
+
+void LibraryInfoManager::addLibFunctionInfo(const LibFunctionInfo& funcInfo)
+{
+    m_libraryInfo.emplace(funcInfo.getName(), funcInfo);
+}
+
+void LibraryInfoManager::addLibFunctionInfo(LibFunctionInfo&& funcInfo)
+{
+    m_libraryInfo.emplace(funcInfo.getName(), std::move(funcInfo));
 }
 
 } // namespace input_dependency

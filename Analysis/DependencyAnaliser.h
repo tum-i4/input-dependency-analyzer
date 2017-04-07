@@ -64,7 +64,7 @@ protected:
 
 protected:
     ArgumentSet isInput(llvm::Value* val) const;
-    ArgumentDependenciesMap&& gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
+    ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
     void updateCallSiteOutArgDependencies(llvm::CallInst* callInst);
     void updateCallInstructionDependencies(llvm::CallInst* callInst);
     void updateLibFunctionCallOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);

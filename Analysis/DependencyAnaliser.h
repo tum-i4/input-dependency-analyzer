@@ -47,6 +47,7 @@ protected:
     virtual void processBranchInst(llvm::BranchInst* branchInst);
     virtual void processStoreInst(llvm::StoreInst* storeInst);
     virtual void processCallInst(llvm::CallInst* callInst);
+    virtual void processInvokeInst(llvm::InvokeInst* invokeInst);
     virtual void processInstrForOutputArgs(llvm::Instruction* I);
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
@@ -60,21 +61,42 @@ protected:
     virtual void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) = 0;
 
     virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst);
+    virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst);
     /// \}
 
 protected:
     ArgumentSet isInput(llvm::Value* val) const;
-    ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
+
     void updateCallSiteOutArgDependencies(llvm::CallInst* callInst);
+    void updateInvokeSiteOutArgDependencies(llvm::InvokeInst* invokeInst);
     void updateCallInstructionDependencies(llvm::CallInst* callInst);
-    void updateLibFunctionCallOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
+    void updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst);
+
+    void updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, const ArgumentDependenciesMap& argDepMap);
     void updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
-    void updateInputDepLibFunctionCallOutArgDependencies(llvm::CallInst* callInst);
+    void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& argDepMap);
+
+private:
+    //TODO: make const
+    ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
+    ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst);
+    DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
+
+    using ActuralArgumentGetter = std::function<llvm::Value* (const llvm::Argument& formalArg)>;
+    void updateCallOutArgDependencies(llvm::Function* F,
+                                      const ArgumentDependenciesMap& callArgDeps,
+                                      const ActuralArgumentGetter& actualArgumentGetter);
+    void updateLibFunctionCallOutArgDependencies(llvm::Function* F,
+                                                 const ArgumentDependenciesMap& callArgDeps,
+                                                 const ActuralArgumentGetter& actualArgumentGetter);
+    void updateInputDepLibFunctionCallOutArgDependencies(llvm::Function* F,
+                                                         const DependencyAnaliser::ActuralArgumentGetter& actualArgumentGetter);
 
 protected:
     static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                  const ArgumentDependenciesMap& argDepInfo);
-    static llvm::Value* getFunctionOutArgumentValue(const llvm::CallInst* callInst,
+    static llvm::Value* getFunctionOutArgumentValue(llvm::Value* actualArg,
                                                     const llvm::Argument& arg);
     static llvm::Value* getMemoryValue(llvm::Value* instrOp);
 

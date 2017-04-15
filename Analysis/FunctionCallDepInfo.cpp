@@ -39,19 +39,43 @@ void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const Argument
     assert(res.second);
 }
 
-void FunctionCallDepInfo::addCalls(const FunctionCallDepInfo& callsInfo)
+void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps)
 {
-    for (const auto& callItem : callsInfo) {
+    assert(invokeInst->getCalledFunction() == &m_F);
+    auto res = m_invokesDeps.insert(std::make_pair(invokeInst, deps));
+    assert(res.second);
+}
+
+void FunctionCallDepInfo::addDepInfo(const FunctionCallDepInfo& callsInfo)
+{
+    for (const auto& callItem : callsInfo.getCallsDependencies()) {
         addCall(callItem.first, callItem.second);
     }
+    for (const auto& invokeItem : callsInfo.getInvokesDependencies()) {
+        addInvoke(invokeItem.first, invokeItem.second);
+    }
+}
+
+const FunctionCallDepInfo::CallInstrDepMap& FunctionCallDepInfo::getCallsDependencies() const
+{
+    return m_callsDeps;
+}
+
+const FunctionCallDepInfo::InvokeInstrDepMap& FunctionCallDepInfo::getInvokesDependencies() const
+{
+    return m_invokesDeps;
 }
 
 const FunctionCallDepInfo::ArgumentDependenciesMap&
 FunctionCallDepInfo::getDependenciesForCall(const llvm::CallInst* callInst) const
 {
-    auto pos = m_callsDeps.find(callInst);
-    assert(pos != m_callsDeps.end());
-    return pos->second;
+    return const_cast<FunctionCallDepInfo*>(this)->getDependenciesForCall(callInst);
+}
+
+const FunctionCallDepInfo::ArgumentDependenciesMap&
+FunctionCallDepInfo::getDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const
+{
+    return const_cast<FunctionCallDepInfo*>(this)->getDependenciesForInvoke(invokeInst);
 }
 
 FunctionCallDepInfo::ArgumentDependenciesMap&
@@ -59,6 +83,14 @@ FunctionCallDepInfo::getDependenciesForCall(const llvm::CallInst* callInst)
 {
     auto pos = m_callsDeps.find(callInst);
     assert(pos != m_callsDeps.end());
+    return pos->second;
+}
+
+FunctionCallDepInfo::ArgumentDependenciesMap&
+FunctionCallDepInfo::getDependenciesForInvoke(const llvm::InvokeInst* invokeInst)
+{
+    auto pos = m_invokesDeps.find(invokeInst);
+    assert(pos != m_invokesDeps.end());
     return pos->second;
 }
 
@@ -70,6 +102,11 @@ FunctionCallDepInfo::ArgumentDependenciesMap FunctionCallDepInfo::getMergedDepen
             mergedDeps[argItem.first].mergeDependencies(argItem.second);
         }
     }
+    for (const auto& item : m_invokesDeps) {
+        for (const auto& argItem : item.second) {
+            mergedDeps[argItem.first].mergeDependencies(argItem.second);
+        }
+    }
     return mergedDeps;
 }
 
@@ -77,6 +114,9 @@ void FunctionCallDepInfo::finalize(const ArgumentDependenciesMap& actualDeps)
 {
     for (auto& callItem : m_callsDeps) {
         finalizeDependencies(actualDeps, callItem.second);
+    }
+    for (auto& invokeItem : m_invokesDeps) {
+        finalizeDependencies(actualDeps, invokeItem.second);
     }
 }
 

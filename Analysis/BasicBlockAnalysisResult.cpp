@@ -55,6 +55,8 @@ void BasicBlockAnalysisResult::analize()
             processStoreInst(storeInst);
         } else if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(&I)) {
             processCallInst(callInst);
+        } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
+            processInvokeInst(invokeInst);
         } else {
             processInstruction(&I);
         }

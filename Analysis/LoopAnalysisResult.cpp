@@ -231,8 +231,7 @@ void LoopAnalysisResult::updateFunctionCallInfo()
             if (res.second) {
                 continue;
             }
-            res.first->second.addCalls(callItem.second);
-
+            res.first->second.addDepInfo(callItem.second);
         }
     }
 }
@@ -246,7 +245,7 @@ void LoopAnalysisResult::updateFunctionCallInfo(llvm::Function* F)
         auto callInfo = item.second->getFunctionCallInfo(F);
         auto res = m_functionCallInfo.insert(std::make_pair(F, callInfo));
         if (!res.second) {
-            res.first->second.addCalls(callInfo);
+            res.first->second.addDepInfo(callInfo);
         }
     }
 }

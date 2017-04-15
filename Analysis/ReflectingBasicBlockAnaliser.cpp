@@ -68,7 +68,8 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     }
     assert(m_valueDependentInstrs.empty());
     assert(m_valueDependentOutArguments.empty());
-    assert(m_valueDependentFunctionArguments.empty());
+    assert(m_valueDependentFunctionCallArguments.empty());
+    assert(m_valueDependentFunctionInvokeArguments.empty());
     m_isReflected = true;
 }
 
@@ -251,7 +252,28 @@ void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* ca
             continue;
         }
         for (const auto& val : dep.second.getValueDependencies()) {
-            m_valueDependentFunctionArguments[val][callInst].insert(dep.first);
+            m_valueDependentFunctionCallArguments[val][callInst].insert(dep.first);
+        }
+    }
+}
+
+void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
+{
+    auto F = invokeInst->getCalledFunction();
+    assert(F != nullptr);
+    BasicBlockAnalysisResult::updateFunctionInvokeSiteInfo(invokeInst);
+    auto pos = m_functionCallInfo.find(F);
+    if (pos == m_functionCallInfo.end()) {
+        // is this possible?
+        return;
+    }
+    const auto& dependencies = pos->second.getDependenciesForInvoke(invokeInst);
+    for (const auto& dep : dependencies) {
+        if (!dep.second.isValueDep()) {
+            continue;
+        }
+        for (const auto& val : dep.second.getValueDependencies()) {
+            m_valueDependentFunctionInvokeArguments[val][invokeInst].insert(dep.first);
         }
     }
 }
@@ -270,6 +292,7 @@ void ReflectingBasicBlockAnaliser::reflect(llvm::Value* value, const DepInfo& de
     reflectOnInstructions(value, deps); // need to go trough instructions one more time and add to correspoinding set
     reflectOnOutArguments(value, deps);
     reflectOnCalledFunctionArguments(value, deps);
+    reflectOnInvokedFunctionArguments(value, deps);
     reflectOnReturnValue(value, deps);
 }
 
@@ -313,8 +336,8 @@ void ReflectingBasicBlockAnaliser::reflectOnOutArguments(llvm::Value* value, con
 
 void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo)
 {
-    auto valPos = m_valueDependentFunctionArguments.find(value);
-    if (valPos == m_valueDependentFunctionArguments.end()) {
+    auto valPos = m_valueDependentFunctionCallArguments.find(value);
+    if (valPos == m_valueDependentFunctionCallArguments.end()) {
         return;
     }
 
@@ -331,7 +354,30 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
             // TODO: need to delete if becomes input indep?
         }
     }
-    m_valueDependentFunctionArguments.erase(valPos);
+    m_valueDependentFunctionCallArguments.erase(valPos);
+}
+
+void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value* value, const DepInfo& depInfo)
+{
+    auto valPos = m_valueDependentFunctionInvokeArguments.find(value);
+    if (valPos == m_valueDependentFunctionInvokeArguments.end()) {
+        return;
+    }
+
+    for (const auto& fargs : valPos->second) {
+        auto invokeInst = fargs.first;
+        auto F = invokeInst->getCalledFunction();
+        auto Fpos = m_functionCallInfo.find(F);
+        assert(Fpos != m_functionCallInfo.end());
+        auto& invokeDeps = Fpos->second.getDependenciesForInvoke(invokeInst);
+        for (auto& arg : fargs.second) {
+            auto argPos = invokeDeps.find(arg);
+            assert(argPos != invokeDeps.end());
+            reflectOnDepInfo(value, argPos->second, depInfo);
+            // TODO: need to delete if becomes input indep?
+        }
+    }
+    m_valueDependentFunctionInvokeArguments.erase(valPos);
 }
 
 void ReflectingBasicBlockAnaliser::reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo)

@@ -14,9 +14,10 @@ class Function;
 class Instruction;
 class Module;
 class Value;
-class CallInst;
 class BranchInst;
+class CallInst;
 class LoadInst;
+class InvokeInst;
 class ReturnInst;
 class StoreInst;
 

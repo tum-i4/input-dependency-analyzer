@@ -191,17 +191,35 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
 {
     llvm::Function* F = callInst->getCalledFunction();
     if (F == nullptr) {
+        // This could happen for example when calling virtual functions
         return;
     }
-    //llvm::dbgs() << "Function call " << F->getName() << "\n";
     if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst);
-        updateLibFunctionCallOutArgDependencies(callInst, argDepMap);
+        updateLibFunctionCallInstOutArgDependencies(callInst, argDepMap);
         updateLibFunctionCallInstructionDependencies(callInst, argDepMap);
     } else {
         updateFunctionCallSiteInfo(callInst);
         updateCallSiteOutArgDependencies(callInst);
         updateCallInstructionDependencies(callInst);
+    }
+}
+
+void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
+{
+    llvm::Function* F = invokeInst->getCalledFunction();
+    if (F == nullptr) {
+        // This could happen for example when calling virtual functions
+        return;
+    }
+    if (Utils::isLibraryFunction(F, m_F->getParent())) {
+        const ArgumentDependenciesMap& argDepMap = gatherFunctionInvokeSiteInfo(invokeInst);
+        updateLibFunctionInvokeInstOutArgDependencies(invokeInst, argDepMap);
+        updateLibFunctionInvokeInstructionDependencies(invokeInst, argDepMap);
+    } else {
+        updateFunctionInvokeSiteInfo(invokeInst);
+        updateInvokeSiteOutArgDependencies(invokeInst);
+        updateInvokeInstructionDependencies(invokeInst);
     }
 }
 
@@ -234,71 +252,69 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
 void DependencyAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst)
 {
     auto F = callInst->getCalledFunction();
-    m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
+    auto pos = m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
     m_calledFunctions.insert(F);
 
     const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst);
-    auto pos = m_functionCallInfo.find(F);
-    assert(pos != m_functionCallInfo.end());
-    pos->second.addCall(callInst, argDepMap);
+    pos.first->second.addCall(callInst, argDepMap);
 }
 
-DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCallSiteInfo(llvm::CallInst* callInst)
+void DependencyAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
 {
-    llvm::Function* F = callInst->getCalledFunction();
-    ArgumentDependenciesMap argDepMap;
-    for (unsigned i = 0; i < callInst->getNumArgOperands(); ++i) {
-        llvm::Value* argVal = callInst->getArgOperand(i);
-        if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
-            continue;
-        }
-        DepInfo deps;
-        auto pos = m_valueDependencies.find(argVal);
-        if (pos != m_valueDependencies.end()) {
-            deps = pos->second;
-        } else {
-            auto args = isInput(argVal);
-            if (!args.empty()) {
-                deps = DepInfo(DepInfo::INPUT_ARGDEP, args);
-            } else if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
-                deps = getInstructionDependencies(argInst);
+    auto F = invokeInst->getCalledFunction();
+    auto pos = m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
+    m_calledFunctions.insert(F);
+
+    const ArgumentDependenciesMap& argDepMap = gatherFunctionInvokeSiteInfo(invokeInst);
+    pos.first->second.addInvoke(invokeInst, argDepMap);
+}
+
+ArgumentSet DependencyAnaliser::isInput(llvm::Value* val) const
+{
+    for (auto& arg : m_inputs) {
+        if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
+            if (argVal == val) {
+                return ArgumentSet{arg};
             }
         }
-        if (deps.isInputIndep()) {
-            continue;
-        }
-        auto arg = getFunctionArgument(F, i);
-        argDepMap[arg] = deps;
     }
-    return std::move(argDepMap);
+    ArgumentSet set;
+    for (auto& arg : m_inputs) {
+        if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
+            auto aliasResult = m_AAR.alias(argVal, val);
+            if (aliasResult != llvm::AliasResult::NoAlias) {
+                set.insert(arg);
+            }
+        }
+    }
+    return set;
 }
+
 
 void DependencyAnaliser::updateCallSiteOutArgDependencies(llvm::CallInst* callInst)
 {
     auto F = callInst->getCalledFunction();
-    const FunctionAnaliser* FA = m_FAG(F);
-    assert(FA != nullptr);
-    for (auto& arg : F->getArgumentList()) {
-        llvm::Value* val = getFunctionOutArgumentValue(callInst, arg);
-        if (val == nullptr) {
-            continue;
-        }
-        if (!FA->isOutArgInputDependent(&arg)) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
-            continue;
-        }
-        const auto& argDeps = FA->getOutArgDependencies(&arg);
-        // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
-        if (argDeps.isInputDep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
-            continue;
-        }
-        auto pos = m_functionCallInfo.find(F);
-        assert(pos != m_functionCallInfo.end());
-        auto argDependencies = getArgumentActualDependencies(argDeps.getArgumentDependencies(),
-                                                             pos->second.getDependenciesForCall(callInst));
-        updateValueDependencies(val, argDependencies);
-    }
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    const auto& callArgDeps = pos->second.getDependenciesForCall(callInst);
+
+    const auto& actualArgumentGetter = [&callInst] (const llvm::Argument& formalArg) -> llvm::Value* {
+                                            return callInst->getArgOperand(formalArg.getArgNo());
+                                        };
+    updateCallOutArgDependencies(F, callArgDeps, actualArgumentGetter);
+}
+
+void DependencyAnaliser::updateInvokeSiteOutArgDependencies(llvm::InvokeInst* invokeInst)
+{
+    auto F = invokeInst->getCalledFunction();
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    const auto& invokeArgDeps = pos->second.getDependenciesForInvoke(invokeInst);
+
+    const auto& actualArgumentGetter = [&invokeInst] (const llvm::Argument& formalArg) -> llvm::Value* {
+                                            return invokeInst->getArgOperand(formalArg.getArgNo());
+                                        };
+    updateCallOutArgDependencies(F, invokeArgDeps, actualArgumentGetter);
 }
 
 void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callInst)
@@ -327,38 +343,52 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
     updateInstructionDependencies(callInst, dependencies);
 }
 
-void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::CallInst* callInst,
-                                                                 const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
+void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst)
 {
-    auto F = callInst->getCalledFunction();
-    const auto& Fname = F->getName();
-    auto& libInfo = LibraryInfoManager::get();
-    if (!libInfo.hasLibFunctionInfo(Fname)) {
-        updateInputDepLibFunctionCallOutArgDependencies(callInst);
+    auto F = invokeInst->getCalledFunction();
+    if (F->doesNotReturn()) {
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    libInfo.resolveLibFunctionInfo(F);
-    const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
-    assert(libFInfo.isResolved());
-
-    for (auto& arg : F->getArgumentList()) {
-        llvm::Value* val = getFunctionOutArgumentValue(callInst, arg);
-        if (val == nullptr) {
-            continue;
-        }
-        if (!libFInfo.hasResolvedArgument(&arg)) {
-            continue;
-        }
-        const auto& libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);
-        if (libArgDeps.isInputDep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
-        } else if (libArgDeps.isInputIndep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
-        } else {
-            auto argDependencies = getArgumentActualDependencies(libArgDeps.getArgumentDependencies(), argDepMap);
-            updateValueDependencies(val, argDependencies);
-        }
+    const FunctionAnaliser* FA = m_FAG(F);
+    assert(FA);
+    if (!FA->isReturnValueInputDependent()) {
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
+        return;
     }
+    const auto& retDeps = FA->getRetValueDependencies();
+    if (retDeps.isInputDep()) {
+        // is input dependent, but not dependent on arguments
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        return;
+    }
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    auto dependencies = getArgumentActualDependencies(retDeps.getArgumentDependencies(),
+                                                      pos->second.getDependenciesForInvoke(invokeInst));
+    updateInstructionDependencies(invokeInst, dependencies);
+}
+
+void DependencyAnaliser::updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst,
+                                                                     const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
+{
+    auto F = callInst->getCalledFunction();
+    const auto& actualArgumentGetter = [&callInst] (const llvm::Argument& formalArg) -> llvm::Value* {
+                                            return callInst->getArgOperand(formalArg.getArgNo());
+                                        };
+
+    updateLibFunctionCallOutArgDependencies(F, argDepMap, actualArgumentGetter);
+}
+
+void DependencyAnaliser::updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* invokeInst,
+                                                                       const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
+{
+    auto F = invokeInst->getCalledFunction();
+    const auto& actualArgumentGetter = [&invokeInst] (const llvm::Argument& formalArg) -> llvm::Value* {
+                                            return invokeInst->getArgOperand(formalArg.getArgNo());
+                                        };
+
+    updateLibFunctionCallOutArgDependencies(F, argDepMap, actualArgumentGetter);
 }
 
 void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst,
@@ -383,11 +413,35 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     }
 }
 
-void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(llvm::CallInst* callInst)
+void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst,
+                                                                        const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
-    auto F = callInst->getCalledFunction();
+    auto F = invokeInst->getCalledFunction();
+    const auto& Fname = F->getName();
+    auto& libInfo = LibraryInfoManager::get();
+    if (!libInfo.hasLibFunctionInfo(Fname)) {
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        return;
+    }
+    libInfo.resolveLibFunctionInfo(F);
+    const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
+    assert(libFInfo.isResolved());
+    const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
+    if (libFuncRetDeps.isInputIndep()) {
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
+    } else {
+        auto dependencies = getArgumentActualDependencies(libFuncRetDeps.getArgumentDependencies(), argDepMap);
+        updateInstructionDependencies(invokeInst, dependencies);
+    }
+}
+
+void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
+                                                                llvm::Function* F,
+                                                                const DependencyAnaliser::ActuralArgumentGetter& actualArgumentGetter)
+{
     for (auto& arg : F->getArgumentList()) {
-        llvm::Value* val = getFunctionOutArgumentValue(callInst, arg);
+        llvm::Value* actualArg = actualArgumentGetter(arg);
+        llvm::Value* val = getFunctionOutArgumentValue(actualArg, arg);
         if (val == nullptr) {
             continue;
         }
@@ -395,25 +449,116 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(llvm::C
     }
 }
 
-ArgumentSet DependencyAnaliser::isInput(llvm::Value* val) const
+DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCallSiteInfo(llvm::CallInst* callInst)
 {
-    for (auto& arg : m_inputs) {
-        if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
-            if (argVal == val) {
-                return ArgumentSet{arg};
-            }
+    llvm::Function* F = callInst->getCalledFunction();
+    ArgumentDependenciesMap argDepMap;
+    for (unsigned i = 0; i < callInst->getNumArgOperands(); ++i) {
+        llvm::Value* argVal = callInst->getArgOperand(i);
+        const auto& deps = getArgumentValueDependecnies(argVal);
+        if (!deps.isDefined() || deps.isInputIndep()) {
+            continue;
+        }
+        auto arg = getFunctionArgument(F, i);
+        argDepMap[arg] = deps;
+    }
+    return argDepMap;
+}
+
+DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
+{
+    llvm::Function* F = invokeInst->getCalledFunction();
+    ArgumentDependenciesMap argDepMap;
+    for (unsigned i = 0; i < invokeInst->getNumArgOperands(); ++i) {
+        llvm::Value* argVal = invokeInst->getArgOperand(i);
+        const auto& deps = getArgumentValueDependecnies(argVal);
+        if (!deps.isDefined() || deps.isInputIndep()) {
+            continue;
+        }
+        auto arg = getFunctionArgument(F, i);
+        argDepMap[arg] = deps;
+    }
+    return argDepMap;
+}
+
+DepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+{
+    if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
+        return DepInfo();
+    }
+    auto pos = m_valueDependencies.find(argVal);
+    if (pos != m_valueDependencies.end()) {
+        return pos->second;
+    }
+    auto args = isInput(argVal);
+    if (!args.empty()) {
+        return DepInfo(DepInfo::INPUT_ARGDEP, args);
+    }
+    if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
+        return getInstructionDependencies(argInst);
+    }
+    return DepInfo();
+}
+
+void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
+                                                      const ArgumentDependenciesMap& callArgDeps,
+                                                      const DependencyAnaliser::ActuralArgumentGetter& actualArgumentGetter)
+{
+    const FunctionAnaliser* FA = m_FAG(F);
+    assert(FA != nullptr);
+    for (auto& arg : F->getArgumentList()) {
+        llvm::Value* actualArg = actualArgumentGetter(arg);
+        llvm::Value* val = getFunctionOutArgumentValue(actualArg, arg);
+        if (val == nullptr) {
+            continue;
+        }
+        if (!FA->isOutArgInputDependent(&arg)) {
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+            continue;
+        }
+        const auto& argDeps = FA->getOutArgDependencies(&arg);
+        // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
+        if (argDeps.isInputDep()) {
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            continue;
+        }
+        auto argDependencies = getArgumentActualDependencies(argDeps.getArgumentDependencies(), callArgDeps);
+        updateValueDependencies(val, argDependencies);
+    }
+}
+
+void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function* F,
+                                                                 const ArgumentDependenciesMap& callArgDeps,
+                                                                 const DependencyAnaliser::ActuralArgumentGetter& actualArgumentGetter)
+{
+    const auto& Fname = F->getName();
+    auto& libInfo = LibraryInfoManager::get();
+    if (!libInfo.hasLibFunctionInfo(Fname)) {
+        updateInputDepLibFunctionCallOutArgDependencies(F, actualArgumentGetter);
+        return;
+    }
+    libInfo.resolveLibFunctionInfo(F);
+    const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
+    assert(libFInfo.isResolved());
+    for (auto& arg : F->getArgumentList()) {
+        llvm::Value* actualArg = actualArgumentGetter(arg);
+        llvm::Value* val = getFunctionOutArgumentValue(actualArg, arg);
+        if (val == nullptr) {
+            continue;
+        }
+        if (!libFInfo.hasResolvedArgument(&arg)) {
+            continue;
+        }
+        const auto& libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);
+        if (libArgDeps.isInputDep()) {
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+        } else if (libArgDeps.isInputIndep()) {
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+        } else {
+            auto argDependencies = getArgumentActualDependencies(libArgDeps.getArgumentDependencies(), callArgDeps);
+            updateValueDependencies(val, argDependencies);
         }
     }
-    ArgumentSet set;
-    for (auto& arg : m_inputs) {
-        if (auto* argVal = llvm::dyn_cast<llvm::Value>(arg)) {
-            auto aliasResult = m_AAR.alias(argVal, val);
-            if (aliasResult != llvm::AliasResult::NoAlias) {
-                set.insert(arg);
-            }
-        }
-    }
-    return set;
 }
 
 DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dependencies,
@@ -430,17 +575,16 @@ DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dep
     return info;
 }
 
-llvm::Value* DependencyAnaliser::getFunctionOutArgumentValue(const llvm::CallInst* callInst,
+llvm::Value* DependencyAnaliser::getFunctionOutArgumentValue(llvm::Value* actualArg,
                                                              const llvm::Argument& arg)
 {
     if (!arg.getType()->isPointerTy()) {
         return nullptr;
     }
-    llvm::Value* val = callInst->getArgOperand(arg.getArgNo());
-    if (llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+    if (llvm::dyn_cast<llvm::GlobalVariable>(actualArg)) {
         return nullptr;
     }
-    if (auto* argInstr = llvm::dyn_cast<llvm::Instruction>(val)) {
+    if (auto* argInstr = llvm::dyn_cast<llvm::Instruction>(actualArg)) {
         if (llvm::dyn_cast<llvm::CallInst>(argInstr)) {
             return nullptr;
         }

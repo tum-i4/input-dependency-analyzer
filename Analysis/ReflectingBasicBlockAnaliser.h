@@ -52,6 +52,7 @@ private:
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
     void updateFunctionCallSiteInfo(llvm::CallInst* callInst) override;
+    void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst) override;
     /// \}
 
 private:
@@ -63,6 +64,7 @@ private:
     void reflectOnInstructions(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnOutArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
+    void reflectOnInvokedFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
     bool reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep);
     void reflectOnDepInfo(llvm::Value* value,
@@ -76,7 +78,9 @@ private:
     std::unordered_map<llvm::Value*, InstrSet> m_valueDependentInstrs;
     std::unordered_map<llvm::Value*, ArgumentSet> m_valueDependentOutArguments; 
     using CallArgumentSet = std::unordered_map<llvm::CallInst*, ArgumentSet>;
-    std::unordered_map<llvm::Value*, CallArgumentSet> m_valueDependentFunctionArguments;
+    std::unordered_map<llvm::Value*, CallArgumentSet> m_valueDependentFunctionCallArguments;
+    using InvokeArgumentSet = std::unordered_map<llvm::InvokeInst*, ArgumentSet>;
+    std::unordered_map<llvm::Value*, InvokeArgumentSet> m_valueDependentFunctionInvokeArguments;
 
     std::unordered_map<llvm::Instruction*, DepInfo> m_instructionValueDependencies;
     bool m_isReflected;

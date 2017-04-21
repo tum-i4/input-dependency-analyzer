@@ -18,10 +18,8 @@ class FunctionCallDepInfo
 public:
     using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
     using GlobalVariableDependencyMap = std::unordered_map<llvm::GlobalVariable*, DepInfo>;
-    using CallInstrArgumentDepMap = std::unordered_map<const llvm::CallInst*, ArgumentDependenciesMap>;
-    using InvokeInstrArgumentDepMap = std::unordered_map<const llvm::InvokeInst*, ArgumentDependenciesMap>;
-    using CallInstrGlobalsDepMap = std::unordered_map<const llvm::CallInst*, GlobalVariableDependencyMap>;
-    using InvokeInstrGlobalsDepMap = std::unordered_map<const llvm::InvokeInst*, GlobalVariableDependencyMap>;
+    using CallSiteArgumentsDependenciesMap = std::unordered_map<const llvm::Instruction*, ArgumentDependenciesMap>;
+    using CallSiteGloblasDependenciesMap = std::unordered_map<const llvm::Instruction*, GlobalVariableDependencyMap>;
 
 public:
     FunctionCallDepInfo(const llvm::Function& F);
@@ -33,38 +31,42 @@ public:
     void addInvoke(const llvm::InvokeInst* invokeInst, const GlobalVariableDependencyMap& deps);
     void addDepInfo(const FunctionCallDepInfo& depInfo);
 
-    const CallInstrArgumentDepMap& getCallsDependencies() const;
-    const InvokeInstrArgumentDepMap& getInvokesDependencies() const;
-    const CallInstrGlobalsDepMap& getCallsGlobalsDependencies() const;
-    const InvokeInstrGlobalsDepMap& getInvokesGlobalsDependencies() const;
+    const CallSiteArgumentsDependenciesMap& getCallsArgumentDependencies() const;
+    const CallSiteGloblasDependenciesMap& getCallsGlobalsDependencies() const;
 
-    const ArgumentDependenciesMap& getDependenciesForCall(const llvm::CallInst* callInst) const;
-    const ArgumentDependenciesMap& getDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const;
+    const ArgumentDependenciesMap& getArgumentDependenciesForCall(const llvm::CallInst* callInst) const;
+    const ArgumentDependenciesMap& getArgumentDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const;
     const GlobalVariableDependencyMap& getGlobalsDependenciesForCall(const llvm::CallInst* callInst) const;
     const GlobalVariableDependencyMap& getGlobalsDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const;
 
     // Used in reflection algorithm.
-    ArgumentDependenciesMap& getDependenciesForCall(const llvm::CallInst* callInst);
-    ArgumentDependenciesMap& getDependenciesForInvoke(const llvm::InvokeInst* invokeInst);
+    ArgumentDependenciesMap& getArgumentDependenciesForCall(const llvm::CallInst* callInst);
+    ArgumentDependenciesMap& getArgumentDependenciesForInvoke(const llvm::InvokeInst* invokeInst);
     GlobalVariableDependencyMap& getGlobalsDependenciesForCall(const llvm::CallInst* callInst);
     GlobalVariableDependencyMap& getGlobalsDependenciesForInvoke(const llvm::InvokeInst* invokeInst);
 
-    ArgumentDependenciesMap getMergedDependencies() const;
-    GlobalVariableDependencyMap getGlobalsMergedDependencies() const;
+    ArgumentDependenciesMap getMergedArgumentDependencies() const;
+    GlobalVariableDependencyMap getMergedGlobalsDependencies() const;
 
     /**
     * \brief Finalize call instructions dependencies based on actual dependencies of caller.
     * \param actualDeps Argument dependencies map of caller function.
     */
     void finalizeArgumentDependencies(const ArgumentDependenciesMap& actualDeps);
+
     void finalizeGlobalsDependencies(const GlobalVariableDependencyMap& actualDeps);
 
 private:
+    void addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps);
+    void addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps);
+
+    ArgumentDependenciesMap& getArgumentsDependencies(const llvm::Instruction* instr);
+    GlobalVariableDependencyMap& getGlobalsDependencies(const llvm::Instruction* instr);
+
+private:
     const llvm::Function& m_F;
-    CallInstrArgumentDepMap m_callsDeps;
-    InvokeInstrArgumentDepMap m_invokesDeps;
-    CallInstrGlobalsDepMap m_callsGlobalDeps;
-    InvokeInstrGlobalsDepMap m_invokesGlobalDeps;
+    CallSiteArgumentsDependenciesMap m_callsArgumentsDeps;
+    CallSiteGloblasDependenciesMap m_callsGlobalsDeps;
 };
 
 } // namespace input_dependency

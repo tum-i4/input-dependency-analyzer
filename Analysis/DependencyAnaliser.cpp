@@ -354,7 +354,7 @@ void DependencyAnaliser::updateCallSiteOutArgDependencies(llvm::CallInst* callIn
     auto F = callInst->getCalledFunction();
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    const auto& callArgDeps = pos->second.getDependenciesForCall(callInst);
+    const auto& callArgDeps = pos->second.getArgumentDependenciesForCall(callInst);
 
     const auto& argumentValueGetter = [&callInst] (const llvm::Argument& formalArg) -> llvm::Value* {
                                             return callInst->getArgOperand(formalArg.getArgNo());
@@ -367,7 +367,7 @@ void DependencyAnaliser::updateInvokeSiteOutArgDependencies(llvm::InvokeInst* in
     auto F = invokeInst->getCalledFunction();
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    const auto& invokeArgDeps = pos->second.getDependenciesForInvoke(invokeInst);
+    const auto& invokeArgDeps = pos->second.getArgumentDependenciesForInvoke(invokeInst);
 
     const auto& argumentValueGetter = [&invokeInst] (const llvm::Argument& formalArg) -> llvm::Value* {
                                             return invokeInst->getArgOperand(formalArg.getArgNo());
@@ -401,7 +401,7 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         dependencies = getArgumentActualValueDependencies(retDeps.getValueDependencies());
     }
     dependencies.mergeDependencies(getArgumentActualDependencies(retDeps.getArgumentDependencies(),
-                                                                 pos->second.getDependenciesForCall(callInst)));
+                                                                 pos->second.getArgumentDependenciesForCall(callInst)));
     updateInstructionDependencies(callInst, dependencies);
 }
 
@@ -431,7 +431,7 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
         dependencies = getArgumentActualValueDependencies(retDeps.getValueDependencies());
     }
     dependencies.mergeDependencies(getArgumentActualDependencies(retDeps.getArgumentDependencies(),
-                                                                 pos->second.getDependenciesForInvoke(invokeInst)));
+                                                                 pos->second.getArgumentDependenciesForInvoke(invokeInst)));
     updateInstructionDependencies(invokeInst, dependencies);
 }
 
@@ -441,7 +441,7 @@ void DependencyAnaliser::updateGlobalsAfterFunctionCall(llvm::CallInst* callInst
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    updateGlobalsAfterFunctionExecution(F, pos->second.getDependenciesForCall(callInst));
+    updateGlobalsAfterFunctionExecution(F, pos->second.getArgumentDependenciesForCall(callInst));
 }
 
 void DependencyAnaliser::updateGlobalsAfterFunctionInvoke(llvm::InvokeInst* invokeInst)
@@ -450,7 +450,7 @@ void DependencyAnaliser::updateGlobalsAfterFunctionInvoke(llvm::InvokeInst* invo
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    updateGlobalsAfterFunctionExecution(F, pos->second.getDependenciesForInvoke(invokeInst));
+    updateGlobalsAfterFunctionExecution(F, pos->second.getArgumentDependenciesForInvoke(invokeInst));
 }
 
 void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F, const ArgumentDependenciesMap& functionArgDeps)

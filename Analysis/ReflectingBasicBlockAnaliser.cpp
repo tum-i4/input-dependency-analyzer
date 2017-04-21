@@ -300,7 +300,7 @@ void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallI
         return;
     }
 
-    const auto& dependencies = pos->second.getDependenciesForCall(callInst);
+    const auto& dependencies = pos->second.getArgumentDependenciesForCall(callInst);
     for (const auto& dep : dependencies) {
         if (!dep.second.isValueDep()) {
             continue;
@@ -317,7 +317,7 @@ void ReflectingBasicBlockAnaliser::updateValueDependentInvokeArguments(llvm::Inv
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    const auto& dependencies = pos->second.getDependenciesForInvoke(invokeInst);
+    const auto& dependencies = pos->second.getArgumentDependenciesForInvoke(invokeInst);
     for (const auto& dep : dependencies) {
         if (!dep.second.isValueDep()) {
             continue;
@@ -430,7 +430,7 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
         auto F = callInst->getCalledFunction();
         auto Fpos = m_functionCallInfo.find(F);
         assert(Fpos != m_functionCallInfo.end());
-        auto& callDeps = Fpos->second.getDependenciesForCall(callInst);
+        auto& callDeps = Fpos->second.getArgumentDependenciesForCall(callInst);
         for (auto& arg : fargs.second) {
             auto argPos = callDeps.find(arg);
             assert(argPos != callDeps.end());
@@ -475,7 +475,7 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
         auto F = invokeInst->getCalledFunction();
         auto Fpos = m_functionCallInfo.find(F);
         assert(Fpos != m_functionCallInfo.end());
-        auto& invokeDeps = Fpos->second.getDependenciesForInvoke(invokeInst);
+        auto& invokeDeps = Fpos->second.getArgumentDependenciesForInvoke(invokeInst);
         for (auto& arg : fargs.second) {
             auto argPos = invokeDeps.find(arg);
             assert(argPos != invokeDeps.end());

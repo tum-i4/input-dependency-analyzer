@@ -10,22 +10,6 @@ namespace input_dependency {
 
 namespace {
 
-template<class DepMapType>
-void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualDeps,
-                     DepMapType& toFinalize)
-{
-    auto it = toFinalize.begin();
-    while (it != toFinalize.end()) {
-        if (it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies())) {
-            auto old = it;
-            ++it;
-            toFinalize.erase(old);
-            continue;
-        }
-        ++it;
-    }
-}
-
 DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepInfo>& actualDeps,
                             const ValueSet& valueDeps)
 {
@@ -44,6 +28,21 @@ DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepI
     return resultInfo;
 }
 
+template<class DepMapType>
+void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualDeps,
+                     DepMapType& toFinalize)
+{
+    auto it = toFinalize.begin();
+    while (it != toFinalize.end()) {
+        if (it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies())) {
+            auto old = it;
+            ++it;
+            toFinalize.erase(old);
+            continue;
+        }
+        ++it;
+    }
+}
 
 template<class DepMapType>
 void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap& actualDeps,
@@ -72,132 +71,99 @@ FunctionCallDepInfo::FunctionCallDepInfo(const llvm::Function& F)
 void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const ArgumentDependenciesMap& deps)
 {
     assert(callInst->getCalledFunction() == &m_F);
-    auto res = m_callsDeps.insert(std::make_pair(callInst, deps));
-    assert(res.second);
+    addCallSiteArguments(callInst, deps);
 }
 
 void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps)
 {
     assert(invokeInst->getCalledFunction() == &m_F);
-    auto res = m_invokesDeps.insert(std::make_pair(invokeInst, deps));
-    assert(res.second);
+    addCallSiteArguments(invokeInst, deps);
 }
 
 void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const GlobalVariableDependencyMap& deps)
 {
     assert(callInst->getCalledFunction() == &m_F);
-    auto res = m_callsGlobalDeps.insert(std::make_pair(callInst, deps));
-    assert(res.second);
+    addCallSiteGlobals(callInst, deps);
 }
 
 void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const GlobalVariableDependencyMap& deps)
 {
     assert(invokeInst->getCalledFunction() == &m_F);
-    auto res = m_invokesGlobalDeps.insert(std::make_pair(invokeInst, deps));
-    assert(res.second);
+    addCallSiteGlobals(invokeInst, deps);
 }
 
 void FunctionCallDepInfo::addDepInfo(const FunctionCallDepInfo& callsInfo)
 {
-    for (const auto& callItem : callsInfo.getCallsDependencies()) {
-        addCall(callItem.first, callItem.second);
-    }
-    for (const auto& invokeItem : callsInfo.getInvokesDependencies()) {
-        addInvoke(invokeItem.first, invokeItem.second);
+    for (const auto& callItem : callsInfo.getCallsArgumentDependencies()) {
+        addCallSiteArguments(callItem.first, callItem.second);
     }
     for (const auto& callItem : callsInfo.getCallsGlobalsDependencies()) {
-        addCall(callItem.first, callItem.second);
-    }
-    for (const auto& invokeItem : callsInfo.getInvokesGlobalsDependencies()) {
-        addInvoke(invokeItem.first, invokeItem.second);
+        addCallSiteGlobals(callItem.first, callItem.second);
     }
 }
 
-const FunctionCallDepInfo::CallInstrArgumentDepMap& FunctionCallDepInfo::getCallsDependencies() const
+const FunctionCallDepInfo::CallSiteArgumentsDependenciesMap& FunctionCallDepInfo::getCallsArgumentDependencies() const
 {
-    return m_callsDeps;
+    return m_callsArgumentsDeps;
 }
 
-const FunctionCallDepInfo::InvokeInstrArgumentDepMap& FunctionCallDepInfo::getInvokesDependencies() const
+const FunctionCallDepInfo::CallSiteGloblasDependenciesMap& FunctionCallDepInfo::getCallsGlobalsDependencies() const
 {
-    return m_invokesDeps;
-}
-
-const FunctionCallDepInfo::CallInstrGlobalsDepMap& FunctionCallDepInfo::getCallsGlobalsDependencies() const
-{
-    return m_callsGlobalDeps;
-}
-
-const FunctionCallDepInfo::InvokeInstrGlobalsDepMap& FunctionCallDepInfo::getInvokesGlobalsDependencies() const
-{
-    return m_invokesGlobalDeps;
+    return m_callsGlobalsDeps;
 }
 
 const FunctionCallDepInfo::ArgumentDependenciesMap&
-FunctionCallDepInfo::getDependenciesForCall(const llvm::CallInst* callInst) const
+FunctionCallDepInfo::getArgumentDependenciesForCall(const llvm::CallInst* callInst) const
 {
-    return const_cast<FunctionCallDepInfo*>(this)->getDependenciesForCall(callInst);
+    return const_cast<FunctionCallDepInfo*>(this)->getArgumentsDependencies(callInst);
 }
 
 const FunctionCallDepInfo::ArgumentDependenciesMap&
-FunctionCallDepInfo::getDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const
+FunctionCallDepInfo::getArgumentDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const
 {
-    return const_cast<FunctionCallDepInfo*>(this)->getDependenciesForInvoke(invokeInst);
+    return const_cast<FunctionCallDepInfo*>(this)->getArgumentsDependencies(invokeInst);
 }
 
 const FunctionCallDepInfo::GlobalVariableDependencyMap&
 FunctionCallDepInfo::getGlobalsDependenciesForCall(const llvm::CallInst* callInst) const
 {
-    return const_cast<FunctionCallDepInfo*>(this)->getGlobalsDependenciesForCall(callInst);
+    return const_cast<FunctionCallDepInfo*>(this)->getGlobalsDependencies(callInst);
 }
 
 const FunctionCallDepInfo::GlobalVariableDependencyMap&
 FunctionCallDepInfo::getGlobalsDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const
 {
-    return const_cast<FunctionCallDepInfo*>(this)->getGlobalsDependenciesForInvoke(invokeInst);
+    return const_cast<FunctionCallDepInfo*>(this)->getGlobalsDependencies(invokeInst);
 }
 
 FunctionCallDepInfo::ArgumentDependenciesMap&
-FunctionCallDepInfo::getDependenciesForCall(const llvm::CallInst* callInst)
+FunctionCallDepInfo::getArgumentDependenciesForCall(const llvm::CallInst* callInst)
 {
-    auto pos = m_callsDeps.find(callInst);
-    assert(pos != m_callsDeps.end());
-    return pos->second;
+    return getArgumentsDependencies(callInst);
 }
 
 FunctionCallDepInfo::ArgumentDependenciesMap&
-FunctionCallDepInfo::getDependenciesForInvoke(const llvm::InvokeInst* invokeInst)
+FunctionCallDepInfo::getArgumentDependenciesForInvoke(const llvm::InvokeInst* invokeInst)
 {
-    auto pos = m_invokesDeps.find(invokeInst);
-    assert(pos != m_invokesDeps.end());
-    return pos->second;
+    return getArgumentsDependencies(invokeInst);
 }
 
 FunctionCallDepInfo::GlobalVariableDependencyMap&
 FunctionCallDepInfo::getGlobalsDependenciesForCall(const llvm::CallInst* callInst)
 {
-    auto pos = m_callsGlobalDeps.find(callInst);
-    assert(pos != m_callsGlobalDeps.end());
-    return pos->second;
+    return getGlobalsDependencies(callInst);
 }
 
 FunctionCallDepInfo::GlobalVariableDependencyMap&
 FunctionCallDepInfo::getGlobalsDependenciesForInvoke(const llvm::InvokeInst* invokeInst)
 {
-    auto pos = m_invokesGlobalDeps.find(invokeInst);
-    assert(pos != m_invokesGlobalDeps.end());
-    return pos->second;
+    return getGlobalsDependencies(invokeInst);
 }
 
-FunctionCallDepInfo::ArgumentDependenciesMap FunctionCallDepInfo::getMergedDependencies() const
+FunctionCallDepInfo::ArgumentDependenciesMap FunctionCallDepInfo::getMergedArgumentDependencies() const
 {
     ArgumentDependenciesMap mergedDeps;
-    for (const auto& item : m_callsDeps) {
-        for (const auto& argItem : item.second) {
-            mergedDeps[argItem.first].mergeDependencies(argItem.second);
-        }
-    }
-    for (const auto& item : m_invokesDeps) {
+    for (const auto& item : m_callsArgumentsDeps) {
         for (const auto& argItem : item.second) {
             mergedDeps[argItem.first].mergeDependencies(argItem.second);
         }
@@ -206,15 +172,10 @@ FunctionCallDepInfo::ArgumentDependenciesMap FunctionCallDepInfo::getMergedDepen
 }
 
 
-FunctionCallDepInfo::GlobalVariableDependencyMap FunctionCallDepInfo::getGlobalsMergedDependencies() const
+FunctionCallDepInfo::GlobalVariableDependencyMap FunctionCallDepInfo::getMergedGlobalsDependencies() const
 {
     GlobalVariableDependencyMap mergedDeps;
-    for (const auto& item : m_callsGlobalDeps) {
-        for (const auto& globalItem : item.second) {
-            mergedDeps[globalItem.first].mergeDependencies(globalItem.second);
-        }
-    }
-    for (const auto& item : m_invokesGlobalDeps) {
+    for (const auto& item : m_callsGlobalsDeps) {
         for (const auto& globalItem : item.second) {
             mergedDeps[globalItem.first].mergeDependencies(globalItem.second);
         }
@@ -224,35 +185,50 @@ FunctionCallDepInfo::GlobalVariableDependencyMap FunctionCallDepInfo::getGlobals
 
 void FunctionCallDepInfo::finalizeArgumentDependencies(const ArgumentDependenciesMap& actualDeps)
 {
-    for (auto& callItem : m_callsDeps) {
+    for (auto& callItem : m_callsArgumentsDeps) {
         finalizeArgDeps(actualDeps, callItem.second);
     }
-    for (auto& invokeItem : m_invokesDeps) {
-        finalizeArgDeps(actualDeps, invokeItem.second);
-    }
-    for (auto& callItem : m_callsGlobalDeps) {
+    for (auto& callItem : m_callsGlobalsDeps) {
         finalizeArgDeps(actualDeps, callItem.second);
-    }
-    for (auto& invokeItem : m_invokesGlobalDeps) {
-        finalizeArgDeps(actualDeps, invokeItem.second);
     }
 }
 
 void FunctionCallDepInfo::finalizeGlobalsDependencies(const GlobalVariableDependencyMap& actualDeps)
 {
-    for (auto& callItem : m_callsDeps) {
+    for (auto& callItem : m_callsArgumentsDeps) {
         finalizeGlobalsDeps(actualDeps, callItem.second);
     }
-    for (auto& invokeItem : m_invokesDeps) {
-        finalizeGlobalsDeps(actualDeps, invokeItem.second);
-    }
-    for (auto& callItem : m_callsGlobalDeps) {
+    for (auto& callItem : m_callsGlobalsDeps) {
         finalizeGlobalsDeps(actualDeps, callItem.second);
-    }
-    for (auto& invokeItem : m_invokesGlobalDeps) {
-        finalizeGlobalsDeps(actualDeps, invokeItem.second);
     }
 }
+
+void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps)
+{
+    auto res = m_callsArgumentsDeps.insert(std::make_pair(instr, argDeps));
+    assert(res.second);
+}
+
+void FunctionCallDepInfo::addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps)
+{
+    auto res = m_callsGlobalsDeps.insert(std::make_pair(instr, globalDeps));
+    assert(res.second);
+}
+
+FunctionCallDepInfo::ArgumentDependenciesMap& FunctionCallDepInfo::getArgumentsDependencies(const llvm::Instruction* instr)
+{
+    auto pos = m_callsArgumentsDeps.find(instr);
+    assert(pos != m_callsArgumentsDeps.end());
+    return pos->second;
+}
+
+FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobalsDependencies(const llvm::Instruction* instr)
+{
+    auto pos = m_callsGlobalsDeps.find(instr);
+    assert(pos != m_callsGlobalsDeps.end());
+    return pos->second;
+}
+
 
 }
 

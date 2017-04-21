@@ -139,9 +139,12 @@ bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
         finalizeForArguments(F, pos->second);
     }
 
-    //for (const auto& item : m_functionAnalisers) {
-    //    item.second.dump();
-    //}
+    for (const auto& F : m_moduleFunctions) {
+        auto pos = m_functionAnalisers.find(F);
+        if (pos != m_functionAnalisers.end()) {
+            pos->second.dump();
+        }
+    }
     return true;
 }
 

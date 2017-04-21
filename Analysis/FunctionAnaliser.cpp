@@ -372,7 +372,7 @@ void FunctionAnaliser::Impl::updateFunctionCallsInfo(llvm::BasicBlock* B)
 {
     const auto& info = m_BBAnalysisResults[B]->getFunctionsCallInfo();
     for (const auto& item : info) {
-        auto argDeps = item.second.getMergedDependencies();
+        auto argDeps = item.second.getMergedArgumentDependencies();
         auto res = m_calledFunctionsInfo.insert(std::make_pair(item.first, argDeps));
         if (!res.second) {
             for (auto& deps : res.first->second) {
@@ -389,7 +389,7 @@ void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::BasicBlock* B, llvm::F
         return;
     }
     const auto& info = BA->getFunctionCallInfo(F);
-    auto argDeps = info.getMergedDependencies();
+    auto argDeps = info.getMergedArgumentDependencies();
     auto res = m_calledFunctionsInfo.insert(std::make_pair(F, argDeps));
     if (!res.second) {
         for (auto& deps : argDeps) {
@@ -405,7 +405,7 @@ void FunctionAnaliser::Impl::updateFunctionCallsGlobalsInfo(llvm::BasicBlock* B)
 {
     const auto& info = m_BBAnalysisResults[B]->getFunctionsCallInfo();
     for (const auto& item : info) {
-        auto globalsDeps = item.second.getGlobalsMergedDependencies();
+        auto globalsDeps = item.second.getMergedGlobalsDependencies();
         auto res = m_calledFunctionGlobalsInfo.insert(std::make_pair(item.first, globalsDeps));
         if (!res.second) {
             for (auto& deps : res.first->second) {
@@ -422,7 +422,7 @@ void FunctionAnaliser::Impl::updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, 
         return;
     }
     const auto& info = BA->getFunctionCallInfo(F);
-    auto globalsDeps = info.getGlobalsMergedDependencies();
+    auto globalsDeps = info.getMergedGlobalsDependencies();
     auto res = m_calledFunctionGlobalsInfo.insert(std::make_pair(F, globalsDeps));
     if (!res.second) {
         for (auto& deps : globalsDeps) {

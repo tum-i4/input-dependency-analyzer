@@ -30,48 +30,37 @@ public:
         , m_AAR(AAR)
         , m_LI(LI)
         , m_FAGetter(getter)
+        , m_globalsUpdated(false)
     {
     }
 
 private:
     using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
+    using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
     using PredValDeps = DependencyAnalysisResult::InitialValueDpendencies;
     using PredArgDeps = DependencyAnalysisResult::InitialArgumentDependencies;
     using DependencyAnalysisResultT = std::unique_ptr<DependencyAnalysisResult>;
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, ArgumentDependenciesMap>;
+    using FunctionGlobalsDependencies = std::unordered_map<llvm::Function*, GlobalVariableDependencyMap>;
 
 public:
     bool isInputDependent(llvm::Instruction* instr) const;
-    bool isOutArgInputDependent(llvm::Argument* arg) const;
+    bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
-    bool isReturnValueInputDependent() const;
+    bool isReturnValueInputIndependent() const;
     const DepInfo& getRetValueDependencies() const;
+    bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
+    const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    // Returns collected data for function calls in this function
+    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
+    const DependencyAnaliser::GlobalVariableDependencyMap& getCallGlobalsInfo(llvm::Function* F) const;
+    const GlobalsSet& getReferencedGlobals() const;
+    const GlobalsSet& getModifiedGlobals() const;
 
     void analize();
-    void finalize(const ArgumentDependenciesMap& dependentArgNos);
+    void finalizeArguments(const ArgumentDependenciesMap& dependentArgNos);
+    void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps);
     void dump() const;
-
-    // Returns collected data for function calls in this function
-    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const
-    {
-        auto pos = m_calledFunctionsInfo.find(F);
-        if (pos == m_calledFunctionsInfo.end()) {
-            const_cast<Impl*>(this)->updateFunctionCallInfo(F);
-        }
-        pos = m_calledFunctionsInfo.find(F);
-        return pos->second;
-    }
-
-    const FunctionArgumentsDependencies& getCallArgumentInfo() const
-    {
-        if (m_calledFunctionsInfo.empty()) {
-            // not finalized yet? should not be called
-            // assert(false)
-            const_cast<Impl*>(this)->updateFunctionCallsInfo();
-        }
-        return m_calledFunctionsInfo;
-
-    }
 
     FunctionSet getCallSitesData() const
     {
@@ -92,13 +81,20 @@ private:
     void collectArguments();
     DependencyAnalysisResultT createBasicBlockAnalysisResult(llvm::BasicBlock* B);
     DepInfo getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const;
-    void updateFunctionCallsInfo();
+
     void updateFunctionCallInfo(llvm::Function* F);
     void updateFunctionCallsInfo(llvm::BasicBlock* B);
     void updateFunctionCallInfo(llvm::BasicBlock* B, llvm::Function* F);
+    void updateFunctionCallGlobalsInfo(llvm::Function* F);
+    void updateFunctionCallsGlobalsInfo(llvm::BasicBlock* B);
+    void updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, llvm::Function* F);
+
     void updateCalledFunctionsList(llvm::BasicBlock* B);
     void updateReturnValueDependencies(llvm::BasicBlock* B);
     void updateOutArgumentDependencies(llvm::BasicBlock* B);
+    void updateGlobals();
+    void updateReferencedGlobals();
+    void updateModifiedGlobals();
     PredValDeps getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     PredArgDeps getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
 
@@ -111,7 +107,11 @@ private:
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
     FunctionArgumentsDependencies m_calledFunctionsInfo;
+    FunctionGlobalsDependencies m_calledFunctionGlobalsInfo;
     FunctionSet m_calledFunctions;
+    GlobalsSet m_referencedGlobals;
+    GlobalsSet m_modifiedGlobals;
+    bool m_globalsUpdated;
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
     std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*> m_loopBlocks;
@@ -133,13 +133,13 @@ bool FunctionAnaliser::Impl::isInputDependent(llvm::Instruction* instr) const
     return pos->second->isInputDependent(instr);
 }
 
-bool FunctionAnaliser::Impl::isOutArgInputDependent(llvm::Argument* arg) const
+bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
 {
     auto pos = m_outArgDependencies.find(arg);
     if (pos == m_outArgDependencies.end()) {
-        return false;
+        return true;
     }
-    return pos->second.isInputDep() || pos->second.isInputArgumentDep();
+    return pos->second.isInputIndep();
 }
 
 DepInfo FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
@@ -151,14 +151,74 @@ DepInfo FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
     return pos->second;
 }
 
-bool FunctionAnaliser::Impl::isReturnValueInputDependent() const
+bool FunctionAnaliser::Impl::isReturnValueInputIndependent() const
 {
-    return m_returnValueDependencies.isInputDep() || m_returnValueDependencies.isInputArgumentDep();
+    return m_returnValueDependencies.isInputIndep();
 }
 
 const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
 {
     return m_returnValueDependencies;
+}
+
+bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const
+{
+    auto& lastBB = m_F->back();
+    const auto& pos = m_BBAnalysisResults.find(&lastBB);
+    assert(pos != m_BBAnalysisResults.end());
+    llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
+    assert(val != nullptr);
+    return pos->second->hasValueDependencyInfo(val);
+}
+
+const DepInfo& FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
+{
+    auto& lastBB = m_F->back();
+    const auto& pos = m_BBAnalysisResults.find(&lastBB);
+    assert(pos != m_BBAnalysisResults.end());
+    llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
+    assert(val != nullptr);
+    return pos->second->getValueDependencyInfo(val);
+}
+
+const DependencyAnaliser::ArgumentDependenciesMap&
+FunctionAnaliser::Impl::getCallArgumentInfo(llvm::Function* F) const
+{
+    auto pos = m_calledFunctionsInfo.find(F);
+    if (pos == m_calledFunctionsInfo.end()) {
+        const_cast<Impl*>(this)->updateFunctionCallInfo(F);
+    }
+    pos = m_calledFunctionsInfo.find(F);
+    return pos->second;
+}
+
+const DependencyAnaliser::GlobalVariableDependencyMap&
+FunctionAnaliser::Impl::getCallGlobalsInfo(llvm::Function* F) const
+{
+    auto pos = m_calledFunctionGlobalsInfo.find(F);
+    if (pos == m_calledFunctionGlobalsInfo.end()) {
+        const_cast<Impl*>(this)->updateFunctionCallGlobalsInfo(F);
+    }
+    pos = m_calledFunctionGlobalsInfo.find(F);
+    return pos->second;
+}
+
+const GlobalsSet& FunctionAnaliser::Impl::getReferencedGlobals() const
+{
+    if (!m_globalsUpdated) {
+        assert(m_referencedGlobals.empty());
+        const_cast<Impl*>(this)->updateGlobals();
+    }
+    return m_referencedGlobals;
+}
+
+const GlobalsSet& FunctionAnaliser::Impl::getModifiedGlobals() const
+{
+    if (!m_globalsUpdated) {
+        assert(m_modifiedGlobals.empty());
+        const_cast<Impl*>(this)->updateGlobals();
+    }
+    return m_modifiedGlobals;
 }
 
 void FunctionAnaliser::Impl::analize()
@@ -196,11 +256,21 @@ void FunctionAnaliser::Impl::analize()
     m_inputs.clear();
 }
 
-void FunctionAnaliser::Impl::finalize(const ArgumentDependenciesMap& dependentArgs)
+void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& dependentArgs)
 {
+    m_calledFunctionsInfo.clear();
+    m_calledFunctionGlobalsInfo.clear();
     for (auto& item : m_BBAnalysisResults) {
         item.second->finalizeResults(dependentArgs);
         updateFunctionCallsInfo(item.first);
+        updateFunctionCallsGlobalsInfo(item.first);
+    }
+}
+
+void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
+{
+    for (auto& item : m_BBAnalysisResults) {
+        item.second->finalizeGlobals(globalsDeps);
     }
 }
 
@@ -250,6 +320,11 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             dep.setDependency(DepInfo::DepInfo::INPUT_ARGDEP);
             break;
         }
+        // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
+        if (m_LI.getLoopFor(pb) != nullptr) {
+            ++pred;
+            continue;
+        }
         // if all terminating instructions leading to this block are unconditional, this block will be executed not depending on input.
         if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
             if (branchInstr->isUnconditional()) {
@@ -261,36 +336,35 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         auto pos = m_BBAnalysisResults.find(pb);
         if (pos == m_BBAnalysisResults.end()) {
             assert(m_LI.getLoopFor(pb) != nullptr);
-            auto loopHead = m_loopBlocks.find(pb);
-            if (loopHead == m_loopBlocks.end()) {
-                ++pred;
-                continue;
-            }
-            pos = m_BBAnalysisResults.find(loopHead->second);
-            //assert(m_currentLoop != nullptr);
-            //assert(*pred == m_currentLoop->getLoopLatch());
+            ++pred;
+            // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
+            continue;
+            
+            //auto loopHead = m_loopBlocks.find(pb);
+            //if (loopHead == m_loopBlocks.end()) {
+            //    ++pred;
+            //    continue;
+            //}
+            //pos = m_BBAnalysisResults.find(loopHead->second);
         }
         assert(pos != m_BBAnalysisResults.end());
-        if (pos->second->isInputDependent(termInstr)) {
-            dep.setDependency(DepInfo::INPUT_ARGDEP);
-            dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
-        }
+        dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
         ++pred;
     }
     return dep;
-}
-
-void FunctionAnaliser::Impl::updateFunctionCallsInfo()
-{
-    for (const auto& B : m_BBAnalysisResults) {
-        updateFunctionCallsInfo(B.first);
-    }
 }
 
 void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::Function* F)
 {
     for (const auto& B : m_BBAnalysisResults) {
         updateFunctionCallInfo(B.first, F);
+    }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallGlobalsInfo(llvm::Function* F)
+{
+    for (const auto& B : m_BBAnalysisResults) {
+        updateFunctionCallGlobalsInfo(B.first, F);
     }
 }
 
@@ -324,13 +398,39 @@ void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::BasicBlock* B, llvm::F
                 r.first->second.mergeDependencies(argDeps[r.first->first]);
             }
         }
-//        if (res.first->second.empty()) {
-//            res.first->second.insert(argDeps);
-//            return;
-//        }
-//        for (auto& deps : res.first->second) {
-//            deps.second.mergeDependencies(argDeps[deps.first]);
-//        }
+    }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallsGlobalsInfo(llvm::BasicBlock* B)
+{
+    const auto& info = m_BBAnalysisResults[B]->getFunctionsCallInfo();
+    for (const auto& item : info) {
+        auto globalsDeps = item.second.getGlobalsMergedDependencies();
+        auto res = m_calledFunctionGlobalsInfo.insert(std::make_pair(item.first, globalsDeps));
+        if (!res.second) {
+            for (auto& deps : res.first->second) {
+                deps.second.mergeDependencies(globalsDeps[deps.first]);
+            }
+        }
+    }
+}
+
+void FunctionAnaliser::Impl::updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, llvm::Function* F)
+{
+    const auto& BA = m_BBAnalysisResults[B];
+    if (!BA->hasFunctionCallInfo(F)) {
+        return;
+    }
+    const auto& info = BA->getFunctionCallInfo(F);
+    auto globalsDeps = info.getGlobalsMergedDependencies();
+    auto res = m_calledFunctionGlobalsInfo.insert(std::make_pair(F, globalsDeps));
+    if (!res.second) {
+        for (auto& deps : globalsDeps) {
+            auto r = res.first->second.insert(deps);
+            if (!r.second) {
+                r.first->second.mergeDependencies(globalsDeps[r.first->first]);
+            }
+        }
     }
 }
 
@@ -356,6 +456,29 @@ void FunctionAnaliser::Impl::updateOutArgumentDependencies(llvm::BasicBlock* B)
         auto pos = m_outArgDependencies.find(item.first);
         assert(pos != m_outArgDependencies.end());
         pos->second = item.second;
+    }
+}
+
+void FunctionAnaliser::Impl::updateGlobals()
+{
+    updateReferencedGlobals();
+    updateModifiedGlobals();
+    m_globalsUpdated = true;
+}
+
+void FunctionAnaliser::Impl::updateReferencedGlobals()
+{
+    for (const auto& BB : m_BBAnalysisResults) {
+        const auto& refGlobals = BB.second->getReferencedGlobals();
+        m_referencedGlobals.insert(refGlobals.begin(), refGlobals.end());
+    }
+}
+
+void FunctionAnaliser::Impl::updateModifiedGlobals()
+{
+    for (const auto& BB : m_BBAnalysisResults) {
+        const auto& modGlobals = BB.second->getModifiedGlobals();
+        m_modifiedGlobals.insert(modGlobals.begin(), modGlobals.end());
     }
 }
 
@@ -431,9 +554,14 @@ void FunctionAnaliser::analize()
     m_analiser->analize();
 }
 
-void FunctionAnaliser::finalize(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgNos)
+void FunctionAnaliser::finalizeArguments(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgNos)
 {
-    m_analiser->finalize(dependentArgNos);
+    m_analiser->finalizeArguments(dependentArgNos);
+}
+
+void FunctionAnaliser::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
+{
+    m_analiser->finalizeGlobals(globalsDeps);
 }
 
 FunctionSet FunctionAnaliser::getCallSitesData() const
@@ -447,6 +575,12 @@ FunctionAnaliser::getCallArgumentInfo(llvm::Function* F) const
     return m_analiser->getCallArgumentInfo(F);
 }
 
+DependencyAnaliser::GlobalVariableDependencyMap
+FunctionAnaliser::getCallGlobalsInfo(llvm::Function* F) const
+{
+    return m_analiser->getCallGlobalsInfo(F);
+}
+
 bool FunctionAnaliser::isInputDependent(llvm::Instruction* instr) const
 {
     return m_analiser->isInputDependent(instr);
@@ -457,9 +591,9 @@ bool FunctionAnaliser::isInputDependent(const llvm::Instruction* instr) const
     return m_analiser->isInputDependent(const_cast<llvm::Instruction*>(instr));
 }
 
-bool FunctionAnaliser::isOutArgInputDependent(llvm::Argument* arg) const
+bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const
 {
-    return m_analiser->isOutArgInputDependent(arg);
+    return m_analiser->isOutArgInputIndependent(arg);
 }
 
 DepInfo FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
@@ -467,14 +601,34 @@ DepInfo FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
     return m_analiser->getOutArgDependencies(arg);
 }
 
-bool FunctionAnaliser::isReturnValueInputDependent() const
+bool FunctionAnaliser::isReturnValueInputIndependent() const
 {
-    return m_analiser->isReturnValueInputDependent();
+    return m_analiser->isReturnValueInputIndependent();
 }
 
 const DepInfo& FunctionAnaliser::getRetValueDependencies() const
 {
     return m_analiser->getRetValueDependencies();
+}
+
+bool FunctionAnaliser::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const
+{
+    return m_analiser->hasGlobalVariableDepInfo(global);
+}
+
+const DepInfo& FunctionAnaliser::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
+{
+    return m_analiser->getGlobalVariableDependencies(global);
+}
+
+const GlobalsSet& FunctionAnaliser::getReferencedGlobals() const
+{
+    return m_analiser->getReferencedGlobals();
+}
+
+const GlobalsSet& FunctionAnaliser::getModifiedGlobals() const
+{
+    return m_analiser->getModifiedGlobals();
 }
 
 void FunctionAnaliser::dump() const

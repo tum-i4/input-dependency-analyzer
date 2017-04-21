@@ -14,7 +14,8 @@ class DependencyAnaliser
 {
 public:
     using ValueDependencies = std::unordered_map<llvm::Value*, DepInfo>;
-    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
+    using ArgumentDependenciesMap = FunctionCallDepInfo::ArgumentDependenciesMap;
+    using GlobalVariableDependencyMap = FunctionCallDepInfo::GlobalVariableDependencyMap;
     using FunctionCallsArgumentDependencies = std::unordered_map<llvm::Function*, FunctionCallDepInfo>;
     using InstrDependencyMap = std::unordered_map<llvm::Instruction*, DepInfo>;
 
@@ -36,6 +37,7 @@ public:
 public:
     virtual void analize() = 0;
     virtual void finalize(const ArgumentDependenciesMap& dependentArgs);
+    virtual void finalize(const GlobalVariableDependencyMap& globalDeps);
     virtual void dump() const;
     /// \}
 
@@ -71,6 +73,9 @@ protected:
     void updateInvokeSiteOutArgDependencies(llvm::InvokeInst* invokeInst);
     void updateCallInstructionDependencies(llvm::CallInst* callInst);
     void updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst);
+    void updateGlobalsAfterFunctionCall(llvm::CallInst* callInst);
+    void updateGlobalsAfterFunctionInvoke(llvm::InvokeInst* invokeInst);
+    void updateGlobalsAfterFunctionExecution(llvm::Function* F, const ArgumentDependenciesMap& functionArgDeps);
 
     void updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
     void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, const ArgumentDependenciesMap& argDepMap);
@@ -81,23 +86,28 @@ private:
     //TODO: make const
     ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
     ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst);
+    GlobalVariableDependencyMap gatherGlobalsForFunctionCall(llvm::Function* F);
     DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
 
-    using ActuralArgumentGetter = std::function<llvm::Value* (const llvm::Argument& formalArg)>;
+    using ArgumentValueGetter = std::function<llvm::Value* (const llvm::Argument& formalArg)>;
     void updateCallOutArgDependencies(llvm::Function* F,
                                       const ArgumentDependenciesMap& callArgDeps,
-                                      const ActuralArgumentGetter& actualArgumentGetter);
+                                      const ArgumentValueGetter& actualArgumentGetter);
     void updateLibFunctionCallOutArgDependencies(llvm::Function* F,
                                                  const ArgumentDependenciesMap& callArgDeps,
-                                                 const ActuralArgumentGetter& actualArgumentGetter);
+                                                 const ArgumentValueGetter& actualArgumentGetter);
     void updateInputDepLibFunctionCallOutArgDependencies(llvm::Function* F,
-                                                         const DependencyAnaliser::ActuralArgumentGetter& actualArgumentGetter);
+                                                         const DependencyAnaliser::ArgumentValueGetter& actualArgumentGetter);
+    DepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
+
+    void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
+    void finalizeInstructions(const GlobalVariableDependencyMap& globalDeps);
+    void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
 
 protected:
     static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                  const ArgumentDependenciesMap& argDepInfo);
-    static llvm::Value* getFunctionOutArgumentValue(llvm::Value* actualArg,
-                                                    const llvm::Argument& arg);
+    static llvm::Value* getFunctionOutArgumentValue(llvm::Value* actualArg);
     static llvm::Value* getMemoryValue(llvm::Value* instrOp);
 
 protected:
@@ -106,6 +116,7 @@ protected:
     const FunctionAnalysisGetter& m_FAG;
     llvm::AAResults& m_AAR;
     bool m_finalized;
+    bool m_globalsFinalized;
 
     ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
@@ -116,6 +127,8 @@ protected:
 
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;
+    GlobalsSet m_referencedGlobals;
+    GlobalsSet m_modifiedGlobals;
 }; // class DependencyAnaliser
 
 } // namespace input_dependency

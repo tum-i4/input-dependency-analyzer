@@ -38,6 +38,9 @@ DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Ins
 DepInfo NonDeterministicBasicBlockAnaliser::getValueDependencies(llvm::Value* value)
 {
     auto depInfo = BasicBlockAnalysisResult::getValueDependencies(value);
+    if (!depInfo.isDefined()) {
+        return depInfo;
+    }
     depInfo.mergeDependencies(m_nonDetDeps);
     return depInfo;
 }

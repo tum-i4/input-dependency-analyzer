@@ -36,6 +36,7 @@ public:
 public:
     void gatherResults() override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+    void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
     void dumpResults() const override;
 
 public:
@@ -51,7 +52,8 @@ protected:
     void updateReturnValueDependencies(const DepInfo& info) override;
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
     void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) override;
-
+    DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
+    DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
     /// \}
 
     /// \name Implementation of DependencyAnalysisResult interface
@@ -60,23 +62,21 @@ public:
     void setInitialValueDependencies(const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies) override;
     void setOutArguments(const InitialArgumentDependencies& outArgs) override;
     bool isInputDependent(llvm::Instruction* instr) const override;
-    const ArgumentSet& getValueInputDependencies(llvm::Value* val) const override;
+    bool hasValueDependencyInfo(llvm::Value* val) const override;
+    const DepInfo& getValueDependencyInfo(llvm::Value* val) const override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
-    //const ValueSet& getValueDependencies(llvm::Value* val) override;
     const DepInfo& getReturnValueDependencies() const override;
     const ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
     bool hasFunctionCallInfo(llvm::Function* F) const override;
     const FunctionSet& getCallSitesData() const override;
+    const GlobalsSet& getReferencedGlobals() const override;
+    const GlobalsSet& getModifiedGlobals() const override;
     /// \}
 
-private:
-    DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
-    DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
-
-private:
+protected:
     llvm::BasicBlock* m_BB;
 }; // class BasicBlockAnalysisResult
 

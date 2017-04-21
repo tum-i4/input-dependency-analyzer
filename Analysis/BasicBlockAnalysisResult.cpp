@@ -35,14 +35,22 @@ void BasicBlockAnalysisResult::finalizeResults(const ArgumentDependenciesMap& de
     finalize(dependentArgs);
 }
 
+void BasicBlockAnalysisResult::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
+{
+//    llvm::dbgs() << "Finalize with globals of BB " << m_BB->getName() << "\n";
+    finalize(globalsDeps);
+}
+
 void BasicBlockAnalysisResult::dumpResults() const
 {
+    llvm::dbgs() << "\nDump block " << m_BB->getName() << "\n";
     dump();
 }
 
 void BasicBlockAnalysisResult::analize()
 {
     for (auto& I : *m_BB) {
+        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
@@ -83,7 +91,11 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
 
 DepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
 {
-    return m_valueDependencies[value];
+    auto pos = m_valueDependencies.find(value);
+    if (pos == m_valueDependencies.end()) {
+        return DepInfo();
+    }
+    return pos->second;
 }
 
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
@@ -91,6 +103,7 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     switch (info.getDependency()) {
     case DepInfo::INPUT_DEP:
     case DepInfo::INPUT_ARGDEP:
+    case DepInfo::VALUE_DEP:
         m_inputDependentInstrs[instr].mergeDependencies(info);
         break;
     case DepInfo::INPUT_INDEP:
@@ -103,7 +116,7 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
 
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
 {
-    assert(info.isInputDep() || info.isInputIndep() || info.isInputArgumentDep());
+    assert(info.isDefined());
     m_valueDependencies[value] = info;
     updateAliasesDependencies(value, info);
 }
@@ -113,6 +126,7 @@ void BasicBlockAnalysisResult::updateReturnValueDependencies(const DepInfo& info
     switch (info.getDependency()) {
     case DepInfo::INPUT_DEP:
     case DepInfo::INPUT_ARGDEP:
+    case DepInfo::VALUE_DEP:
         m_returnValueDependencies.mergeDependencies(info);
         break;
     case DepInfo::INPUT_INDEP:
@@ -179,13 +193,18 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
         return m_finalInputDependentInstrs.find(instr) != m_finalInputDependentInstrs.end();
     }
     return m_inputDependentInstrs.find(instr) != m_inputDependentInstrs.end();
- }
+}
 
-const ArgumentSet& BasicBlockAnalysisResult::getValueInputDependencies(llvm::Value* val) const
+bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
+{
+    return m_valueDependencies.find(val) != m_valueDependencies.end();
+}
+
+const DepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val) const
 {
     auto pos = m_valueDependencies.find(val);
     assert(pos != m_valueDependencies.end());
-    return pos->second.getArgumentDependencies();
+    return pos->second;
 }
 
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -201,11 +220,6 @@ const DependencyAnaliser::ValueDependencies& BasicBlockAnalysisResult::getValues
 {
     return m_valueDependencies;
 }
-
-//const ValueSet& BasicBlockAnalysisResult::getValueDependencies(llvm::Value* val)
-//{
-//    return ValueSet();
-//}
 
 const DepInfo& BasicBlockAnalysisResult::getReturnValueDependencies() const
 {
@@ -241,6 +255,16 @@ const FunctionSet& BasicBlockAnalysisResult::getCallSitesData() const
     return m_calledFunctions;
 }
 
+const GlobalsSet& BasicBlockAnalysisResult::getReferencedGlobals() const
+{
+    return m_referencedGlobals;
+}
+
+const GlobalsSet& BasicBlockAnalysisResult::getModifiedGlobals() const
+{
+    return m_modifiedGlobals;
+}
+
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
     DepInfo info = getDependenciesFromAliases(instr);
@@ -257,7 +281,12 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         return getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
     }
     auto pos = m_valueDependencies.find(loadedValue);
-    assert(pos != m_valueDependencies.end());
+    if (pos == m_valueDependencies.end()) {
+        auto globalVal = llvm::dyn_cast<llvm::GlobalVariable>(loadedValue);
+        assert(globalVal != nullptr);
+        m_referencedGlobals.insert(globalVal);
+        return DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal});
+    }
     return pos->second;
 }
 
@@ -269,9 +298,18 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
             const auto& c_deps = getInstructionDependencies(opInst);
             deps.mergeDependencies(c_deps);
         } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {
+            if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(opVal)) {
+                m_referencedGlobals.insert(global);
+            }
             auto c_args = isInput(opVal);
             if (!c_args.empty()) {
                 deps.mergeDependencies(DepInfo(DepInfo::INPUT_ARGDEP, c_args));
+            } else {
+                const auto& valDeps = getValueDependencies(opVal);
+                if (!valDeps.isDefined()) {
+                    continue;
+                }
+                deps.mergeDependencies(valDeps);
             }
         }
     }

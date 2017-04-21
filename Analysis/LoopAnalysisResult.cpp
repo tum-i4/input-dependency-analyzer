@@ -33,6 +33,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                 , m_FAG(Fgetter)
                                 , m_L(L)
                                 , m_LI(LI)
+                                , m_globalsUpdated(false)
 {
 }
 
@@ -61,6 +62,14 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     updateFunctionCallInfo();
 }
 
+void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
+{
+    for (auto& item : m_BBAnalisers) {
+        item.second->finalizeGlobals(globalsDeps);
+    }
+    updateGlobals();
+}
+
 void LoopAnalysisResult::dumpResults() const
 {
     for (const auto& item : m_BBAnalisers) {
@@ -77,8 +86,7 @@ void LoopAnalysisResult::setInitialValueDependencies(
         for (const auto& dep : item.second) {
             if (valDep.getDependency() <= dep.getDependency()) {
                 valDep.setDependency(dep.getDependency());
-                valDep.getArgumentDependencies().insert(dep.getArgumentDependencies().begin(),
-                                                        dep.getArgumentDependencies().end());
+                valDep.addOnDepInfo(dep);
             }
         }
     }
@@ -105,11 +113,16 @@ bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
     return pos->second->isInputDependent(instr);
 }
 
-const ArgumentSet& LoopAnalysisResult::getValueInputDependencies(llvm::Value* val) const
+bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
+{
+    return m_valueDependencies.find(val) != m_valueDependencies.end();
+}
+
+const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val) const
 {
     auto pos = m_valueDependencies.find(val);
     assert(pos != m_valueDependencies.end());
-    return pos->second.getArgumentDependencies();
+    return pos->second;
 }
 
 DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -166,6 +179,24 @@ bool LoopAnalysisResult::hasFunctionCallInfo(llvm::Function* F) const
 const FunctionSet& LoopAnalysisResult::getCallSitesData() const
 {
     return m_calledFunctions;
+}
+
+const GlobalsSet& LoopAnalysisResult::getReferencedGlobals() const
+{
+    if (!m_globalsUpdated) {
+        assert(m_referencedGlobals.empty());
+        const_cast<LoopAnalysisResult*>(this)->updateGlobals();
+    }
+    return m_referencedGlobals;
+}
+
+const GlobalsSet& LoopAnalysisResult::getModifiedGlobals() const
+{
+    if (!m_globalsUpdated) {
+        assert(m_modifiedGlobals.empty());
+        const_cast<LoopAnalysisResult*>(this)->updateGlobals();
+    }
+    return m_modifiedGlobals;
 }
 
 LoopAnalysisResult::PredValDeps LoopAnalysisResult::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B)
@@ -289,6 +320,29 @@ void LoopAnalysisResult::updateValueDependencies()
         if (pos != valuesDeps.end()) {
             item.second.mergeDependencies(pos->second);
         }
+    }
+}
+
+void LoopAnalysisResult::updateGlobals()
+{
+    updateReferencedGlobals();
+    updateModifiedGlobals();
+    m_globalsUpdated = true;
+}
+
+void LoopAnalysisResult::updateReferencedGlobals()
+{
+    for (const auto& item : m_BBAnalisers) {
+        const auto& refGlobals = item.second->getReferencedGlobals();
+        m_referencedGlobals.insert(refGlobals.begin(), refGlobals.end());
+    }
+}
+
+void LoopAnalysisResult::updateModifiedGlobals()
+{
+    for (const auto& item : m_BBAnalisers) {
+        const auto& modGlobals = item.second->getModifiedGlobals();
+        m_modifiedGlobals.insert(modGlobals.begin(), modGlobals.end());
     }
 }
 

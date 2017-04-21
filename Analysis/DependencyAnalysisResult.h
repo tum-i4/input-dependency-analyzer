@@ -34,6 +34,7 @@ public:
 public:
     virtual void gatherResults() = 0;
     virtual void finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs) = 0;
+    virtual void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps) = 0;
     virtual void dumpResults() const = 0;
     /// \}
 
@@ -41,16 +42,18 @@ public:
     /// \{
 public:
     virtual bool isInputDependent(llvm::Instruction* instr) const = 0;
-    virtual const ArgumentSet& getValueInputDependencies(llvm::Value* val) const = 0;
+    virtual bool hasValueDependencyInfo(llvm::Value* val) const = 0;
+    virtual const DepInfo& getValueDependencyInfo(llvm::Value* val) const = 0;
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) const = 0;
     virtual const DependencyAnaliser::ValueDependencies& getValuesDependencies() const = 0;
-//    virtual const ValueSet& getValueDependencies(llvm::Value* val) = 0;
     virtual const DepInfo& getReturnValueDependencies() const = 0;
     virtual const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const = 0;
     virtual const DependencyAnaliser::FunctionCallsArgumentDependencies& getFunctionsCallInfo() const = 0;
     virtual const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const = 0;
     virtual bool hasFunctionCallInfo(llvm::Function* F) const = 0;
     virtual const FunctionSet& getCallSitesData() const = 0;
+    virtual const GlobalsSet& getReferencedGlobals() const = 0;
+    virtual const GlobalsSet& getModifiedGlobals() const = 0;
     /// \}
 
 protected:

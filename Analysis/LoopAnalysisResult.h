@@ -47,6 +47,7 @@ private:
 public:
     void gatherResults() override;
     void finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs) override;
+    void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps) override;
     void dumpResults() const override;
 
     /// \}
@@ -57,16 +58,18 @@ public:
     void setInitialValueDependencies(const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies) override;
     void setOutArguments(const InitialArgumentDependencies& outArgs) override;
     bool isInputDependent(llvm::Instruction* instr) const override;
-    const ArgumentSet& getValueInputDependencies(llvm::Value* val) const override;
+    bool hasValueDependencyInfo(llvm::Value* val) const override;
+    const DepInfo& getValueDependencyInfo(llvm::Value* val) const override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
-    //const ValueSet& getValueDependencies(llvm::Value* val) override;
     const DepInfo& getReturnValueDependencies() const override;
     const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FCallsArgDeps& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
     bool hasFunctionCallInfo(llvm::Function* F) const override;
     const FunctionSet& getCallSitesData() const override;
+    const GlobalsSet& getReferencedGlobals() const override;
+    const GlobalsSet& getModifiedGlobals() const override;
     /// \}
 
 private:
@@ -79,6 +82,9 @@ private:
     void updateReturnValueDependencies();
     void updateOutArgumentDependencies();
     void updateValueDependencies();
+    void updateGlobals();
+    void updateReferencedGlobals();
+    void updateModifiedGlobals();
     void reflect();
     ReflectingDependencyAnaliserT createReflectingBasicBlockAnaliser(llvm::BasicBlock* B);
     DepInfo getBasicBlockDeps(llvm::BasicBlock* B) const;
@@ -99,6 +105,9 @@ private:
     FCallsArgDeps m_functionCallInfo;
     FunctionSet m_calledFunctions;
     DependencyAnaliser::ValueDependencies m_valueDependencies;
+    GlobalsSet m_referencedGlobals;
+    GlobalsSet m_modifiedGlobals;
+    bool m_globalsUpdated;
 
     BasicBlockDependencyAnalisersMap m_BBAnalisers;
 }; // class LoopAnalysisResult

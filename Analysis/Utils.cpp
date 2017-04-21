@@ -21,7 +21,6 @@ bool Utils::haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& 
     return false;
 }
 
-
 ValueSet Utils::dissolveInstruction(llvm::Instruction* instr)
 {
     ValueSet values;

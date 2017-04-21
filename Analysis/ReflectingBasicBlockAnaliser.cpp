@@ -57,6 +57,61 @@ ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
 {
 }
 
+// DUBUG
+//void ReflectingBasicBlockAnaliser::dumpResults() const
+//{
+//    BasicBlockAnalysisResult::dumpResults();
+//    llvm::dbgs() << "Value dependencies\n";
+//    for (const auto& val : m_valueDependencies) {
+//        llvm::dbgs() << "Value " << *val.first << val.second.getDependencyName() << "\n";
+//        for (const auto& v : val.second.getValueDependencies()) {
+//            llvm::dbgs() << "       " << *v  << "\n";
+//        }
+//        llvm::dbgs() << "Input dependencies\n";
+//        for (const auto& dep : val.second.getArgumentDependencies()) {
+//            llvm::dbgs() << "       " << *dep  << "\n";
+//        }
+//    }
+//
+//    llvm::dbgs() << "Value dependent instructions\n";
+//    for (const auto& item : m_instructionValueDependencies) {
+//        llvm::dbgs() << *item.first << "  " << item.second.getDependencyName() << "\n";
+//        for (const auto& dep : item.second.getValueDependencies()) {
+//            llvm::dbgs() << "       " << *dep  << "\n";
+//        }
+//    }
+//
+//    llvm::dbgs() << "Value dependent values\n";
+//    for (const auto& item : m_valueDependencies) {
+//        if (!item.second.isValueDep()) {
+//            continue;
+//        }
+//        llvm::dbgs() << *item.first << "   " << item.second.getDependencyName() << "\n";
+//        for (const auto& dep : item.second.getValueDependencies()) {
+//            llvm::dbgs() << "       " << *dep << "\n";
+//        }
+//    }
+//
+//    llvm::dbgs() << "Value dependent out arguments\n";
+//    for (const auto& item : m_valueDependentOutArguments) {
+//        for (const auto& arg : item.second) {
+//            llvm::dbgs() << *arg << " depends on " << *item.first << "\n"; 
+//        }
+//    }
+//    
+//    llvm::dbgs() << "Value dependent called functions arguments\n";
+//    for (const auto& item : m_valueDependentFunctionCallArguments) {
+//        for (const auto& fdep : item.second) {
+//            llvm::dbgs() << "Function " << fdep.first->getName() << " argument \n";
+//            for (const auto& dep : fdep.second) {
+//                llvm::dbgs() << *dep << " depends on value " << *item.first << "\n";
+//            }
+//        }
+//    }
+//
+//    llvm::dbgs() << "\n";
+//}
+
 void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies)
 {
     resolveValueDependencies(dependencies);
@@ -66,6 +121,14 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
         }
         reflect(item.first, item.second);
     }
+    // TODO: would not need this part remove if all instructions are collected together in one map
+    for (auto& instrDep : m_instructionValueDependencies) {
+        assert(instrDep.second.isValueDep());
+        m_inputDependentInstrs[instrDep.first].mergeDependencies(instrDep.second);
+    }
+    m_instructionValueDependencies.clear();
+    m_valueDependentInstrs.clear();
+
     assert(m_valueDependentInstrs.empty());
     assert(m_valueDependentOutArguments.empty());
     assert(m_valueDependentFunctionCallArguments.empty());
@@ -189,13 +252,6 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value,
-                                                           const DepInfo& info)
-{
-    m_valueDependencies[value] = info;
-    auto p = m_valueDependencies.find(value);
-}
-
 // basic block analysis result could do this same way
 void ReflectingBasicBlockAnaliser::updateReturnValueDependencies(const DepInfo& info)
 {
@@ -206,40 +262,38 @@ DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* i
 {
     auto* loadOp = instr->getPointerOperand();
     llvm::Value* loadedValue = getMemoryValue(loadOp);
-    if (loadedValue == nullptr) {
-        return getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
-    }
-    auto pos = m_valueDependencies.find(loadedValue);
-    assert(pos != m_valueDependencies.end());
-    DepInfo info(pos->second);
-    info.mergeDependencies(ValueSet{loadedValue});
-    return info;
-}
 
-DepInfo ReflectingBasicBlockAnaliser::determineInstructionDependenciesFromOperands(llvm::Instruction* instr)
-{
-    DepInfo info(DepInfo::INPUT_INDEP);
-    for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
-        if (auto* opInst = llvm::dyn_cast<llvm::Instruction>(op)) {
-            const auto& opDeps = getInstructionDependencies(opInst);
-            info.mergeDependencies(opDeps);
-        } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {
-            if (auto* constOp = llvm::dyn_cast<llvm::Constant>(opVal)) {
-                info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
-            } else { 
-                const auto& valDeps = getValueDependencies(opVal);
-                info.mergeDependencies(valDeps);
-            }
-        }
-    }
+    DepInfo info = BasicBlockAnalysisResult::getLoadInstrDependencies(instr);
+    info.mergeDependencies(ValueSet{loadedValue});
     return info;
 }
 
 void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst)
 {
+    BasicBlockAnalysisResult::updateFunctionCallSiteInfo(callInst);
+    updateValueDependentCallArguments(callInst);
+    updateValueDependentCallReferencedGlobals(callInst);
+}
+
+void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
+{
+    BasicBlockAnalysisResult::updateFunctionInvokeSiteInfo(invokeInst);
+    updateValueDependentInvokeArguments(invokeInst);
+    updateValueDependentInvokeReferencedGlobals(invokeInst);
+}
+
+void ReflectingBasicBlockAnaliser::updateValueDependentInstructions(const DepInfo& info,
+                                                                    llvm::Instruction* instr)
+{
+    for (const auto& val : info.getValueDependencies()) {
+        m_valueDependentInstrs[val].insert(instr);
+    }
+}
+
+void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallInst* callInst)
+{
     auto F = callInst->getCalledFunction();
     assert(F != nullptr);
-    BasicBlockAnalysisResult::updateFunctionCallSiteInfo(callInst);
     auto pos = m_functionCallInfo.find(F);
     if (pos == m_functionCallInfo.end()) {
         // is this possible?
@@ -257,16 +311,12 @@ void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* ca
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
+void ReflectingBasicBlockAnaliser::updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst)
 {
     auto F = invokeInst->getCalledFunction();
     assert(F != nullptr);
-    BasicBlockAnalysisResult::updateFunctionInvokeSiteInfo(invokeInst);
     auto pos = m_functionCallInfo.find(F);
-    if (pos == m_functionCallInfo.end()) {
-        // is this possible?
-        return;
-    }
+    assert(pos != m_functionCallInfo.end());
     const auto& dependencies = pos->second.getDependenciesForInvoke(invokeInst);
     for (const auto& dep : dependencies) {
         if (!dep.second.isValueDep()) {
@@ -278,21 +328,56 @@ void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependentInstructions(const DepInfo& info,
-                                                                    llvm::Instruction* instr)
+void ReflectingBasicBlockAnaliser::updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst)
 {
-    for (const auto& val : info.getValueDependencies()) {
-        m_valueDependentInstrs[val].insert(instr);
+    auto F = callInst->getCalledFunction();
+    assert(F != nullptr);
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    const auto& dependencies = pos->second.getGlobalsDependenciesForCall(callInst);
+    for (const auto& dep : dependencies) {
+        if (!dep.second.isValueDep()) {
+            continue;
+        }
+        for (const auto& val : dep.second.getValueDependencies()) {
+            m_valueDependentCallGlobals[val][callInst].insert(dep.first);
+        }
+    }
+}
+
+void ReflectingBasicBlockAnaliser::updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst)
+{
+    auto F = invokeInst->getCalledFunction();
+    assert(F != nullptr);
+    auto pos = m_functionCallInfo.find(F);
+    assert(pos != m_functionCallInfo.end());
+    const auto& dependencies = pos->second.getGlobalsDependenciesForInvoke(invokeInst);
+    for (const auto& dep : dependencies) {
+        if (!dep.second.isValueDep()) {
+            continue;
+        }
+        for (const auto& val : dep.second.getValueDependencies()) {
+            m_valueDependentInvokeGlobals[val][invokeInst].insert(dep.first);
+        }
     }
 }
 
 void ReflectingBasicBlockAnaliser::reflect(llvm::Value* value, const DepInfo& deps)
 {
-    assert(deps.isInputDep() || deps.isInputIndep() || deps.isInputArgumentDep());
+    assert(deps.isDefined());
+    // remove later
+    if (deps.isValueDep()) {
+        for (const auto& val : deps.getValueDependencies()) {
+            assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
+        }
+
+    }
     reflectOnInstructions(value, deps); // need to go trough instructions one more time and add to correspoinding set
     reflectOnOutArguments(value, deps);
     reflectOnCalledFunctionArguments(value, deps);
+    reflectOnCalledFunctionReferencedGlobals(value, deps);
     reflectOnInvokedFunctionArguments(value, deps);
+    reflectOnInvokedFunctionReferencedGlobals(value, deps);
     reflectOnReturnValue(value, deps);
 }
 
@@ -311,11 +396,10 @@ void ReflectingBasicBlockAnaliser::reflectOnInstructions(llvm::Value* value, con
         }
         if (instrPos->second.isInputDep() || instrPos->second.isInputArgumentDep()) {
             m_inputDependentInstrs[instr].mergeDependencies(instrPos->second);
-            m_instructionValueDependencies.erase(instrPos);
         } else if (instrPos->second.isInputIndep()) {
             m_inputIndependentInstrs.insert(instr);
-            m_instructionValueDependencies.erase(instrPos);
         }
+        m_instructionValueDependencies.erase(instrPos);
     }
     m_valueDependentInstrs.erase(instrDepPos);
 }
@@ -357,6 +441,28 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
     m_valueDependentFunctionCallArguments.erase(valPos);
 }
 
+void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo)
+{
+    auto valPos = m_valueDependentCallGlobals.find(value);
+    if (valPos == m_valueDependentCallGlobals.end()) {
+        return;
+    }
+
+    for (const auto& fargs : valPos->second) {
+        auto callInst = fargs.first;
+        auto F = callInst->getCalledFunction();
+        auto Fpos = m_functionCallInfo.find(F);
+        assert(Fpos != m_functionCallInfo.end());
+        auto& callDeps = Fpos->second.getGlobalsDependenciesForCall(callInst);
+        for (auto& arg : fargs.second) {
+            auto argPos = callDeps.find(arg);
+            assert(argPos != callDeps.end());
+            reflectOnDepInfo(value, argPos->second, depInfo);
+        }
+    }
+    m_valueDependentCallGlobals.erase(valPos);
+}
+
 void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value* value, const DepInfo& depInfo)
 {
     auto valPos = m_valueDependentFunctionInvokeArguments.find(value);
@@ -380,6 +486,28 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
     m_valueDependentFunctionInvokeArguments.erase(valPos);
 }
 
+void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo)
+{
+    auto valPos = m_valueDependentInvokeGlobals.find(value);
+    if (valPos == m_valueDependentInvokeGlobals.end()) {
+        return;
+    }
+
+    for (const auto& fargs : valPos->second) {
+        auto invokeInst = fargs.first;
+        auto F = invokeInst->getCalledFunction();
+        auto Fpos = m_functionCallInfo.find(F);
+        assert(Fpos != m_functionCallInfo.end());
+        auto& invokeDeps = Fpos->second.getGlobalsDependenciesForInvoke(invokeInst);
+        for (auto& arg : fargs.second) {
+            auto argPos = invokeDeps.find(arg);
+            assert(argPos != invokeDeps.end());
+            reflectOnDepInfo(value, argPos->second, depInfo);
+        }
+    }
+    m_valueDependentInvokeGlobals.erase(valPos);
+}
+
 void ReflectingBasicBlockAnaliser::reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo)
 {
     if (!m_returnValueDependencies.isValueDep()) {
@@ -392,9 +520,13 @@ void ReflectingBasicBlockAnaliser::reflectOnReturnValue(llvm::Value* value, cons
     reflectOnDepInfo(value, m_returnValueDependencies, depInfo);
 }
 
-bool ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep)
+void ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep)
 {
+    if (!valueDep.isValueDep()) {
+        return;
+    }
     auto& valDeps = valueDep.getValueDependencies(); 
+    std::vector<llvm::Value*> globals;
     ValueSet processedValues;
     while (!valDeps.empty()) {
         auto val = *valDeps.begin();
@@ -402,14 +534,19 @@ bool ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepI
         if (val == value) {
             auto num = valDeps.erase(val);
             assert(num > 0);
-            if (valDeps.empty() && valueDep.isValueDep()) {
-                valueDep.setDependency(DepInfo::INPUT_INDEP);
+            if (valDeps.empty()) {
+                valueDep.mergeDependency(DepInfo::INPUT_INDEP);
                 break;
             }
             continue;
         }
         auto pos = m_valueDependencies.find(val);
-        assert(pos != m_valueDependencies.end());
+        if (pos == m_valueDependencies.end()) {
+            assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
+            globals.push_back(val);
+            valDeps.erase(val);
+            continue;
+        }
         valueDep.mergeDependencies(pos->second.getArgumentDependencies());
         if (valueDep.getDependency() == DepInfo::VALUE_DEP) {
             valueDep.setDependency(pos->second.getDependency());
@@ -424,7 +561,9 @@ bool ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepI
         auto num = valDeps.erase(val);
         assert(num > 0);
     }
-    return !valueDep.isValueDep();
+    if (!globals.empty()) {
+        valueDep.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, ValueSet(globals.begin(), globals.end())));
+    }
 }
 
 void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
@@ -463,6 +602,10 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
 DepInfo ReflectingBasicBlockAnaliser::getValueFinalDependencies(llvm::Value* value)
 {
     auto pos = m_valueDependencies.find(value);
+    if (pos == m_valueDependencies.end()) {
+        assert(llvm::dyn_cast<llvm::GlobalVariable>(value));
+        return DepInfo(DepInfo::VALUE_DEP, ValueSet{value});
+    }
     assert(pos != m_valueDependencies.end());
     if (pos->second.getValueDependencies().empty()) {
         return DepInfo(pos->second.getDependency(), ValueSet{value});

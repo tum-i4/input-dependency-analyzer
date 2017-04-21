@@ -55,15 +55,20 @@ public:
 
 
 private:
+    void finalizeForArguments(llvm::Function* F, FunctionAnaliser& FA);
+    void finalizeForGlobals(llvm::Function* F, FunctionAnaliser& FA);
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, DependencyAnaliser::ArgumentDependenciesMap>;
     void mergeCallSitesData(llvm::Function* caller, const FunctionSet& calledFunctions);
-    void mergeArgumentDependencies(DependencyAnaliser::ArgumentDependenciesMap& mergeTo,
-                                   const DependencyAnaliser::ArgumentDependenciesMap& mergeFrom);
     DependencyAnaliser::ArgumentDependenciesMap getFunctionCallInfo(llvm::Function* F);
+    DependencyAnaliser::GlobalVariableDependencyMap getFunctionCallGlobalsInfo(llvm::Function* F);
 
+    template <class DependencyMapType>
+    void mergeDependencyMaps(DependencyMapType& mergeTo, const DependencyMapType& mergeFrom);
+    void addMissingGlobalsInfo(llvm::Function* F, DependencyAnaliser::GlobalVariableDependencyMap& globalDeps);
 
 private:
     // keep these because function analysis is done with two phases, and need to preserve data
+    llvm::Module* m_module;
     InputDependencyAnalysisInfo m_functionAnalisers;
     FunctionArgumentsDependencies m_functionsCallInfo;
     CalleeCallersMap m_calleeCallersInfo;

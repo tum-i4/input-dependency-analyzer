@@ -44,13 +44,11 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
 
 private:
     void processInstrForOutputArgs(llvm::Instruction* I) override;
-    DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
-    DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
+    DepInfo getLoadInstrDependencies(llvm::LoadInst* instr);
     void updateFunctionCallSiteInfo(llvm::CallInst* callInst) override;
     void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst) override;
     /// \}
@@ -58,15 +56,21 @@ private:
 private:
     void updateValueDependentInstructions(const DepInfo& info,
                                           llvm::Instruction* instr);
+    void updateValueDependentCallArguments(llvm::CallInst* callInst);
+    void updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst);
+    void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst);
+    void updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst);
 
     void reflect(llvm::Value* value, const DepInfo& deps);
     void reflectOnValues(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnInstructions(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnOutArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
+    void reflectOnCalledFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnInvokedFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
+    void reflectOnInvokedFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
-    bool reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep);
+    void reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep);
     void reflectOnDepInfo(llvm::Value* value,
                           DepInfo& depInfoTo,
                           const DepInfo& depInfoFrom,
@@ -77,10 +81,18 @@ private:
 private:
     std::unordered_map<llvm::Value*, InstrSet> m_valueDependentInstrs;
     std::unordered_map<llvm::Value*, ArgumentSet> m_valueDependentOutArguments; 
+
     using CallArgumentSet = std::unordered_map<llvm::CallInst*, ArgumentSet>;
     std::unordered_map<llvm::Value*, CallArgumentSet> m_valueDependentFunctionCallArguments;
+
     using InvokeArgumentSet = std::unordered_map<llvm::InvokeInst*, ArgumentSet>;
     std::unordered_map<llvm::Value*, InvokeArgumentSet> m_valueDependentFunctionInvokeArguments;
+
+    using CallGlobalsSet = std::unordered_map<llvm::CallInst*, GlobalsSet>;
+    std::unordered_map<llvm::Value*, CallGlobalsSet> m_valueDependentCallGlobals;
+
+    using InvokeGlobalsSet = std::unordered_map<llvm::InvokeInst*, GlobalsSet>;
+    std::unordered_map<llvm::Value*, InvokeGlobalsSet> m_valueDependentInvokeGlobals;
 
     std::unordered_map<llvm::Instruction*, DepInfo> m_instructionValueDependencies;
     bool m_isReflected;

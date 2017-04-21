@@ -6,6 +6,7 @@
 #include <memory>
 
 namespace llvm {
+class GlobalVariable;
 class LoopInfo;
 }
 
@@ -19,13 +20,12 @@ public:
 public:
     /**
      * \brief Preliminary analyses input dependency of instructions in the function.
-     * Results of this function are:
-     *      - Primary information about instruction input dependency.
-            \note This information is not complete as it is based on assumption, that function input arguments are also program inputs.
-            - Information about function calls from this function, whith additional information about called function arguments being input dependent or not.
+     * Results of this function is primary information about instructions input dependency, output arguments input dependency, and function call sites dependency info.
+     * \note This information is not complete as it is based on assumption, that function input arguments are also program inputs.
+     *       - Information about function calls from this function, whith additional information about called function arguments being input dependent or not.
      *
      * \note The call site information can be obtained with \link getCallSitesData function.
-     * \note To make analysis results final call \link finalize after calling this function.
+     * \note To make analysis results final call \link finalizeArguments and \link finalizeGlobals after calling this function.
      */
     void analize();
 
@@ -37,12 +37,14 @@ public:
      *        from \a inputDepArgs, it will be unmarked.
      * \note \link analize function should be called before calling this function.
      */
-    void finalize(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
+    void finalizeArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
+    void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps);
 
     /// Get call site info collected by \link analize function.
     FunctionSet getCallSitesData() const;
 
     DependencyAnaliser::ArgumentDependenciesMap getCallArgumentInfo(llvm::Function* F) const;
+    DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
 
     /**
      * \brief Checks if instruction is input dependent.
@@ -57,29 +59,20 @@ public:
     bool isInputDependent(llvm::Instruction* instr) const;
     bool isInputDependent(const llvm::Instruction* instr) const;
 
-    /**
-     * \brief Checks if the given instruction is input dependent if input dependent arguments of the function are the given ones.
-     * \param[in] instr Instruction to check
-     * \param[in] inputDepArgs positions of input dependent arguments of the function.
-     * 
-     * \a instr will be input dependent if it depends on argument from \a inputDepArgs
-     * \note \link finalize function should have been called before calling this function.
-     *
-     * \see \link analize
-     * \see \link finalize
-     * \see \link isInputDependent
-     */
-    //bool isInputDependent(llvm::Instruction* instr, const ArgNos& inputDepArgs) const;
-
-    bool isOutArgInputDependent(llvm::Argument* arg) const;
+    bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
-    bool isReturnValueInputDependent() const;
+    bool isReturnValueInputIndependent() const;
     const DepInfo& getRetValueDependencies() const;
+    bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
+    const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
 
-    void dump() const;
+    const GlobalsSet& getReferencedGlobals() const;
+    const GlobalsSet& getModifiedGlobals() const;
 
     llvm::Function* getFunction();
     const llvm::Function* getFunction() const;
+
+    void dump() const;
 
 private:
     class Impl;

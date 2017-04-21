@@ -19,109 +19,109 @@ public:
 
 public:
     DepInfo(Dependency dep = UNKNOWN) 
-        : dependency(dep)
+        : m_dependency(dep)
     {
     }
 
     DepInfo(Dependency dep, ArgumentSet&& args)
-        : dependency(dep)
-        , argumentDependencies(std::move(args))
+        : m_dependency(dep)
+        , m_argumentDependencies(std::move(args))
     {
     }
 
     DepInfo(Dependency dep, const ArgumentSet& args)
-        : dependency(dep)
-        , argumentDependencies(args)
+        : m_dependency(dep)
+        , m_argumentDependencies(args)
     {
     }
 
     DepInfo(Dependency dep, ValueSet&& values)
-        : dependency(dep)
-        , valueDependencies(std::move(values))
+        : m_dependency(dep)
+        , m_valueDependencies(std::move(values))
     {
     }
 
     DepInfo(Dependency dep, const ValueSet& values)
-        : dependency(dep)
-        , valueDependencies(values)
+        : m_dependency(dep)
+        , m_valueDependencies(values)
     {
     }
 
 public:
     bool isDefined() const
     {
-        return dependency != UNKNOWN;
+        return m_dependency != UNKNOWN;
     }
 
     bool isInputIndep() const
     {
-        return dependency == INPUT_INDEP;
+        return m_dependency == INPUT_INDEP;
     }
 
     bool isInputArgumentDep() const
     {
-        return dependency == INPUT_ARGDEP;
+        return m_dependency == INPUT_ARGDEP;
     }
 
     bool isInputDep() const
     {
-        return dependency == INPUT_DEP;
+        return m_dependency == INPUT_DEP;
     }
 
     bool isValueDep() const
     {
-        return dependency == VALUE_DEP || !valueDependencies.empty();
+        return m_dependency == VALUE_DEP || !m_valueDependencies.empty();
     }
 
     const Dependency& getDependency() const
     {
-        return dependency;
+        return m_dependency;
     }
 
     Dependency& getDependency()
     {
-        return dependency;
+        return m_dependency;
     }
     
     const ArgumentSet& getArgumentDependencies() const
     {
-        return argumentDependencies;
+        return m_argumentDependencies;
     }
 
     ArgumentSet& getArgumentDependencies()
     {
-        return argumentDependencies;
+        return m_argumentDependencies;
     }
 
     void setArgumentDependencies(const ArgumentSet& args)
     {
-        argumentDependencies = args;
+        m_argumentDependencies = args;
     }
 
     const ValueSet& getValueDependencies() const
     {
-        return valueDependencies;
+        return m_valueDependencies;
     }
 
     ValueSet& getValueDependencies()
     {
-        return valueDependencies;
+        return m_valueDependencies;
     }
 
     void setValueDependencies(const ValueSet& valueDeps)
     {
-        valueDependencies = valueDeps;
+        m_valueDependencies = valueDeps;
     }
 
     void setDependency(Dependency dep)
     {
-        dependency = dep;
+        m_dependency = dep;
     }
 
     // for debugging
     std::string getDependencyName() const
     {
-        switch (dependency) {
+        switch (m_dependency) {
         case UNKNOWN:
             return "unknonw";
         case INPUT_INDEP:
@@ -137,32 +137,66 @@ public:
 public:
     void mergeDependencies(const DepInfo& info)
     {
-        this->dependency = std::max(this->dependency, info.dependency);
-        this->valueDependencies.insert(info.valueDependencies.begin(),
-                                       info.valueDependencies.end());
-        this->argumentDependencies.insert(info.argumentDependencies.begin(),
-                                          info.argumentDependencies.end());
+        this->m_dependency = std::max(this->m_dependency, info.m_dependency);
+        this->m_valueDependencies.insert(info.m_valueDependencies.begin(),
+                                       info.m_valueDependencies.end());
+        this->m_argumentDependencies.insert(info.m_argumentDependencies.begin(),
+                                          info.m_argumentDependencies.end());
     }
 
     void mergeDependencies(const ArgumentSet& argDeps)
     {
-        this->argumentDependencies.insert(argDeps.begin(), argDeps.end());
+        this->m_argumentDependencies.insert(argDeps.begin(), argDeps.end());
     }
 
     void mergeDependencies(const ValueSet& valueDeps)
     {
-        this->valueDependencies.insert(valueDeps.begin(), valueDeps.end());
+        this->m_valueDependencies.insert(valueDeps.begin(), valueDeps.end());
     }
 
     void mergeDependency(Dependency dep)
     {
-        this->dependency = std::max(this->dependency, dep);
+        this->m_dependency = std::max(this->m_dependency, dep);
+    }
+
+    void addOnDepInfo(const DepInfo& info)
+    {
+        mergeDependency(info.getDependency());
+        addOnArgumentDependencies(info.getArgumentDependencies());
+        addOnValueDependencies(info.getValueDependencies());
+    }
+
+    void addOnDepInfo(DepInfo&& info)
+    {
+        mergeDependency(info.getDependency());
+        addOnArgumentDependencies(info.getArgumentDependencies());
+        addOnValueDependencies(info.getValueDependencies());
+    }
+
+    void addOnArgumentDependencies(const ArgumentSet& argDeps)
+    {
+        m_argumentDependencies.insert(argDeps.begin(), argDeps.end());
+    }
+
+    void addOnArgumentDependencies(ArgumentSet&& argDeps)
+    {
+        m_argumentDependencies.insert(argDeps.begin(), argDeps.end());
+    }
+
+    void addOnValueDependencies(const ValueSet& valueDeps)
+    {
+        m_valueDependencies.insert(valueDeps.begin(), valueDeps.end());
+    }
+
+    void addOnValueDependencies(ValueSet&& valueDeps)
+    {
+        m_valueDependencies.insert(valueDeps.begin(), valueDeps.end());
     }
 
 private:
-    Dependency dependency;
-    ArgumentSet argumentDependencies;
-    ValueSet valueDependencies;
+    Dependency m_dependency;
+    ArgumentSet m_argumentDependencies;
+    ValueSet m_valueDependencies;
 };
 
 }

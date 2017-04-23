@@ -1,8 +1,8 @@
 #include "LibFunctionInfo.h"
 #include "LibraryInfoManager.h"
 #include "CLibraryInfo.h"
+#include "STLStringInfo.h"
 
-#include "llvm/IR/Function.h"
 
 #include <cassert>
 
@@ -28,6 +28,9 @@ void LibraryInfoManager::setup()
     // C library functions
     CLibraryInfo clibInfo(libFunctionCollector);
     clibInfo.setup();
+
+    STLStringInfo stlStringInfo(libFunctionCollector);
+    stlStringInfo.setup();
 }
 
 bool LibraryInfoManager::hasLibFunctionInfo(const std::string& funcName) const
@@ -42,9 +45,9 @@ const LibFunctionInfo& LibraryInfoManager::getLibFunctionInfo(const std::string&
     return pos->second;
 }
 
-void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F)
+void LibraryInfoManager::resolveLibFunctionInfo(llvm::Function* F, const std::string& demangledName)
 {
-    const auto& libF = getLibFunctionInfo(F->getName());
+    const auto& libF = getLibFunctionInfo(demangledName);
     if (libF.isResolved()) {
         return;
     }

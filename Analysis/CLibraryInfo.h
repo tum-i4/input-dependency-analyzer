@@ -1,26 +1,21 @@
 #pragma once
 
+#include "LibraryInfoCollector.h"
+
 #include <functional>
 
 namespace input_dependency {
 
-class LibFunctionInfo;
-
-class CLibraryInfo
+class CLibraryInfo : public LibraryInfoCollector
 {
 public:
-    using LibraryInfoCallback = std::function<void (LibFunctionInfo&& functionInfo)>;
+    CLibraryInfo(const LibraryInfoCallback& callback)
+        : LibraryInfoCollector(callback)
+    {
+    }
 
 public:
-    CLibraryInfo(const LibraryInfoCallback& callback);
-
-    CLibraryInfo(const CLibraryInfo& ) = delete;
-    CLibraryInfo(CLibraryInfo&& ) = delete;
-    CLibraryInfo& operator =(const CLibraryInfo& ) = delete;
-    CLibraryInfo& operator =(CLibraryInfo&& ) = delete;
-
-public:
-    void setup();
+    void setup() override;
 
 private:
     void add_printf();
@@ -42,8 +37,8 @@ private:
     void add_abs();
     void add_labs();
 
-private:
-    const LibraryInfoCallback& m_libFunctionInfoProcessor;
+    // not sure if this should be here
+    void add_new_operator();
 };
 
 } // namespace input_dependency

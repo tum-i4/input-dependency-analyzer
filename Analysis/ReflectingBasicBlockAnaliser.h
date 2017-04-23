@@ -76,7 +76,9 @@ private:
                           const DepInfo& depInfoFrom,
                           bool eraseAfterReflection = true);
     void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies);
-    DepInfo getValueFinalDependencies(llvm::Value* value);
+    void eliminateCircularDependencies();
+    void eliminateCircularDependenciesForValue(llvm::Value* value, DepInfo& info);
+    DepInfo getValueFinalDependencies(llvm::Value* value, ValueSet& processed);
 
 private:
     std::unordered_map<llvm::Value*, InstrSet> m_valueDependentInstrs;

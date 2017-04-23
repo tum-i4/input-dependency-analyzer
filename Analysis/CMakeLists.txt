@@ -7,7 +7,9 @@ add_library(InputDependency MODULE
     InputDependencyAnalysis.cpp
     LibFunctionInfo.cpp
     LibraryInfoManager.cpp
+    LibraryInfoCollector.cpp
     CLibraryInfo.cpp
+    STLStringInfo.cpp
     LoopAnalysisResult.cpp
     NonDeterministicBasicBlockAnaliser.cpp
     NonDeterministicReflectingBasicBlockAnaliser.cpp

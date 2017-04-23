@@ -37,7 +37,6 @@ void BasicBlockAnalysisResult::finalizeResults(const ArgumentDependenciesMap& de
 
 void BasicBlockAnalysisResult::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
 {
-//    llvm::dbgs() << "Finalize with globals of BB " << m_BB->getName() << "\n";
     finalize(globalsDeps);
 }
 
@@ -54,7 +53,7 @@ void BasicBlockAnalysisResult::analize()
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
-            m_valueDependencies[allocInst];
+            m_valueDependencies[allocInst] = DepInfo(DepInfo::INPUT_INDEP);
         } else if (auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
             processReturnInstr(retInst);
         }  else if (auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(&I)) {

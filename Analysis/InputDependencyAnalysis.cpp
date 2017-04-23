@@ -173,7 +173,6 @@ void InputDependencyAnalysis::mergeCallSitesData(llvm::Function* caller, const F
 
 DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunctionCallInfo(llvm::Function* F)
 {
-    //llvm::dbgs() << "Get function call info for function " << F->getName() << "\n";
     DependencyAnaliser::ArgumentDependenciesMap argDeps;
     auto pos = m_calleeCallersInfo.find(F);
     assert(pos != m_calleeCallersInfo.end());
@@ -184,14 +183,6 @@ DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunction
         const auto& callInfo = fpos->second.getCallArgumentInfo(F);
         mergeDependencyMaps(argDeps, callInfo);
     }
-
-//    llvm::dbgs() << "After merging call infos for function " << F->getName() << "\n";
-//    for (auto item : argDeps) {
-//        llvm::dbgs() << "Argument " << *item.first << "\n";
-//        for (auto dep : item.second.getArgumentDependencies()) {
-//            llvm::dbgs() << "   " << *dep << "\n";
-//        }
-//    }
     return argDeps;
 }
 

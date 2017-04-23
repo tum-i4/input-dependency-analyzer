@@ -24,31 +24,12 @@ const std::string& system = "system";
 const std::string& abs = "abs";
 const std::string& labs = "labs";
 
+const std::string& new_operator = "operator new(unsigned long)";
 } // namespace C_library
-
-using LibArgDepInfo = input_dependency::LibFunctionInfo::LibArgDepInfo;
-using LibArgumentDependenciesMap = input_dependency::LibFunctionInfo::LibArgumentDependenciesMap;
-
-void addInputIndepArg(int index, LibArgumentDependenciesMap& argDepMap)
-{
-    argDepMap.emplace(index, LibArgDepInfo{input_dependency::DepInfo::INPUT_INDEP});
-}
-
-void addArgWithDeps(int index,
-                    std::unordered_set<int>&& deps,
-                    LibArgumentDependenciesMap& argDepMap)
-{
-    argDepMap.emplace(index, LibArgDepInfo{input_dependency::DepInfo::INPUT_ARGDEP, std::move(deps)});
-}
 
 }
 
 namespace input_dependency {
-
-CLibraryInfo::CLibraryInfo(const LibraryInfoCallback& callback)
-    : m_libFunctionInfoProcessor(callback)
-{
-}
 
 void CLibraryInfo::setup()
 {
@@ -71,6 +52,8 @@ void CLibraryInfo::setup()
     add_system();
     add_abs();
     add_labs();
+
+    add_new_operator();
 }
 
 void CLibraryInfo::add_printf()
@@ -234,6 +217,14 @@ void CLibraryInfo::add_labs()
                              LibFunctionInfo::LibArgumentDependenciesMap(),
                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(labsInfo));
+}
+
+void CLibraryInfo::add_new_operator()
+{
+    LibFunctionInfo newopInfo(C_library::new_operator,
+                              LibFunctionInfo::LibArgumentDependenciesMap(),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
+    m_libFunctionInfoProcessor(std::move(newopInfo));
 }
 
 } // namespace input_dependency

@@ -339,13 +339,6 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             ++pred;
             // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
             continue;
-            
-            //auto loopHead = m_loopBlocks.find(pb);
-            //if (loopHead == m_loopBlocks.end()) {
-            //    ++pred;
-            //    continue;
-            //}
-            //pos = m_BBAnalysisResults.find(loopHead->second);
         }
         assert(pos != m_BBAnalysisResults.end());
         dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));

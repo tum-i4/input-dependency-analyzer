@@ -33,7 +33,7 @@ public:
     const LibFunctionInfo& getLibFunctionInfo(const std::string& funcName) const;
 
 public:
-    void resolveLibFunctionInfo(llvm::Function* F);
+    void resolveLibFunctionInfo(llvm::Function* F, const std::string& demangledName);
 
 private:
     void setup();

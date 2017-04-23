@@ -244,7 +244,6 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         // This could happen for example when calling virtual functions
         return;
     }
-    //llvm::dbgs() << "Function call " << F->getName() << "\n";
     if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst);
         updateLibFunctionCallInstOutArgDependencies(callInst, argDepMap);
@@ -264,7 +263,6 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
         // This could happen for example when calling virtual functions
         return;
     }
-    //llvm::dbgs() << "Function invoke " << F->getName() << "\n";
     if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionInvokeSiteInfo(invokeInst);
         updateLibFunctionInvokeInstOutArgDependencies(invokeInst, argDepMap);
@@ -510,13 +508,17 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
                                                                       const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = callInst->getCalledFunction();
-    const auto& Fname = F->getName();
+    const auto& Fname = Utils::demangle_name(F->getName());
+    if (Fname.empty()) {
+        // log msg
+        return;
+    }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
         return;
     }
-    libInfo.resolveLibFunctionInfo(F);
+    libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
     const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
@@ -532,13 +534,17 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
                                                                         const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = invokeInst->getCalledFunction();
-    const auto& Fname = F->getName();
+    const auto& Fname = Utils::demangle_name(F->getName());
+    if (Fname.empty()) {
+        // log msg
+        return;
+    }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
         return;
     }
-    libInfo.resolveLibFunctionInfo(F);
+    libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
     const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
@@ -622,11 +628,7 @@ void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependenc
 {
     assert(toFinalize.isValueDep());
     auto& valueDependencies = toFinalize.getValueDependencies();
-    for (const auto& val : valueDependencies) {
-    }
     const auto& newInfo = getFinalizedDepInfo(valueDependencies, globalDeps);
-    if (!newInfo.isDefined()) {
-    }
     assert(newInfo.isDefined());
     if (toFinalize.getDependency() == DepInfo::VALUE_DEP) {
         toFinalize.setDependency(newInfo.getDependency());
@@ -639,7 +641,6 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCa
 {
     llvm::Function* F = callInst->getCalledFunction();
     ArgumentDependenciesMap argDepMap;
-    //llvm::dbgs() << "Called function " << F->getName() << "\n";
     for (unsigned i = 0; i < callInst->getNumArgOperands(); ++i) {
         llvm::Value* argVal = callInst->getArgOperand(i);
         const auto& deps = getArgumentValueDependecnies(argVal);
@@ -656,7 +657,6 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionIn
 {
     llvm::Function* F = invokeInst->getCalledFunction();
     ArgumentDependenciesMap argDepMap;
-    //llvm::dbgs() << "Called function " << F->getName() << "\n";
     for (unsigned i = 0; i < invokeInst->getNumArgOperands(); ++i) {
         llvm::Value* argVal = invokeInst->getArgOperand(i);
         const auto& deps = getArgumentValueDependecnies(argVal);
@@ -746,13 +746,17 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
                                                                  const ArgumentDependenciesMap& callArgDeps,
                                                                  const DependencyAnaliser::ArgumentValueGetter& argumentValueGetter)
 {
-    const auto& Fname = F->getName();
+    const auto& Fname = Utils::demangle_name(F->getName());
+    if (Fname.empty()) {
+        // log msg
+        return;
+    }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInputDepLibFunctionCallOutArgDependencies(F, argumentValueGetter);
         return;
     }
-    libInfo.resolveLibFunctionInfo(F);
+    libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
     for (auto& arg : F->getArgumentList()) {

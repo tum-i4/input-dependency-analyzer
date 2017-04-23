@@ -14,6 +14,8 @@ public:
     static ValueSet dissolveInstruction(llvm::Instruction* instr);
 
     static bool isLibraryFunction(llvm::Function* F, llvm::Module* M);
+
+    static std::string demangle_name(const std::string& name);
 }; // class Utils
 
 } // namespace input_dependency

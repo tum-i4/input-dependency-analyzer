@@ -57,61 +57,6 @@ ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
 {
 }
 
-// DUBUG
-//void ReflectingBasicBlockAnaliser::dumpResults() const
-//{
-//    BasicBlockAnalysisResult::dumpResults();
-//    llvm::dbgs() << "Value dependencies\n";
-//    for (const auto& val : m_valueDependencies) {
-//        llvm::dbgs() << "Value " << *val.first << val.second.getDependencyName() << "\n";
-//        for (const auto& v : val.second.getValueDependencies()) {
-//            llvm::dbgs() << "       " << *v  << "\n";
-//        }
-//        llvm::dbgs() << "Input dependencies\n";
-//        for (const auto& dep : val.second.getArgumentDependencies()) {
-//            llvm::dbgs() << "       " << *dep  << "\n";
-//        }
-//    }
-//
-//    llvm::dbgs() << "Value dependent instructions\n";
-//    for (const auto& item : m_instructionValueDependencies) {
-//        llvm::dbgs() << *item.first << "  " << item.second.getDependencyName() << "\n";
-//        for (const auto& dep : item.second.getValueDependencies()) {
-//            llvm::dbgs() << "       " << *dep  << "\n";
-//        }
-//    }
-//
-//    llvm::dbgs() << "Value dependent values\n";
-//    for (const auto& item : m_valueDependencies) {
-//        if (!item.second.isValueDep()) {
-//            continue;
-//        }
-//        llvm::dbgs() << *item.first << "   " << item.second.getDependencyName() << "\n";
-//        for (const auto& dep : item.second.getValueDependencies()) {
-//            llvm::dbgs() << "       " << *dep << "\n";
-//        }
-//    }
-//
-//    llvm::dbgs() << "Value dependent out arguments\n";
-//    for (const auto& item : m_valueDependentOutArguments) {
-//        for (const auto& arg : item.second) {
-//            llvm::dbgs() << *arg << " depends on " << *item.first << "\n"; 
-//        }
-//    }
-//    
-//    llvm::dbgs() << "Value dependent called functions arguments\n";
-//    for (const auto& item : m_valueDependentFunctionCallArguments) {
-//        for (const auto& fdep : item.second) {
-//            llvm::dbgs() << "Function " << fdep.first->getName() << " argument \n";
-//            for (const auto& dep : fdep.second) {
-//                llvm::dbgs() << *dep << " depends on value " << *item.first << "\n";
-//            }
-//        }
-//    }
-//
-//    llvm::dbgs() << "\n";
-//}
-
 void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies)
 {
     resolveValueDependencies(dependencies);
@@ -146,10 +91,10 @@ void ReflectingBasicBlockAnaliser::setInitialValueDependencies(
         }
         DepInfo finalDeps(item.second.getDependency());
         for (const auto& dep : item.second.getValueDependencies()) {
-            const auto& finaldeps = getValueFinalDependencies(dep);
+            ValueSet processed;
+            const auto& finaldeps = getValueFinalDependencies(dep, processed);
             finalDeps.mergeDependencies(finaldeps);
         }
-        item.second.setValueDependencies(finalDeps.getValueDependencies());
         item.second.mergeDependencies(finalDeps);
     }
 }
@@ -564,6 +509,9 @@ void ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepI
     if (!globals.empty()) {
         valueDep.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, ValueSet(globals.begin(), globals.end())));
     }
+    if (valueDep.getDependency() == DepInfo::VALUE_DEP && valueDep.getValueDependencies().empty()) {
+        valueDep.setDependency(DepInfo::INPUT_INDEP);
+    }
 }
 
 void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
@@ -594,30 +542,73 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
             res.first->second.mergeDependencies(dep.second);
         }
     }
+    eliminateCircularDependencies();
     for (auto& item : m_valueDependencies) {
         reflectOnSingleValue(item.first, item.second);
     }
 }
 
-DepInfo ReflectingBasicBlockAnaliser::getValueFinalDependencies(llvm::Value* value)
+void ReflectingBasicBlockAnaliser::eliminateCircularDependencies()
+{
+    for (auto& valueDep : m_valueDependencies) {
+        eliminateCircularDependenciesForValue(valueDep.first, valueDep.second);
+    }
+}
+
+void ReflectingBasicBlockAnaliser::eliminateCircularDependenciesForValue(llvm::Value* value, DepInfo& info)
+{
+    if (!info.isValueDep()) {
+        return;
+    }
+    ValueSet cleanValues;
+    for (const auto& val : info.getValueDependencies()) {
+        if (val == value) {
+            continue;
+        }
+        auto pos = m_valueDependencies.find(val);
+        if (pos != m_valueDependencies.end() && pos->second.isValueDep()) {
+            const auto& deps = pos->second.getValueDependencies();
+            if (deps.find(value) != deps.end()) {
+                cleanValues.insert(deps.begin(), deps.end());
+                cleanValues.erase(val);
+            }
+        } else {
+            cleanValues.insert(val);
+        }
+    }
+    // not likely to happen
+    info.setValueDependencies(cleanValues);
+    if (cleanValues.empty() && info.isValueDep()) {
+        info.setDependency(DepInfo::INPUT_INDEP);
+    }
+}
+
+DepInfo ReflectingBasicBlockAnaliser::getValueFinalDependencies(llvm::Value* value, ValueSet& processed)
 {
     auto pos = m_valueDependencies.find(value);
     if (pos == m_valueDependencies.end()) {
         assert(llvm::dyn_cast<llvm::GlobalVariable>(value));
+        processed.insert(value);
         return DepInfo(DepInfo::VALUE_DEP, ValueSet{value});
     }
     assert(pos != m_valueDependencies.end());
     if (pos->second.getValueDependencies().empty()) {
+        processed.insert(value);
         return DepInfo(pos->second.getDependency(), ValueSet{value});
     }
     DepInfo depInfo(pos->second.getDependency());
     for (auto val : pos->second.getValueDependencies()) {
         if (val == value) {
             // ???
+            processed.insert(value);
             depInfo.mergeDependencies(ValueSet{value});
             continue;
         }
-        const auto& deps = getValueFinalDependencies(val);
+        if (processed.find(val) != processed.end()) {
+            continue;
+        }
+        processed.insert(value);
+        const auto& deps = getValueFinalDependencies(val, processed);
         depInfo.mergeDependencies(deps);
     }
     return depInfo;

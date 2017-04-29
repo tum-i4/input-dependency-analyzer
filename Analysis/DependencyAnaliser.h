@@ -4,7 +4,13 @@
 #include "DependencyInfo.h"
 #include "FunctionCallDepInfo.h"
 
+namespace llvm {
+class FunctionType;
+}
+
 namespace input_dependency {
+
+class VirtualCallSiteAnalysisResult;
 
 /**
 * \class DependencyAnaliser
@@ -22,6 +28,7 @@ public:
 public:
     DependencyAnaliser(llvm::Function* F,
                        llvm::AAResults& AAR,
+                       const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                        const Arguments& inputs,
                        const FunctionAnalysisGetter& Fgetter);
 
@@ -49,7 +56,9 @@ protected:
     virtual void processBranchInst(llvm::BranchInst* branchInst);
     virtual void processStoreInst(llvm::StoreInst* storeInst);
     virtual void processCallInst(llvm::CallInst* callInst);
+    virtual void processVirtualCallSite(llvm::CallInst* callInst);
     virtual void processInvokeInst(llvm::InvokeInst* invokeInst);
+    virtual void processVirtualInvokeSite(llvm::InvokeInst* invokeInst);
     virtual void processInstrForOutputArgs(llvm::Instruction* I);
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
@@ -60,22 +69,26 @@ protected:
     virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const DepInfo& info) = 0;
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
+    virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) = 0;
+    virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) = 0;
 
-    virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst);
-    virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst);
+    virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
+    virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);
     /// \}
 
 protected:
     ArgumentSet isInput(llvm::Value* val) const;
 
-    void updateCallSiteOutArgDependencies(llvm::CallInst* callInst);
-    void updateInvokeSiteOutArgDependencies(llvm::InvokeInst* invokeInst);
-    void updateCallInstructionDependencies(llvm::CallInst* callInst);
-    void updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst);
-    void updateGlobalsAfterFunctionCall(llvm::CallInst* callInst);
-    void updateGlobalsAfterFunctionInvoke(llvm::InvokeInst* invokeInst);
+    void updateCallSiteOutArgDependencies(llvm::CallInst* callInst, llvm::Function* F);
+    void updateInvokeSiteOutArgDependencies(llvm::InvokeInst* invokeInst, llvm::Function* F);
+    void updateCallInstructionDependencies(llvm::CallInst* callInst, llvm::Function* F);
+    void updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, llvm::Function* F);
+    void updateGlobalsAfterFunctionCall(llvm::CallInst* callInst, llvm::Function* F);
+    void updateGlobalsAfterFunctionInvoke(llvm::InvokeInst* invokeInst, llvm::Function* F);
     void updateGlobalsAfterFunctionExecution(llvm::Function* F, const ArgumentDependenciesMap& functionArgDeps);
+    void updateVirtualCallOutArgDependencies(llvm::CallInst* callInst);
+    void updateVirtualInvokeOutArgDependencies(llvm::InvokeInst* invokeInst);
 
     void updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
     void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, const ArgumentDependenciesMap& argDepMap);
@@ -84,8 +97,8 @@ protected:
 
 private:
     //TODO: make const
-    ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst);
-    ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst);
+    ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
+    ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);
     GlobalVariableDependencyMap gatherGlobalsForFunctionCall(llvm::Function* F);
     DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
 
@@ -98,6 +111,10 @@ private:
                                                  const ArgumentValueGetter& actualArgumentGetter);
     void updateInputDepLibFunctionCallOutArgDependencies(llvm::Function* F,
                                                          const DependencyAnaliser::ArgumentValueGetter& actualArgumentGetter);
+    using ArgumentValueGetterByIndex = std::function<llvm::Value* (unsigned index)>;
+    void updateVirtualFunctionOutArgDependencies(llvm::FunctionType* FType,
+                                                 const ArgumentValueGetterByIndex& actualArgumentGetter);
+
     DepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
 
     void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
@@ -115,6 +132,7 @@ protected:
     const Arguments& m_inputs;
     const FunctionAnalysisGetter& m_FAG;
     llvm::AAResults& m_AAR;
+    const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
     bool m_finalized;
     bool m_globalsFinalized;
 

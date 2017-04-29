@@ -14,12 +14,14 @@ class LoopInfo;
 
 namespace input_dependency {
 
-// TODO: duplicates most of functionality of FunctionAnaliser
+class VirtualCallSiteAnalysisResult;
+
 class LoopAnalysisResult : public DependencyAnalysisResult
 {
 public:
     LoopAnalysisResult(llvm::Function* F,
                        llvm::AAResults& AAR,
+                       const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                        const Arguments& inputs,
                        const FunctionAnalysisGetter& Fgetter,
                        llvm::Loop& L,
@@ -95,6 +97,7 @@ private:
 private:
     llvm::Function* m_F;
     llvm::AAResults& m_AAR;
+    const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
     Arguments m_inputs;
     const FunctionAnalysisGetter& m_FAG;
     llvm::Loop& m_L;

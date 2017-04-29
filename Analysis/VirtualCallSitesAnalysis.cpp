@@ -123,7 +123,9 @@ void VirtualCallSitesAnalysis::Impl::runOnModule(llvm::Module& M)
         updateResults(S.second, TargetsForSlot);
     }
 
-    m_results.dump();
+    //m_results.dump();
+    // cleanup uneccessary data
+    m_callSlots.clear();
 }
 
 void VirtualCallSitesAnalysis::Impl::collectTypeTestUsers(llvm::Function* F)

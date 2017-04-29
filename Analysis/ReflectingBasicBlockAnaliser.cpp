@@ -1,5 +1,7 @@
 #include "ReflectingBasicBlockAnaliser.h"
 
+#include "VirtualCallSitesAnalysis.h"
+
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -49,10 +51,11 @@ DependencyAnaliser::ValueDependencies mergeSuccessorDependenciesWithInitialDepen
 ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
                         llvm::Function* F,
                         llvm::AAResults& AAR,
+                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                         const Arguments& inputs,
                         const FunctionAnalysisGetter& Fgetter,
                         llvm::BasicBlock* BB)
-                    : BasicBlockAnalysisResult(F, AAR, inputs, Fgetter, BB)
+                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
                     , m_isReflected(false)
 {
 }
@@ -213,18 +216,18 @@ DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* i
     return info;
 }
 
-void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst)
+void ReflectingBasicBlockAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F)
 {
-    BasicBlockAnalysisResult::updateFunctionCallSiteInfo(callInst);
-    updateValueDependentCallArguments(callInst);
-    updateValueDependentCallReferencedGlobals(callInst);
+    BasicBlockAnalysisResult::updateFunctionCallSiteInfo(callInst, F);
+    updateValueDependentCallArguments(callInst, F);
+    updateValueDependentCallReferencedGlobals(callInst, F);
 }
 
-void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst)
+void ReflectingBasicBlockAnaliser::updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F)
 {
-    BasicBlockAnalysisResult::updateFunctionInvokeSiteInfo(invokeInst);
-    updateValueDependentInvokeArguments(invokeInst);
-    updateValueDependentInvokeReferencedGlobals(invokeInst);
+    BasicBlockAnalysisResult::updateFunctionInvokeSiteInfo(invokeInst, F);
+    updateValueDependentInvokeArguments(invokeInst, F);
+    updateValueDependentInvokeReferencedGlobals(invokeInst, F);
 }
 
 void ReflectingBasicBlockAnaliser::updateValueDependentInstructions(const DepInfo& info,
@@ -235,9 +238,8 @@ void ReflectingBasicBlockAnaliser::updateValueDependentInstructions(const DepInf
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallInst* callInst)
+void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallInst* callInst, llvm::Function* F)
 {
-    auto F = callInst->getCalledFunction();
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     if (pos == m_functionCallInfo.end()) {
@@ -256,9 +258,8 @@ void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallI
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst)
+void ReflectingBasicBlockAnaliser::updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst, llvm::Function* F)
 {
-    auto F = invokeInst->getCalledFunction();
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
@@ -273,9 +274,8 @@ void ReflectingBasicBlockAnaliser::updateValueDependentInvokeArguments(llvm::Inv
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst)
+void ReflectingBasicBlockAnaliser::updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst, llvm::Function* F)
 {
-    auto F = callInst->getCalledFunction();
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
@@ -290,9 +290,8 @@ void ReflectingBasicBlockAnaliser::updateValueDependentCallReferencedGlobals(llv
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst)
+void ReflectingBasicBlockAnaliser::updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst, llvm::Function* F)
 {
-    auto F = invokeInst->getCalledFunction();
     assert(F != nullptr);
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());

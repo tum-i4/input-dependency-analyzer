@@ -2,6 +2,7 @@
 
 #include "ReflectingBasicBlockAnaliser.h"
 #include "NonDeterministicReflectingBasicBlockAnaliser.h"
+#include "VirtualCallSitesAnalysis.h"
 #include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -23,12 +24,14 @@ namespace input_dependency {
 
 LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                        llvm::AAResults& AAR,
+                                       const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                        const Arguments& inputs,
                                        const FunctionAnalysisGetter& Fgetter,
                                        llvm::Loop& L,
                                        llvm::LoopInfo& LI)
                                 : m_F(F)
                                 , m_AAR(AAR)
+                                , m_virtualCallsInfo(virtualCallsInfo)
                                 , m_inputs(inputs)
                                 , m_FAG(Fgetter)
                                 , m_L(L)
@@ -378,9 +381,9 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createRefl
     auto depInfo = getBasicBlockDeps(B);
     addLoopDependencies(B, depInfo);
     if (!depInfo.isInputIndep()) {
-        return ReflectingDependencyAnaliserT(new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_inputs, m_FAG, B, depInfo));
+        return ReflectingDependencyAnaliserT(new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B, depInfo));
     }
-    return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR, m_inputs, m_FAG, B));
+    return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
 }
 
 DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const

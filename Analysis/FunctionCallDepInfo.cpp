@@ -70,25 +70,36 @@ FunctionCallDepInfo::FunctionCallDepInfo(const llvm::Function& F)
 
 void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const ArgumentDependenciesMap& deps)
 {
-    assert(callInst->getCalledFunction() == &m_F);
+    if (auto F = callInst->getCalledFunction()) {
+        // if callInst is virtual call, then CalledFunction is going to be null
+        assert(F == &m_F);
+    }
     addCallSiteArguments(callInst, deps);
 }
 
 void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps)
 {
-    assert(invokeInst->getCalledFunction() == &m_F);
+    if (auto F = invokeInst->getCalledFunction()) {
+        assert(F == &m_F);
+    }
     addCallSiteArguments(invokeInst, deps);
 }
 
 void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const GlobalVariableDependencyMap& deps)
 {
-    assert(callInst->getCalledFunction() == &m_F);
+    if (auto F = callInst->getCalledFunction()) {
+        // if callInst is virtual call, then CalledFunction is going to be null
+        assert(F == &m_F);
+    }
     addCallSiteGlobals(callInst, deps);
 }
 
 void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const GlobalVariableDependencyMap& deps)
 {
-    assert(invokeInst->getCalledFunction() == &m_F);
+    if (auto F = invokeInst->getCalledFunction()) {
+        // if callInst is virtual call, then CalledFunction is going to be null
+        assert(F == &m_F);
+    }
     addCallSiteGlobals(invokeInst, deps);
 }
 

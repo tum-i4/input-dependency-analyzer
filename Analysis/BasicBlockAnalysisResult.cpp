@@ -2,7 +2,6 @@
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstrTypes.h"
@@ -17,10 +16,11 @@ namespace input_dependency {
 
 BasicBlockAnalysisResult::BasicBlockAnalysisResult(llvm::Function* F,
                                                    llvm::AAResults& AAR,
+                                                   const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                                    const Arguments& inputs,
                                                    const FunctionAnalysisGetter& Fgetter,
                                                    llvm::BasicBlock* BB)
-                                : DependencyAnaliser(F, AAR, inputs, Fgetter)
+                                : DependencyAnaliser(F, AAR, virtualCallsInfo, inputs, Fgetter)
                                 , m_BB(BB)
 {
 }
@@ -147,12 +147,36 @@ DepInfo BasicBlockAnalysisResult::getDependenciesFromAliases(llvm::Value* val)
     return info;
 }
 
+DepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
+{
+    DepInfo info;
+    const auto& DL = loadInst->getModule()->getDataLayout();
+    for (const auto& dep : m_valueDependencies) {
+        auto modRef = m_AAR.getModRefInfo(loadInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
+        if (modRef == llvm::ModRefInfo::MRI_Ref) {
+            info.mergeDependencies(dep.second);
+        }
+    }
+    return info;
+}
+
 void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const DepInfo& info)
 {
     for (auto& valDep : m_valueDependencies) {
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
             valDep.second = info;
+        }
+    }
+}
+
+void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info)
+{
+    const auto& DL = storeInst->getModule()->getDataLayout();
+    for (auto& dep : m_valueDependencies) {
+        auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
+        if (modRef == llvm::ModRefInfo::MRI_Mod) {
+            updateValueDependencies(dep.first, info);
         }
     }
 }
@@ -266,12 +290,17 @@ const GlobalsSet& BasicBlockAnalysisResult::getModifiedGlobals() const
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
-    DepInfo info = getDependenciesFromAliases(instr);
+    DepInfo info = getRefInfo(instr);
     if (info.isDefined()) {
         return info;
     }
     auto* loadOp = instr->getPointerOperand();
-    info = getDependenciesFromAliases(loadOp);
+    if (auto opinstr = llvm::dyn_cast<llvm::Instruction>(loadOp)) {
+        info = getInstructionDependencies(opinstr);
+    } else {
+        info = getDependenciesFromAliases(loadOp);
+    }
+
     if (info.isDefined()) {
         return info;
     }
@@ -281,6 +310,10 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
     }
     auto pos = m_valueDependencies.find(loadedValue);
     if (pos == m_valueDependencies.end()) {
+        // might be unnecessary
+        if (auto loadedValInstr = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
+            return getInstructionDependencies(loadedValInstr);
+        }
         auto globalVal = llvm::dyn_cast<llvm::GlobalVariable>(loadedValue);
         assert(globalVal != nullptr);
         m_referencedGlobals.insert(globalVal);

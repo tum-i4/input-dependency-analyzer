@@ -1,5 +1,7 @@
 #include "NonDeterministicBasicBlockAnaliser.h"
 
+#include "VirtualCallSitesAnalysis.h"
+
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -18,11 +20,12 @@ namespace input_dependency {
 NonDeterministicBasicBlockAnaliser::NonDeterministicBasicBlockAnaliser(
                         llvm::Function* F,
                         llvm::AAResults& AAR,
+                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                         const Arguments& inputs,
                         const FunctionAnalysisGetter& Fgetter,
                         llvm::BasicBlock* BB,
                         const DepInfo& nonDetArgs)
-                    : BasicBlockAnalysisResult(F, AAR, inputs, Fgetter, BB)
+                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
                     , m_nonDetDeps(nonDetArgs)
 {
 }

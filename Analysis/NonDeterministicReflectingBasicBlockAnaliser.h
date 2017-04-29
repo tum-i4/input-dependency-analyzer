@@ -5,11 +5,15 @@
 
 namespace input_dependency {
 
+class VirtualCallSiteAnalysisResult;
+
+// TODO: can derive from NonDeterministicBasicBlockAnaliser.
 class NonDeterministicReflectingBasicBlockAnaliser : public ReflectingBasicBlockAnaliser
 {
 public:
     NonDeterministicReflectingBasicBlockAnaliser(llvm::Function* F,
                                                 llvm::AAResults& AAR,
+                                                const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                                 const Arguments& inputs,
                                                 const FunctionAnalysisGetter& Fgetter,
                                                 llvm::BasicBlock* BB,

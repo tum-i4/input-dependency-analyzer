@@ -4,11 +4,14 @@
 
 namespace input_dependency {
 
+class VirtualCallSiteAnalysisResult;
+
 class NonDeterministicBasicBlockAnaliser : public BasicBlockAnalysisResult
 {
 public:
     NonDeterministicBasicBlockAnaliser(llvm::Function* F,
                                        llvm::AAResults& AAR,
+                                       const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                        const Arguments& inputs,
                                        const FunctionAnalysisGetter& Fgetter,
                                        llvm::BasicBlock* BB,

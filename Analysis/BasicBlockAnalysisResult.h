@@ -12,6 +12,8 @@ class BasicBlock;
 
 namespace input_dependency {
 
+class VirtualCallSiteAnalysisResult;
+
 /**
 * \class BasicBlockAnalysisResult
 * \brief Implementation of the dependency analyser and results reporter for a basic block
@@ -22,6 +24,7 @@ class BasicBlockAnalysisResult : public virtual DependencyAnalysisResult
 public:
     BasicBlockAnalysisResult(llvm::Function* F,
                              llvm::AAResults& AAR,
+                             const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                              const Arguments& inputs,
                              const FunctionAnalysisGetter& Fgetter,
                              llvm::BasicBlock* BB);
@@ -51,7 +54,9 @@ protected:
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
+    DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
     void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) override;
+    void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
     /// \}

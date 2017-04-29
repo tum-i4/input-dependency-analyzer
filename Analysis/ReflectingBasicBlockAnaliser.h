@@ -6,6 +6,8 @@
 
 namespace input_dependency {
 
+class VirtualCallSiteAnalysisResult;
+
 /**
 * \class ReflectingBasicBlockAnaliser
 * \brief Implements Reflection interface and dependency results reporting interface
@@ -16,6 +18,7 @@ class ReflectingBasicBlockAnaliser : public BasicBlockAnalysisResult
 public:
     ReflectingBasicBlockAnaliser(llvm::Function* F,
                                  llvm::AAResults& AAR,
+                                 const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                  const Arguments& inputs,
                                  const FunctionAnalysisGetter& Fgetter,
                                  llvm::BasicBlock* BB);
@@ -49,17 +52,17 @@ protected:
 private:
     void processInstrForOutputArgs(llvm::Instruction* I) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr);
-    void updateFunctionCallSiteInfo(llvm::CallInst* callInst) override;
-    void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst) override;
+    void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F) override;
+    void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F) override;
     /// \}
 
 private:
     void updateValueDependentInstructions(const DepInfo& info,
                                           llvm::Instruction* instr);
-    void updateValueDependentCallArguments(llvm::CallInst* callInst);
-    void updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst);
-    void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst);
-    void updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst);
+    void updateValueDependentCallArguments(llvm::CallInst* callInst, llvm::Function* F);
+    void updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst, llvm::Function* F);
+    void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst, llvm::Function* F);
+    void updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst, llvm::Function* F);
 
     void reflect(llvm::Value* value, const DepInfo& deps);
     void reflectOnValues(llvm::Value* value, const DepInfo& depInfo);

@@ -1,5 +1,6 @@
 #include "InputDependencyAnalysis.h"
 
+#include "VirtualCallSitesAnalysis.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -42,6 +43,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         return &pos->second;
     };
 
+    const VirtualCallSiteAnalysisResult& virtualCallsInfo = getAnalysis<VirtualCallSitesAnalysis>().getAnalysisResult();
     llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
     llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(&CG);
     llvm::CallGraphSCC CurSCC(CG, &CGI);
@@ -60,7 +62,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
             m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
-            auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, FAGetter)));
+            auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, virtualCallsInfo, FAGetter)));
             assert(res.second);
             auto& analizer = res.first->second;
             analizer.analize();
@@ -77,6 +79,7 @@ void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesCFG();
     AU.setPreservesAll();
+    AU.addRequired<VirtualCallSitesAnalysis>();
     AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
     llvm::getAAResultsAnalysisUsage(AU);
     AU.addRequired<llvm::CallGraphWrapperPass>();
@@ -151,7 +154,6 @@ bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
 void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, FunctionAnaliser& FA)
 {
     if (m_calleeCallersInfo.find(F) == m_calleeCallersInfo.end()) {
-        // log message
         return;
     }
     const auto& callInfo = getFunctionCallInfo(F);

@@ -12,10 +12,16 @@ class LoopInfo;
 
 namespace input_dependency {
 
+class VirtualCallSiteAnalysisResult;
+
 class FunctionAnaliser
 {
 public:
-    FunctionAnaliser(llvm::Function* F, llvm::AAResults& AAR, llvm::LoopInfo& LI, const FunctionAnalysisGetter& getter);
+    FunctionAnaliser(llvm::Function* F,
+                     llvm::AAResults& AAR,
+                     llvm::LoopInfo& LI,
+                     const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                     const FunctionAnalysisGetter& getter);
 
 public:
     /**

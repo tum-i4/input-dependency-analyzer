@@ -52,7 +52,8 @@ bool Utils::isLibraryFunction(llvm::Function* F, llvm::Module* M)
     assert(F != nullptr);
     assert(M != nullptr);
     return (F->getParent() != M
-            || F->isDeclaration());
+            || F->isDeclaration()
+            || F->isIntrinsic());
 
     //|| F->getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage);
 }

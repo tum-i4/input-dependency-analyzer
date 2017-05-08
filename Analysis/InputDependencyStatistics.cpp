@@ -1,5 +1,6 @@
 #include "InputDependencyStatistics.h"
 #include "InputDependencyAnalysis.h"
+#include "Utils.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -18,10 +19,13 @@ namespace {
 
 void print_stats(const std::string& function_name, unsigned deps, unsigned indeps, unsigned unknowns)
 {
-    llvm::dbgs() << "Function " << function_name << "\n";
+    llvm::dbgs() << function_name << "\n";
+    llvm::dbgs() << "----------------------\n";
     llvm::dbgs() << "Input Dependent instructions: " << deps << "\n";
     llvm::dbgs() << "Input Independent instructions: " << indeps << "\n";
     llvm::dbgs() << "Unknown instructions: " << unknowns << "\n";
+    unsigned percent = (deps * 100) / (deps + indeps + unknowns);
+    llvm::dbgs() << "Input dependent instructions' percent: " << percent << "%\n";
 }
 
 }
@@ -36,12 +40,18 @@ void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) co
 
 bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
 {
+    unsigned module_dep_count = 0;
+    unsigned module_indep_count = 0;
+    unsigned module_unknown_count = 0;
     const auto& IDA = getAnalysis<InputDependencyAnalysis>();
     for (auto& F : M) {
         unsigned dep_count = 0;
         unsigned indep_count = 0;
         unsigned unknown_count = 0;
         const auto& FA = IDA.getAnalysisInfo(&F);
+        if (FA == nullptr) {
+            continue;
+        }
         for (const auto& B : F) {
             for (const auto& I : B) {
                 if (FA->isInputDependent(&I)) {
@@ -54,7 +64,11 @@ bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
             }
         }
         print_stats(F.getName(), dep_count, indep_count, unknown_count);
+        module_dep_count += dep_count;
+        module_indep_count += indep_count;
+        module_unknown_count += unknown_count;
     }
+    print_stats(M.getName(), module_dep_count, module_indep_count, module_unknown_count);
 
     return false;
 }

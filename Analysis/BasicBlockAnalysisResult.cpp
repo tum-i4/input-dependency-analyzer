@@ -218,6 +218,12 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
     return m_inputDependentInstrs.find(instr) != m_inputDependentInstrs.end();
 }
 
+bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
+{
+    assert(instr->getParent()->getParent() == m_F);
+    return m_inputIndependentInstrs.find(instr) != m_inputIndependentInstrs.end();
+}
+
 bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
     return m_valueDependencies.find(val) != m_valueDependencies.end();

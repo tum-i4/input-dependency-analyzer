@@ -127,10 +127,6 @@ const FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function*
 // doFinalize is called once
 bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
 {
-    //for (const auto& item : m_functionAnalisers) {
-    //    item.second.dump();
-    //}
-
     for (auto F : m_moduleFunctions) {
         auto pos = m_functionAnalisers.find(F);
         if (pos == m_functionAnalisers.end()) {

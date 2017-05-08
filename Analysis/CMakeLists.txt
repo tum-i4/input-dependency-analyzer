@@ -16,6 +16,7 @@ add_library(InputDependency MODULE
     ReflectingBasicBlockAnaliser.cpp
     Utils.cpp
     VirtualCallSitesAnalysis.cpp
+    InputDependencyStatistics.cpp
 )
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).

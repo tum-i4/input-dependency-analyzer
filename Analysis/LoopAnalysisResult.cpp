@@ -116,6 +116,14 @@ bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
     return pos->second->isInputDependent(instr);
 }
 
+bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
+{
+    auto parentBB = instr->getParent();
+    auto pos = m_BBAnalisers.find(parentBB);
+    assert(pos != m_BBAnalisers.end());
+    return pos->second->isInputDependent(instr);
+}
+
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
     return m_valueDependencies.find(val) != m_valueDependencies.end();

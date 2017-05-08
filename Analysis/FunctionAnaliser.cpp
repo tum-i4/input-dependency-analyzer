@@ -48,6 +48,7 @@ private:
 
 public:
     bool isInputDependent(llvm::Instruction* instr) const;
+    bool isInputIndependent(llvm::Instruction* instr) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -100,6 +101,7 @@ private:
     void updateModifiedGlobals();
     PredValDeps getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     PredArgDeps getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
+    const DependencyAnalysisResultT& getAnalysisResult(llvm::Instruction* I) const;
 
 private:
     llvm::Function* m_F;
@@ -126,15 +128,14 @@ private:
 
 bool FunctionAnaliser::Impl::isInputDependent(llvm::Instruction* instr) const
 {
-    auto bb = instr->getParent();
-    assert(bb->getParent() == m_F);
-    auto looppos = m_loopBlocks.find(bb);
-    if (looppos != m_loopBlocks.end()) {
-        bb = looppos->second;
-    }
-    auto pos = m_BBAnalysisResults.find(bb);
-    assert(pos != m_BBAnalysisResults.end());
-    return pos->second->isInputDependent(instr);
+    const auto& analysisRes = getAnalysisResult(instr);
+    return analysisRes->isInputDependent(instr);
+}
+
+bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
+{
+    const auto& analysisRes = getAnalysisResult(instr);
+    return analysisRes->isInputIndependent(instr);
 }
 
 bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
@@ -538,6 +539,19 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
     return deps;
 }
 
+const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl::getAnalysisResult(llvm::Instruction* instr) const
+{
+    auto bb = instr->getParent();
+    assert(bb->getParent() == m_F);
+    auto looppos = m_loopBlocks.find(bb);
+    if (looppos != m_loopBlocks.end()) {
+        bb = looppos->second;
+    }
+    auto pos = m_BBAnalysisResults.find(bb);
+    assert(pos != m_BBAnalysisResults.end());
+    return pos->second;
+}
+
 FunctionAnaliser::FunctionAnaliser(llvm::Function* F,
                                    llvm::AAResults& AAR,
                                    llvm::LoopInfo& LI,
@@ -587,6 +601,16 @@ bool FunctionAnaliser::isInputDependent(llvm::Instruction* instr) const
 bool FunctionAnaliser::isInputDependent(const llvm::Instruction* instr) const
 {
     return m_analiser->isInputDependent(const_cast<llvm::Instruction*>(instr));
+}
+
+bool FunctionAnaliser::isInputIndependent(llvm::Instruction* instr) const
+{
+    return m_analiser->isInputIndependent(instr);
+}
+
+bool FunctionAnaliser::isInputIndependent(const llvm::Instruction* instr) const
+{
+    return m_analiser->isInputIndependent(const_cast<llvm::Instruction*>(instr));
 }
 
 bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const

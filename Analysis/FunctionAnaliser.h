@@ -64,6 +64,8 @@ public:
      */
     bool isInputDependent(llvm::Instruction* instr) const;
     bool isInputDependent(const llvm::Instruction* instr) const;
+    bool isInputIndependent(llvm::Instruction* instr) const;
+    bool isInputIndependent(const llvm::Instruction* instr) const;
 
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;

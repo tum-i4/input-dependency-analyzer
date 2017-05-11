@@ -11,6 +11,8 @@ const std::string& rename = "rename";
 const std::string& fflush = "fflush"; 
 const std::string& fopen = "fopen"; 
 const std::string& freopen = "freopen"; 
+const std::string& fwrite = "fwrite";
+const std::string& fputc = "fputc";
 const std::string& snprintf = "snprintf"; 
 const std::string& sprintf = "sprintf"; 
 const std::string& sscanf = "sscanf"; 
@@ -23,7 +25,9 @@ const std::string& getenv = "getenv";
 const std::string& system = "system";
 const std::string& abs = "abs";
 const std::string& labs = "labs";
+const std::string& strlen = "strlen";
 
+const std::string& malloc = "malloc";
 const std::string& new_operator = "operator new(unsigned long)";
 } // namespace C_library
 
@@ -39,6 +43,8 @@ void CLibraryInfo::setup()
     add_fflush();
     add_fopen();
     add_fropen();
+    add_fwrite();
+    add_fputc();
     add_snprintf();
     add_sprintf();
     add_sscanf();
@@ -52,6 +58,8 @@ void CLibraryInfo::setup()
     add_system();
     add_abs();
     add_labs();
+    add_strlen();
+    add_malloc();
 
     add_new_operator();
 }
@@ -111,6 +119,23 @@ void CLibraryInfo::add_fropen()
                                 std::move(argDeps),
                                 LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
     m_libFunctionInfoProcessor(std::move(freopenInfo));
+}
+
+void CLibraryInfo::add_fwrite()
+{
+    // size_t fwrite ( const void * ptr, size_t size, size_t count, FILE * stream );
+    LibFunctionInfo fwriteInfo(C_library::fwrite,
+                               LibFunctionInfo::LibArgumentDependenciesMap(),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {1, 2}});
+    m_libFunctionInfoProcessor(std::move(fwriteInfo));
+}
+
+void CLibraryInfo::add_fputc()
+{
+    LibFunctionInfo fputc(C_library::fputc,
+                          LibFunctionInfo::LibArgumentDependenciesMap(),
+                          LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(fputc));
 }
 
 void CLibraryInfo::add_snprintf()
@@ -217,6 +242,22 @@ void CLibraryInfo::add_labs()
                              LibFunctionInfo::LibArgumentDependenciesMap(),
                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(labsInfo));
+}
+
+void CLibraryInfo::add_strlen()
+{
+    LibFunctionInfo strlenInfo(C_library::strlen,
+                               LibFunctionInfo::LibArgumentDependenciesMap(),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
+    m_libFunctionInfoProcessor(std::move(strlenInfo));
+}
+
+void CLibraryInfo::add_malloc()
+{
+    LibFunctionInfo mallocInfo(C_library::malloc,
+                               LibFunctionInfo::LibArgumentDependenciesMap(),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(mallocInfo));
 }
 
 void CLibraryInfo::add_new_operator()

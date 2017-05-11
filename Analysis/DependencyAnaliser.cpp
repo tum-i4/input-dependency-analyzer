@@ -599,10 +599,11 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
                                                                       const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = callInst->getCalledFunction();
-    const auto& Fname = Utils::demangle_name(F->getName());
+    auto Fname = Utils::demangle_name(F->getName());
     if (Fname.empty()) {
         // log msg
-        return;
+        // Try with non-demangled name
+        Fname = F->getName();
     }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {

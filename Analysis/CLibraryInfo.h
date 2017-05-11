@@ -24,6 +24,8 @@ private:
     void add_fflush();
     void add_fopen();
     void add_fropen();
+    void add_fwrite();
+    void add_fputc();
     void add_snprintf();
     void add_sprintf();
     void add_sscanf();
@@ -36,6 +38,9 @@ private:
     void add_system();
     void add_abs();
     void add_labs();
+    void add_strlen();
+
+    void add_malloc();
 
     // not sure if this should be here
     void add_new_operator();

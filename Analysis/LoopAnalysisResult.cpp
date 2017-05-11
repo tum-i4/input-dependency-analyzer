@@ -121,7 +121,7 @@ bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
     auto parentBB = instr->getParent();
     auto pos = m_BBAnalisers.find(parentBB);
     assert(pos != m_BBAnalisers.end());
-    return pos->second->isInputDependent(instr);
+    return pos->second->isInputIndependent(instr);
 }
 
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
@@ -326,10 +326,10 @@ void LoopAnalysisResult::updateValueDependencies()
 {
     auto BB = m_L.getHeader();
     const auto& valuesDeps = m_BBAnalisers[BB]->getValuesDependencies();
-    for (auto& item : m_valueDependencies) {
-        auto pos = valuesDeps.find(item.first);
-        if (pos != valuesDeps.end()) {
-            item.second.mergeDependencies(pos->second);
+    for (const auto& item : valuesDeps) {
+        auto res = m_valueDependencies.insert(item);
+        if (!res.second) {
+            res.first->second.mergeDependencies(item.second);
         }
     }
 }

@@ -28,6 +28,7 @@ const std::string& labs = "labs";
 const std::string& strlen = "strlen";
 
 const std::string& malloc = "malloc";
+const std::string& calloc = "calloc";
 const std::string& new_operator = "operator new(unsigned long)";
 } // namespace C_library
 
@@ -60,6 +61,7 @@ void CLibraryInfo::setup()
     add_labs();
     add_strlen();
     add_malloc();
+    add_calloc();
 
     add_new_operator();
 }
@@ -258,6 +260,17 @@ void CLibraryInfo::add_malloc()
                                LibFunctionInfo::LibArgumentDependenciesMap(),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
     m_libFunctionInfoProcessor(std::move(mallocInfo));
+}
+
+void CLibraryInfo::add_calloc()
+{
+    // void* calloc (size_t num, size_t size);
+    // The return value is non-deterministic. In case of failure returns null.
+    // However of nullptr was returned it shouldn't be used anyway.
+    LibFunctionInfo callocInfo(C_library::calloc,
+                               LibFunctionInfo::LibArgumentDependenciesMap(),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(callocInfo));
 }
 
 void CLibraryInfo::add_new_operator()

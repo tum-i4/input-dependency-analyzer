@@ -41,6 +41,7 @@ private:
     void add_strlen();
 
     void add_malloc();
+    void add_calloc();
 
     // not sure if this should be here
     void add_new_operator();

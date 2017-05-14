@@ -24,6 +24,9 @@ public:
                      const FunctionAnalysisGetter& getter);
 
 public:
+    void setFunction(llvm::Function* F);
+
+public:
     /**
      * \brief Preliminary analyses input dependency of instructions in the function.
      * Results of this function is primary information about instructions input dependency, output arguments input dependency, and function call sites dependency info.
@@ -50,6 +53,9 @@ public:
     FunctionSet getCallSitesData() const;
 
     DependencyAnaliser::ArgumentDependenciesMap getCallArgumentInfo(llvm::Function* F) const;
+
+    // can't return with reference. Get with r-value if possible, to avoid copy
+    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
     DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
 
     /**

@@ -46,6 +46,170 @@ DependencyAnaliser::ValueDependencies mergeSuccessorDependenciesWithInitialDepen
     return finalMerged;
 }
 
+class value_dependence_graph
+{
+public:
+    class node;
+    using nodeT = std::shared_ptr<node>;
+    using node_set = std::unordered_set<nodeT>;
+
+    class node
+    {
+    public:
+        node(llvm::Value* val)
+            : value(val)
+        {
+        }
+
+        llvm::Value* get_value() const
+        {
+            return value;
+        }
+
+        node_set& get_depends_on_values()
+        {
+            return depends_on_values;
+        }
+
+        node_set& get_dependent_values()
+        {
+            return dependent_values;
+        }
+
+        bool add_depends_on_value(nodeT dep_node)
+        {
+            return depends_on_values.insert(dep_node).second;
+        }
+
+        bool add_dependent_value(nodeT dep_node)
+        {
+            return dependent_values.insert(dep_node).second;
+        }
+        
+        void add_depends_on_values(nodeT self, node_set& nodes)
+        {
+            for (auto& n : nodes) {
+                if (n == self) {
+                    continue;
+                }
+                if (n->depends_on(self)) {
+                    add_depends_on_values(self, n->get_depends_on_values());
+                    continue;
+                }
+                depends_on_values.insert(n);
+            }
+        }
+
+        void remove_depends_on(nodeT dep_node)
+        {
+            depends_on_values.erase(dep_node);
+        }
+
+        void remove_dependent_value(nodeT dep_node)
+        {
+            dependent_values.erase(dep_node);
+        }
+
+        void clear_dependent_values()
+        {
+            dependent_values.clear();
+        }
+
+        bool is_leaf() const
+        {
+            return depends_on_values.empty();
+        }
+
+        bool depends_on(nodeT n)
+        {
+            return depends_on_values.find(n) != depends_on_values.end();
+        }
+
+        void dump()
+        {
+            llvm::dbgs() << *value;
+        }
+
+    private:
+     llvm::Value* value;
+     // values this node depends on
+     node_set depends_on_values;
+     node_set dependent_values;
+    };
+
+public:
+    value_dependence_graph() = default;
+    void build(DependencyAnaliser::ValueDependencies& valueDeps);
+
+    void dump() const;
+
+    node_set& get_leaves()
+    {
+        return m_leaves;
+    }
+
+private:
+    void dump(nodeT n) const;
+
+private:
+    node_set m_leaves;
+};
+
+void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueDeps)
+{
+    std::unordered_map<llvm::Value*, nodeT> nodes;
+    for (auto& item : valueDeps) {
+        auto res = nodes.insert(std::make_pair(item.first, nodeT(new node(item.first))));
+        nodeT val_node = res.first->second;
+        if (!item.second.isValueDep()) {
+            m_leaves.insert(val_node);
+            continue;
+        }
+        auto& value_deps = item.second.getValueDependencies();
+        bool is_self_dependent = false;
+        for (auto& val : value_deps) {
+            if (val == item.first) {
+                is_self_dependent = true;
+                continue;
+            }
+            auto val_res = nodes.insert(std::make_pair(val, nodeT(new node(val))));
+            auto dep_val = val_res.first->second;
+            bool is_global = llvm::dyn_cast<llvm::GlobalVariable>(val);
+            if (is_global && valueDeps.find(val) == valueDeps.end()) {
+                continue;
+            }
+            if (!dep_val->depends_on(val_node) && val_node->add_depends_on_value(dep_val) && !dep_val->depends_on(val_node)) {
+                dep_val->add_dependent_value(val_node);
+            }
+        }
+        if (is_self_dependent) {
+            value_deps.erase(item.first);
+            if (value_deps.empty() && item.second.getDependency() == DepInfo::VALUE_DEP) {
+                item.second.setDependency(DepInfo::INPUT_INDEP);
+            }
+        }
+        if (val_node->is_leaf()) {
+            m_leaves.insert(val_node);
+        }
+    }
+}
+
+void value_dependence_graph::dump() const
+{
+    for (const auto& leaf : m_leaves) {
+        dump(leaf);
+        llvm::dbgs() << "\n";
+    }
+}
+
+void value_dependence_graph::dump(nodeT n) const
+{
+    n->dump();
+    for (const auto& dep_n : n->get_dependent_values()) {
+        dump(dep_n);
+    }
+}
+
 } // unnamed namespace
 
 ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
@@ -60,9 +224,10 @@ ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
 {
 }
 
-void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies)
+void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies,
+                                           const DepInfo& mandatory_deps)
 {
-    resolveValueDependencies(dependencies);
+    resolveValueDependencies(dependencies, mandatory_deps);
     for (auto& item : m_valueDependencies) {
         if (!item.second.isDefined()) {
             continue;
@@ -84,24 +249,6 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     m_isReflected = true;
 }
 
-void ReflectingBasicBlockAnaliser::setInitialValueDependencies(
-                    const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies)
-{
-    BasicBlockAnalysisResult::setInitialValueDependencies(valueDependencies);
-    for (auto& item : m_valueDependencies) {
-        if (!item.second.isValueDep()) {
-            continue;
-        }
-        DepInfo finalDeps(item.second.getDependency());
-        for (const auto& dep : item.second.getValueDependencies()) {
-            ValueSet processed;
-            const auto& finaldeps = getValueFinalDependencies(dep, processed);
-            finalDeps.mergeDependencies(finaldeps);
-        }
-        item.second.mergeDependencies(finalDeps);
-    }
-}
-
 DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr) const
 {
     auto indeppos = m_inputIndependentInstrs.find(instr);
@@ -116,6 +263,26 @@ DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instructi
     assert(deppos != m_inputDependentInstrs.end());
     assert(deppos->second.isInputDep() || deppos->second.isInputArgumentDep());
     return deppos->second;
+}
+
+void ReflectingBasicBlockAnaliser::markAllInputDependent()
+{
+    BasicBlockAnalysisResult::markAllInputDependent();
+    DepInfo info(DepInfo::INPUT_DEP);
+    m_valueDependentInstrs.clear();
+    for (auto& instrItem : m_instructionValueDependencies) {
+        m_inputDependentInstrs.insert(std::make_pair(instrItem.first, info));
+    }
+    m_instructionValueDependencies.clear();
+    for (auto& depItem : m_valueDependentOutArguments) {
+        for (auto& arg : depItem.second) {
+            m_outArgDependencies[arg] = info;
+        }
+    }
+    m_valueDependentFunctionCallArguments.clear();
+    m_valueDependentFunctionInvokeArguments.clear();
+    m_valueDependentCallGlobals.clear();
+    m_valueDependentInvokeGlobals.clear();
 }
 
 void ReflectingBasicBlockAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
@@ -212,7 +379,16 @@ DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* i
     llvm::Value* loadedValue = getMemoryValue(loadOp);
 
     DepInfo info = BasicBlockAnalysisResult::getLoadInstrDependencies(instr);
+    if (auto loadedInst = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
+        auto alloca = llvm::dyn_cast<llvm::AllocaInst>(loadedInst);
+        if (!alloca) {
+            // or?
+            info.mergeDependencies(getInstructionDependencies(loadedInst));
+            return info;
+        }
+    }
     info.mergeDependencies(ValueSet{loadedValue});
+    info.mergeDependency(DepInfo::VALUE_DEP);
     return info;
 }
 
@@ -311,10 +487,7 @@ void ReflectingBasicBlockAnaliser::reflect(llvm::Value* value, const DepInfo& de
     assert(deps.isDefined());
     // remove later
     if (deps.isValueDep()) {
-        for (const auto& val : deps.getValueDependencies()) {
-            assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
-        }
-
+        assert(deps.isOnlyGlobalValueDependent());
     }
     reflectOnInstructions(value, deps); // need to go trough instructions one more time and add to correspoinding set
     reflectOnOutArguments(value, deps);
@@ -464,55 +637,6 @@ void ReflectingBasicBlockAnaliser::reflectOnReturnValue(llvm::Value* value, cons
     reflectOnDepInfo(value, m_returnValueDependencies, depInfo);
 }
 
-void ReflectingBasicBlockAnaliser::reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep)
-{
-    if (!valueDep.isValueDep()) {
-        return;
-    }
-    auto& valDeps = valueDep.getValueDependencies(); 
-    std::vector<llvm::Value*> globals;
-    ValueSet processedValues;
-    while (!valDeps.empty()) {
-        auto val = *valDeps.begin();
-        processedValues.insert(val);
-        if (val == value) {
-            auto num = valDeps.erase(val);
-            assert(num > 0);
-            if (valDeps.empty()) {
-                valueDep.mergeDependency(DepInfo::INPUT_INDEP);
-                break;
-            }
-            continue;
-        }
-        auto pos = m_valueDependencies.find(val);
-        if (pos == m_valueDependencies.end()) {
-            assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
-            globals.push_back(val);
-            valDeps.erase(val);
-            continue;
-        }
-        valueDep.mergeDependencies(pos->second.getArgumentDependencies());
-        if (valueDep.getDependency() == DepInfo::VALUE_DEP) {
-            valueDep.setDependency(pos->second.getDependency());
-        } else {
-            valueDep.mergeDependency(pos->second.getDependency());
-        }
-        for (const auto& v : pos->second.getValueDependencies()) {
-            if (processedValues.find(v) == processedValues.end()) {
-                valDeps.insert(v);
-            }
-        }
-        auto num = valDeps.erase(val);
-        assert(num > 0);
-    }
-    if (!globals.empty()) {
-        valueDep.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, ValueSet(globals.begin(), globals.end())));
-    }
-    if (valueDep.getDependency() == DepInfo::VALUE_DEP && valueDep.getValueDependencies().empty()) {
-        valueDep.setDependency(DepInfo::INPUT_INDEP);
-    }
-}
-
 void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
                                                     DepInfo& depInfoTo,
                                                     const DepInfo& depInfoFrom,
@@ -533,52 +657,55 @@ void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
     valueDeps.erase(valPos);
 }
 
-void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies)
+void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,
+                                                            const DepInfo& mandatory_deps)
 {
     for (const auto& dep : successorDependencies) {
         auto res = m_valueDependencies.insert(dep);
         if (!res.second) {
             res.first->second.mergeDependencies(dep.second);
         }
-    }
-    eliminateCircularDependencies();
-    for (auto& item : m_valueDependencies) {
-        reflectOnSingleValue(item.first, item.second);
-    }
-}
-
-void ReflectingBasicBlockAnaliser::eliminateCircularDependencies()
-{
-    for (auto& valueDep : m_valueDependencies) {
-        eliminateCircularDependenciesForValue(valueDep.first, valueDep.second);
-    }
-}
-
-void ReflectingBasicBlockAnaliser::eliminateCircularDependenciesForValue(llvm::Value* value, DepInfo& info)
-{
-    if (!info.isValueDep()) {
-        return;
-    }
-    ValueSet cleanValues;
-    for (const auto& val : info.getValueDependencies()) {
-        if (val == value) {
-            continue;
+        if (m_modifiedValues.find(dep.first) != m_modifiedValues.end()) {
+            res.first->second.mergeDependencies(mandatory_deps);
         }
-        auto pos = m_valueDependencies.find(val);
-        if (pos != m_valueDependencies.end() && pos->second.isValueDep()) {
-            const auto& deps = pos->second.getValueDependencies();
-            if (deps.find(value) != deps.end()) {
-                cleanValues.insert(deps.begin(), deps.end());
-                cleanValues.erase(val);
+    }
+    value_dependence_graph graph;
+    graph.build(m_valueDependencies);
+    graph.dump();
+    auto& graph_leaves = graph.get_leaves();
+    std::list<value_dependence_graph::nodeT> leaves(graph_leaves.begin(), graph_leaves.end());
+    while (!leaves.empty()) {
+        auto leaf = leaves.back();
+        auto val_pos = m_valueDependencies.find(leaf->get_value());
+        assert(val_pos != m_valueDependencies.end());
+        assert(!val_pos->second.isValueDep() || val_pos->second.isOnlyGlobalValueDependent());
+        assert(!val_pos->second.isValueDep());
+        for (auto& dep_node : leaf->get_dependent_values()) {
+            auto dep_val = dep_node->get_value();
+            auto dep_val_pos = m_valueDependencies.find(dep_val);
+            assert(dep_val_pos != m_valueDependencies.end());
+            //assert(!dep_val_pos->second.isValueDep() || dep_val_pos->second.isOnlyGlobalValueDependent());
+            dep_val_pos->second.mergeDependencies(val_pos->second);
+            dep_val_pos->second.getValueDependencies().erase(val_pos->first);
+            if (dep_val_pos->second.getDependency() == DepInfo::VALUE_DEP && dep_val_pos->second.getValueDependencies().empty()) {
+                dep_val_pos->second.setDependency(val_pos->second.getDependency());
+            } else {
+                dep_val_pos->second.mergeDependency(val_pos->second.getDependency());
             }
-        } else {
-            cleanValues.insert(val);
+            dep_node->remove_depends_on(leaf);
+            //leaf->remove_dependent_value(dep_node);
+            if (dep_node->is_leaf()) {
+                // to safely remove from back the leaf
+                leaves.push_front(dep_node);
+            }
+        }
+        leaf->clear_dependent_values();
+        if (leaf->get_dependent_values().empty() || val_pos->second.isOnlyGlobalValueDependent()) {
+            leaves.pop_back();
         }
     }
-    // not likely to happen
-    info.setValueDependencies(cleanValues);
-    if (cleanValues.empty() && info.isValueDep()) {
-        info.setDependency(DepInfo::INPUT_INDEP);
+    for (auto& item : m_valueDependencies) {
+        assert(!item.second.isValueDep() || item.second.isOnlyGlobalValueDependent());
     }
 }
 

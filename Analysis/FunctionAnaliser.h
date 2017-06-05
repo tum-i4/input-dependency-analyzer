@@ -52,7 +52,7 @@ public:
     /// Get call site info collected by \link analize function.
     FunctionSet getCallSitesData() const;
 
-    DependencyAnaliser::ArgumentDependenciesMap getCallArgumentInfo(llvm::Function* F) const;
+    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
 
     // can't return with reference. Get with r-value if possible, to avoid copy
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;

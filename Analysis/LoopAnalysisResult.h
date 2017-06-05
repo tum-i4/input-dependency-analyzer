@@ -6,6 +6,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <memory>
+#include <list>
 
 namespace llvm {
 class Loop;
@@ -16,7 +17,7 @@ namespace input_dependency {
 
 class VirtualCallSiteAnalysisResult;
 
-class LoopAnalysisResult : public DependencyAnalysisResult
+class LoopAnalysisResult : public ReflectingDependencyAnaliser
 {
 public:
     LoopAnalysisResult(llvm::Function* F,
@@ -35,7 +36,7 @@ public:
     virtual ~LoopAnalysisResult() = default;
 
 
-private:
+public:
     using PredValDeps = DependencyAnalysisResult::InitialValueDpendencies;
     using PredArgDeps = DependencyAnalysisResult::InitialArgumentDependencies;
     using ReflectingDependencyAnaliserT = std::unique_ptr<ReflectingDependencyAnaliser>;
@@ -57,6 +58,7 @@ public:
     /// \name Abstract interface for getting analysis results
     /// \{
 public:
+    void setLoopDependencies(const DepInfo& loopDeps);
     void setInitialValueDependencies(const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies) override;
     void setOutArguments(const InitialArgumentDependencies& outArgs) override;
     bool isInputDependent(llvm::Instruction* instr) const override;
@@ -73,11 +75,24 @@ public:
     const FunctionSet& getCallSitesData() const override;
     const GlobalsSet& getReferencedGlobals() const override;
     const GlobalsSet& getModifiedGlobals() const override;
+    void markAllInputDependent() override;
     /// \}
 
+public:
+    void reflect(const DependencyAnaliser::ValueDependencies& dependencies, const DepInfo& mandatory_deps) override;
+    bool isReflected() const override
+    {
+        return m_isReflected;
+    }
+
 private:
+    bool isSpecialLoopBlock(llvm::BasicBlock* B) const;
     PredValDeps getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     PredArgDeps getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
+    void updateLoopDependecies(DepInfo&& depInfo);
+    bool checkForLoopDependencies(llvm::BasicBlock* B);
+    bool checkForLoopDependencies(const DependencyAnaliser::ValueDependencies& valueDeps);
+    bool checkForLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& argDeps);
     void updateFunctionCallInfo();
     void updateFunctionCallInfo(llvm::Function* F);
     void updateFunctionCallInfo(llvm::BasicBlock* B);
@@ -89,10 +104,11 @@ private:
     void updateReferencedGlobals();
     void updateModifiedGlobals();
     void reflect();
-    ReflectingDependencyAnaliserT createReflectingBasicBlockAnaliser(llvm::BasicBlock* B);
+    ReflectingDependencyAnaliserT createDependencyAnaliser(llvm::BasicBlock* B);
+    ReflectingDependencyAnaliserT createInputDependentAnaliser(llvm::BasicBlock* B);
+    void updateLoopDependecies(llvm::BasicBlock* B);
+    DepInfo getBlockTerminatingDependencies(llvm::BasicBlock* B);
     DepInfo getBasicBlockDeps(llvm::BasicBlock* B) const;
-    void addLoopDependencies(llvm::BasicBlock* B, DepInfo& depInfo) const;
-    void addLoopDependency(llvm::BasicBlock* B, DepInfo& depInfo) const;
     DepInfo getBlockTerminatingDependencies(llvm::BasicBlock* B) const;
 
 private:
@@ -103,6 +119,7 @@ private:
     const FunctionAnalysisGetter& m_FAG;
     llvm::Loop& m_L;
     llvm::LoopInfo& m_LI;
+    std::unordered_set<llvm::BasicBlock*> m_latches;
 
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
@@ -114,6 +131,8 @@ private:
     bool m_globalsUpdated;
 
     BasicBlockDependencyAnalisersMap m_BBAnalisers;
+    DepInfo m_loopDependencies;
+    bool m_isReflected;
 }; // class LoopAnalysisResult
 
 } // namespace input_dependency

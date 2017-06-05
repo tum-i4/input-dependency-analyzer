@@ -117,6 +117,7 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
 {
     assert(info.isDefined());
     m_valueDependencies[value] = info;
+    m_modifiedValues.insert(value);
     updateAliasesDependencies(value, info);
 }
 
@@ -292,6 +293,28 @@ const GlobalsSet& BasicBlockAnalysisResult::getReferencedGlobals() const
 const GlobalsSet& BasicBlockAnalysisResult::getModifiedGlobals() const
 {
     return m_modifiedGlobals;
+}
+
+void BasicBlockAnalysisResult::markAllInputDependent()
+{
+    DepInfo info(DepInfo::INPUT_DEP);
+    // out arg dependencies
+    m_returnValueDependencies = info;
+    // function call arguments
+    for (auto& functionItem : m_functionCallInfo) {
+        functionItem.second.markAllInputDependent();
+    }
+    for (auto& depinstr : m_inputDependentInstrs) {
+        depinstr.second = info;
+    }
+    for (auto& instr : m_inputIndependentInstrs) {
+        m_inputDependentInstrs.insert(std::make_pair(instr, info));
+    }
+    m_inputIndependentInstrs.clear();
+    for (auto& val : m_modifiedValues) {
+        m_valueDependencies[val] = info;
+    }
+
 }
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)

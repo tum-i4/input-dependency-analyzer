@@ -4,6 +4,7 @@
 #include "DependencyAnalysisResult.h"
 #include "DependencyAnaliser.h"
 #include "LoopAnalysisResult.h"
+#include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicBasicBlockAnaliser.h"
 #include "VirtualCallSitesAnalysis.h"
 
@@ -37,6 +38,11 @@ public:
     {
     }
 
+    void setFunction(llvm::Function* F)
+    {
+        m_F = F;
+    }
+
 private:
     using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
     using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
@@ -57,6 +63,7 @@ public:
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     // Returns collected data for function calls in this function
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
+    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
     const DependencyAnaliser::GlobalVariableDependencyMap& getCallGlobalsInfo(llvm::Function* F) const;
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
@@ -109,6 +116,7 @@ private:
     llvm::LoopInfo& m_LI;
     const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
     const FunctionAnalysisGetter& m_FAGetter;
+
     Arguments m_inputs;
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
@@ -118,6 +126,7 @@ private:
     GlobalsSet m_referencedGlobals;
     GlobalsSet m_modifiedGlobals;
     bool m_globalsUpdated;
+
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
     std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*> m_loopBlocks;
@@ -197,6 +206,19 @@ FunctionAnaliser::Impl::getCallArgumentInfo(llvm::Function* F) const
     return pos->second;
 }
 
+FunctionCallDepInfo FunctionAnaliser::Impl::getFunctionCallDepInfo(llvm::Function* F) const
+{
+    assert(m_calledFunctions.find(F) != m_calledFunctions.end());
+    FunctionCallDepInfo callDepInfo(*F);
+    for (const auto& result : m_BBAnalysisResults) {
+        if (result.second->hasFunctionCallInfo(F)) {
+            const auto& info = result.second->getFunctionCallInfo(F);
+            callDepInfo.addDepInfo(info);
+        }
+    }
+    return callDepInfo;
+}
+
 const DependencyAnaliser::GlobalVariableDependencyMap&
 FunctionAnaliser::Impl::getCallGlobalsInfo(llvm::Function* F) const
 {
@@ -242,7 +264,12 @@ void FunctionAnaliser::Impl::analize()
             // One option is having one loop analiser, mapped to the header of the loop.
             // Another opetion is mapping all blocks of the loop to the same analiser.
             // this is implementatin of the first option.
-            m_BBAnalysisResults[bb].reset(new LoopAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, *m_currentLoop, m_LI));
+            const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
+            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, *m_currentLoop, m_LI);
+            if (depInfo.isDefined()) {
+                loopA->setLoopDependencies(depInfo);
+            }
+            m_BBAnalysisResults[bb].reset(loopA);
         } else if (auto loop = m_LI.getLoopFor(bb)) {
             m_loopBlocks[bb] = m_currentLoop->getHeader();
             continue;
@@ -307,7 +334,10 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT
 FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
 {
     const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(B);
-    if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
+    if (depInfo.isInputDep()) {
+        return DependencyAnalysisResultT(
+                    new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, B));
+    } else if (depInfo.isInputArgumentDep()) {
         return DependencyAnalysisResultT(
                 new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, B, depInfo));
     }
@@ -346,7 +376,9 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             continue;
         }
         assert(pos != m_BBAnalysisResults.end());
-        dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
+        if (pos != m_BBAnalysisResults.end()) {
+            dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
+        }
         ++pred;
     }
     return dep;
@@ -488,7 +520,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
-            assert(m_LI.getLoopFor(*pred) != nullptr);
+            //assert(m_LI.getLoopFor(*pred) != nullptr);
             auto loopHead = m_loopBlocks.find(*pred);
             if (loopHead == m_loopBlocks.end()) {
                 ++pred;
@@ -521,7 +553,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
-            assert(m_LI.getLoopFor(*pred) != nullptr);
+            //assert(m_LI.getLoopFor(*pred) != nullptr);
             auto loopHead = m_loopBlocks.find(*pred);
             if (loopHead == m_loopBlocks.end()) {
                 ++pred;
@@ -561,6 +593,11 @@ FunctionAnaliser::FunctionAnaliser(llvm::Function* F,
 {
 }
 
+void FunctionAnaliser::setFunction(llvm::Function* F)
+{
+    m_analiser->setFunction(F);
+}
+
 void FunctionAnaliser::analize()
 {
     m_analiser->analize();
@@ -581,10 +618,15 @@ FunctionSet FunctionAnaliser::getCallSitesData() const
     return m_analiser->getCallSitesData();
 }
 
-DependencyAnaliser::ArgumentDependenciesMap
+const DependencyAnaliser::ArgumentDependenciesMap&
 FunctionAnaliser::getCallArgumentInfo(llvm::Function* F) const
 {
     return m_analiser->getCallArgumentInfo(F);
+}
+
+FunctionCallDepInfo FunctionAnaliser::getFunctionCallDepInfo(llvm::Function* F) const
+{
+    return m_analiser->getFunctionCallDepInfo(F);
 }
 
 DependencyAnaliser::GlobalVariableDependencyMap

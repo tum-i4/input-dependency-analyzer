@@ -80,6 +80,7 @@ public:
     const FunctionSet& getCallSitesData() const override;
     const GlobalsSet& getReferencedGlobals() const override;
     const GlobalsSet& getModifiedGlobals() const override;
+    void markAllInputDependent() override;
     /// \}
 
 protected:

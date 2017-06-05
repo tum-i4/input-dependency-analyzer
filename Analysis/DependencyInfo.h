@@ -1,6 +1,8 @@
 #pragma once
 
 #include "definitions.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/IR/Value.h"
 
 namespace input_dependency {
 
@@ -15,7 +17,6 @@ public:
         INPUT_ARGDEP,
         INPUT_DEP
     };
-
 
 public:
     DepInfo(Dependency dep = UNKNOWN) 
@@ -71,6 +72,20 @@ public:
     bool isValueDep() const
     {
         return m_dependency == VALUE_DEP || !m_valueDependencies.empty();
+    }
+
+    // TODO: maybe keeping global dependencies separatelly will be more efficient
+    bool isOnlyGlobalValueDependent() const
+    {
+        if (m_valueDependencies.empty()) {
+            return false;
+        }
+        for (const auto& val : m_valueDependencies) {
+            if (!llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     const Dependency& getDependency() const
@@ -139,9 +154,18 @@ public:
     {
         this->m_dependency = std::max(this->m_dependency, info.m_dependency);
         this->m_valueDependencies.insert(info.m_valueDependencies.begin(),
-                                       info.m_valueDependencies.end());
+                                         info.m_valueDependencies.end());
         this->m_argumentDependencies.insert(info.m_argumentDependencies.begin(),
-                                          info.m_argumentDependencies.end());
+                                            info.m_argumentDependencies.end());
+    }
+
+    void mergeDependencies(DepInfo&& info)
+    {
+        this->m_dependency = std::max(this->m_dependency, info.m_dependency);
+        this->m_valueDependencies.insert(info.m_valueDependencies.begin(),
+                                         info.m_valueDependencies.end());
+        this->m_argumentDependencies.insert(info.m_argumentDependencies.begin(),
+                                            info.m_argumentDependencies.end());
     }
 
     void mergeDependencies(const ArgumentSet& argDeps)

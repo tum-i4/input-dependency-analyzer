@@ -216,8 +216,6 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto storeTo = storeInst->getPointerOperand();
-    auto storedValue = getMemoryValue(storeTo);
-    assert(storedValue);
     if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
         m_modifiedGlobals.insert(global);
     }
@@ -241,6 +239,9 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
             }
         }
     }
+    auto storedValue = getMemoryValue(storeTo);
+    assert(storedValue);
+
     updateInstructionDependencies(storeInst, info);
     updateValueDependencies(storedValue, info);
     updateModAliasesDependencies(storeInst, info);
@@ -346,7 +347,7 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
         llvm::Value* val = llvm::dyn_cast<llvm::Value>(item->first);
         // If DepInfo::INPUT_DEP instruction modifies given output argument, this argument depends on the same inputs as the instruction.
         const auto& info = m_AAR.getModRefInfo(I, val, DL.getTypeStoreSize(val->getType()));
-        if (info != llvm::ModRefInfo::MRI_Mod) {
+        if (info != llvm::ModRefInfo::MRI_Mod && info != llvm::ModRefInfo::MRI_ModRef) {
             ++item;
             continue;
         }
@@ -410,8 +411,11 @@ void DependencyAnaliser::updateCallSiteOutArgDependencies(llvm::CallInst* callIn
     assert(pos != m_functionCallInfo.end());
     const auto& callArgDeps = pos->second.getArgumentDependenciesForCall(callInst);
 
-    const auto& argumentValueGetter = [&callInst] (const llvm::Argument& formalArg) -> llvm::Value* {
-                                            return callInst->getArgOperand(formalArg.getArgNo());
+    const auto& argumentValueGetter = [&callInst] (unsigned formalArgNo) -> llvm::Value* {
+                                            if (formalArgNo >= callInst->getNumArgOperands()) {
+                                                return nullptr;
+                                            }
+                                            return callInst->getArgOperand(formalArgNo);
                                         };
     updateCallOutArgDependencies(F, callArgDeps, argumentValueGetter);
 }
@@ -422,8 +426,11 @@ void DependencyAnaliser::updateInvokeSiteOutArgDependencies(llvm::InvokeInst* in
     assert(pos != m_functionCallInfo.end());
     const auto& invokeArgDeps = pos->second.getArgumentDependenciesForInvoke(invokeInst);
 
-    const auto& argumentValueGetter = [&invokeInst] (const llvm::Argument& formalArg) -> llvm::Value* {
-                                            return invokeInst->getArgOperand(formalArg.getArgNo());
+    const auto& argumentValueGetter = [&invokeInst] (unsigned formalArgNo) -> llvm::Value* {
+                                            if (formalArgNo >= invokeInst->getNumArgOperands()) {
+                                                return nullptr;
+                                            }
+                                            return invokeInst->getArgOperand(formalArgNo);
                                         };
     updateCallOutArgDependencies(F, invokeArgDeps, argumentValueGetter);
 }
@@ -435,7 +442,7 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         return;
     }
     const FunctionAnaliser* FA = m_FAG(F);
-    assert(FA);
+    assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
@@ -469,7 +476,7 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
         return;
     }
     const FunctionAnaliser* FA = m_FAG(F);
-    assert(FA);
+    assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
@@ -577,8 +584,11 @@ void DependencyAnaliser::updateLibFunctionCallInstOutArgDependencies(llvm::CallI
                                                                      const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = callInst->getCalledFunction();
-    const auto& argumentValueGetter = [&callInst] (const llvm::Argument& formalArg) -> llvm::Value* {
-                                            return callInst->getArgOperand(formalArg.getArgNo());
+    const auto& argumentValueGetter = [&callInst] (unsigned formalArgNo) -> llvm::Value* {
+                                            if (formalArgNo >= callInst->getNumArgOperands()) {
+                                                return nullptr;
+                                            }
+                                            return callInst->getArgOperand(formalArgNo);
                                         };
 
     updateLibFunctionCallOutArgDependencies(F, argDepMap, argumentValueGetter);
@@ -588,8 +598,11 @@ void DependencyAnaliser::updateLibFunctionInvokeInstOutArgDependencies(llvm::Inv
                                                                        const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = invokeInst->getCalledFunction();
-    const auto& argumentValueGetter = [&invokeInst] (const llvm::Argument& formalArg) -> llvm::Value* {
-                                            return invokeInst->getArgOperand(formalArg.getArgNo());
+    const auto& argumentValueGetter = [&invokeInst] (unsigned formalArgNo) -> llvm::Value* {
+                                            if (formalArgNo >= invokeInst->getNumArgOperands()) {
+                                                return nullptr;
+                                            }
+                                            return invokeInst->getArgOperand(formalArgNo);
                                         };
 
     updateLibFunctionCallOutArgDependencies(F, argDepMap, argumentValueGetter);
@@ -626,10 +639,11 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
                                                                         const DependencyAnaliser::ArgumentDependenciesMap& argDepMap)
 {
     auto F = invokeInst->getCalledFunction();
-    const auto& Fname = Utils::demangle_name(F->getName());
+    auto Fname = Utils::demangle_name(F->getName());
     if (Fname.empty()) {
         // log msg
-        return;
+        // Try with non-demangled name
+        Fname = F->getName();
     }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
@@ -653,7 +667,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
                                                                 const DependencyAnaliser::ArgumentValueGetter& argumentValueGetter)
 {
     for (auto& arg : F->getArgumentList()) {
-        llvm::Value* actualArg = argumentValueGetter(arg);
+        llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
@@ -662,6 +676,22 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
             continue;
         }
         updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+    }
+    // TODO: add this for all call instruction processors
+    if (F->isVarArg()) {
+        int index = F->getArgumentList().size();
+        llvm::Value* actualArg = argumentValueGetter(index++);
+        while (actualArg != nullptr) {
+            if (!actualArg->getType()->isPointerTy()) {
+                continue;
+            }
+            llvm::Value* val = getFunctionOutArgumentValue(actualArg);
+            if (val == nullptr) {
+                continue;
+            }
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            actualArg = argumentValueGetter(index++);
+        }
     }
 }
 
@@ -809,7 +839,7 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
-        llvm::Value* actualArg = argumentValueGetter(arg);
+        llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
         if (val == nullptr) {
             continue;
@@ -837,10 +867,11 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
                                                                  const ArgumentDependenciesMap& callArgDeps,
                                                                  const DependencyAnaliser::ArgumentValueGetter& argumentValueGetter)
 {
-    const auto& Fname = Utils::demangle_name(F->getName());
+    auto Fname = Utils::demangle_name(F->getName());
     if (Fname.empty()) {
         // log msg
-        return;
+        // Try with non-demangled name
+        Fname = F->getName();
     }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
@@ -854,7 +885,7 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
-        llvm::Value* actualArg = argumentValueGetter(arg);
+        llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
         if (val == nullptr) {
             continue;

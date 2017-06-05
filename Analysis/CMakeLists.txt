@@ -13,6 +13,7 @@ add_library(InputDependency MODULE
     LoopAnalysisResult.cpp
     NonDeterministicBasicBlockAnaliser.cpp
     NonDeterministicReflectingBasicBlockAnaliser.cpp
+    InputDependentBasicBlockAnaliser.cpp
     ReflectingBasicBlockAnaliser.cpp
     Utils.cpp
     VirtualCallSitesAnalysis.cpp

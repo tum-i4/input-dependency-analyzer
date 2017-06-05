@@ -56,12 +56,17 @@ public:
 
     void finalizeGlobalsDependencies(const GlobalVariableDependencyMap& actualDeps);
 
+    void markAllInputDependent();
+
 private:
     void addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps);
     void addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps);
 
     ArgumentDependenciesMap& getArgumentsDependencies(const llvm::Instruction* instr);
     GlobalVariableDependencyMap& getGlobalsDependencies(const llvm::Instruction* instr);
+
+    template <class Key>
+    void markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps);
 
 private:
     const llvm::Function& m_F;

@@ -32,15 +32,15 @@ public:
 
 public:
     //void dumpResults() const override; // delete later, will use parent's
-    void reflect(const DependencyAnaliser::ValueDependencies& dependencies) override;
+    void reflect(const DependencyAnaliser::ValueDependencies& dependencies,
+                 const DepInfo& mandatory_deps) override;
     bool isReflected() const override
     {
         return m_isReflected;
     }
 
-    void setInitialValueDependencies(const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
-
+    void markAllInputDependent() override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{
@@ -57,8 +57,7 @@ private:
     /// \}
 
 private:
-    void updateValueDependentInstructions(const DepInfo& info,
-                                          llvm::Instruction* instr);
+    void updateValueDependentInstructions(const DepInfo& info, llvm::Instruction* instr);
     void updateValueDependentCallArguments(llvm::CallInst* callInst, llvm::Function* F);
     void updateValueDependentInvokeArguments(llvm::InvokeInst* invokeInst, llvm::Function* F);
     void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst, llvm::Function* F);
@@ -73,14 +72,12 @@ private:
     void reflectOnInvokedFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnInvokedFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
-    void reflectOnSingleValue(llvm::Value* value, DepInfo& valueDep);
     void reflectOnDepInfo(llvm::Value* value,
                           DepInfo& depInfoTo,
                           const DepInfo& depInfoFrom,
                           bool eraseAfterReflection = true);
-    void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies);
-    void eliminateCircularDependencies();
-    void eliminateCircularDependenciesForValue(llvm::Value* value, DepInfo& info);
+    void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,
+                                  const DepInfo& mandatory_deps);
     DepInfo getValueFinalDependencies(llvm::Value* value, ValueSet& processed);
 
 private:

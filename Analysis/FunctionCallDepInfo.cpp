@@ -214,6 +214,16 @@ void FunctionCallDepInfo::finalizeGlobalsDependencies(const GlobalVariableDepend
     }
 }
 
+void FunctionCallDepInfo::markAllInputDependent()
+{
+    for (auto& callItem : m_callsArgumentsDeps) {
+        markAllInputDependent(callItem.second);
+    }
+    for (auto& globalItem : m_callsGlobalsDeps) {
+        markAllInputDependent(globalItem.second);
+    }
+}
+
 void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps)
 {
     auto res = m_callsArgumentsDeps.insert(std::make_pair(instr, argDeps));
@@ -240,6 +250,14 @@ FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobal
     return pos->second;
 }
 
+template <class Key>
+void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps)
+{
+    DepInfo info(DepInfo::INPUT_DEP);
+    for (auto& item : argDeps) {
+        item.second = info;
+    }
+}
 
 }
 

@@ -102,7 +102,7 @@ private:
     GlobalVariableDependencyMap gatherGlobalsForFunctionCall(llvm::Function* F);
     DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
 
-    using ArgumentValueGetter = std::function<llvm::Value* (const llvm::Argument& formalArg)>;
+    using ArgumentValueGetter = std::function<llvm::Value* (unsigned formalArgNo)>;
     void updateCallOutArgDependencies(llvm::Function* F,
                                       const ArgumentDependenciesMap& callArgDeps,
                                       const ArgumentValueGetter& actualArgumentGetter);

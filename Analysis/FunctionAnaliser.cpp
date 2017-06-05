@@ -346,7 +346,9 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             continue;
         }
         assert(pos != m_BBAnalysisResults.end());
-        dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
+        if (pos != m_BBAnalysisResults.end()) {
+            dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
+        }
         ++pred;
     }
     return dep;
@@ -488,7 +490,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
-            assert(m_LI.getLoopFor(*pred) != nullptr);
+            //assert(m_LI.getLoopFor(*pred) != nullptr);
             auto loopHead = m_loopBlocks.find(*pred);
             if (loopHead == m_loopBlocks.end()) {
                 ++pred;
@@ -521,7 +523,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
-            assert(m_LI.getLoopFor(*pred) != nullptr);
+            //assert(m_LI.getLoopFor(*pred) != nullptr);
             auto loopHead = m_loopBlocks.find(*pred);
             if (loopHead == m_loopBlocks.end()) {
                 ++pred;

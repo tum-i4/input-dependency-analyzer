@@ -16,7 +16,6 @@ public:
         INPUT_DEP
     };
 
-
 public:
     DepInfo(Dependency dep = UNKNOWN) 
         : m_dependency(dep)

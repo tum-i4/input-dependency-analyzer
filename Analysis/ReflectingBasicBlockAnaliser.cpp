@@ -212,7 +212,12 @@ DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* i
     llvm::Value* loadedValue = getMemoryValue(loadOp);
 
     DepInfo info = BasicBlockAnalysisResult::getLoadInstrDependencies(instr);
-    info.mergeDependencies(ValueSet{loadedValue});
+    if (auto loadedInst = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
+        // or?
+        info.mergeDependencies(getInstructionDependencies(loadedInst));
+    } else {
+        info.mergeDependencies(ValueSet{loadedValue});
+    }
     return info;
 }
 

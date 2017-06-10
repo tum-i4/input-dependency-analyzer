@@ -29,8 +29,8 @@ public:
     }
 
 public:
-    bool runOnModule(llvm::Module& M) override;
     void getAnalysisUsage(llvm::AnalysisUsage& AU) const override;
+    bool runOnModule(llvm::Module& M) override;
 
 private:
     bool doFinalization(llvm::CallGraph &CG);

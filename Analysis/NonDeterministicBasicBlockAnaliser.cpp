@@ -63,6 +63,15 @@ void NonDeterministicBasicBlockAnaliser::updateReturnValueDependencies(const Dep
     BasicBlockAnalysisResult::updateReturnValueDependencies(addOnDependencyInfo(info));
 }
 
+void NonDeterministicBasicBlockAnaliser::setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies)
+{
+    BasicBlockAnalysisResult::setInitialValueDependencies(valueDependencies);
+    for (auto& dep : m_nonDetDeps.getValueDependencies()) {
+        auto pos = valueDependencies.find(dep);
+        m_valueDependencies[dep] = pos->second;
+    }
+}
+
 DepInfo NonDeterministicBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)
 {
     auto newInfo = info;

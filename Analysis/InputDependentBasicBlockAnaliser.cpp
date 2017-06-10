@@ -19,6 +19,40 @@ InputDependentBasicBlockAnaliser::InputDependentBasicBlockAnaliser(llvm::Functio
 {
 }
 
+void InputDependentBasicBlockAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
+{
+    updateInstructionDependencies(retInst, DepInfo(DepInfo::INPUT_DEP));
+    updateReturnValueDependencies(DepInfo(DepInfo::INPUT_DEP));
+}
+
+void InputDependentBasicBlockAnaliser::processBranchInst(llvm::BranchInst* branchInst)
+{
+    if (branchInst->isUnconditional()) {
+        updateInstructionDependencies(branchInst, DepInfo(DepInfo::INPUT_INDEP));
+    } else {
+        updateInstructionDependencies(branchInst, DepInfo(DepInfo::INPUT_DEP));
+    }
+}
+
+void InputDependentBasicBlockAnaliser::processStoreInst(llvm::StoreInst* storeInst)
+{
+    auto storeTo = storeInst->getPointerOperand();
+    if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
+        m_modifiedGlobals.insert(global);
+    }
+    auto storedValue = getMemoryValue(storeTo);
+    assert(storedValue);
+    DepInfo info(DepInfo::INPUT_DEP);
+    updateInstructionDependencies(storeInst, info);
+    updateValueDependencies(storedValue, info);
+    updateModAliasesDependencies(storeInst, info);
+}
+
+DepInfo InputDependentBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* instr)
+{
+    return DepInfo(DepInfo::INPUT_DEP);
+}
+
 DepInfo InputDependentBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
     return DepInfo(DepInfo::INPUT_DEP);

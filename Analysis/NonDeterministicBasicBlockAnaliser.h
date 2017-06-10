@@ -30,6 +30,7 @@ protected:
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
+    void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
     /// \}
 
 private:

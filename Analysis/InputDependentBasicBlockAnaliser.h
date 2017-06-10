@@ -25,8 +25,12 @@ public:
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
-    DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
-    DepInfo getValueDependencies(llvm::Value* value) override;
+    virtual void processReturnInstr(llvm::ReturnInst* retInst) override;
+    virtual void processBranchInst(llvm::BranchInst* branchInst) override;
+    virtual void processStoreInst(llvm::StoreInst* storeInst) override;
+    virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
+    virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
+    virtual DepInfo getValueDependencies(llvm::Value* value) override;
     /// \}
 };
 

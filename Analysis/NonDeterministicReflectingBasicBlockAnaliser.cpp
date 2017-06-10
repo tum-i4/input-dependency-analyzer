@@ -63,6 +63,17 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateReturnValueDependencies
     ReflectingBasicBlockAnaliser::updateReturnValueDependencies(addOnDependencyInfo(info));
 }
 
+void NonDeterministicReflectingBasicBlockAnaliser::setInitialValueDependencies(
+                                                                    const DependencyAnaliser::ValueDependencies& valueDependencies)
+{
+    ReflectingBasicBlockAnaliser::setInitialValueDependencies(valueDependencies);
+    for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
+        auto pos = valueDependencies.find(dep);
+        m_valueDependencies[dep] = pos->second;
+    }
+}
+
+
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)
 {
     auto newInfo = info;

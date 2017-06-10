@@ -24,10 +24,8 @@ public:
     virtual ~DependencyAnalysisResult() = default;
 
 public:
-    using InitialValueDpendencies = std::unordered_map<llvm::Value*, std::vector<DepInfo>>;
-    virtual void setInitialValueDependencies(const InitialValueDpendencies& valueDependencies) = 0;
-    using InitialArgumentDependencies =  std::unordered_map<llvm::Argument*, std::vector<DepInfo>>;
-    virtual void setOutArguments(const InitialArgumentDependencies& outArgs) = 0;
+    virtual void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) = 0;
+    virtual void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) = 0;
 
     /// \name Interface to start analysis
     /// \{
@@ -44,7 +42,7 @@ public:
     virtual bool isInputDependent(llvm::Instruction* instr) const = 0;
     virtual bool isInputIndependent(llvm::Instruction* instr) const = 0;
     virtual bool hasValueDependencyInfo(llvm::Value* val) const = 0;
-    virtual const DepInfo& getValueDependencyInfo(llvm::Value* val) const = 0;
+    virtual const DepInfo& getValueDependencyInfo(llvm::Value* val) = 0;
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) const = 0;
     virtual const DependencyAnaliser::ValueDependencies& getValuesDependencies() const = 0;
     virtual const DepInfo& getReturnValueDependencies() const = 0;

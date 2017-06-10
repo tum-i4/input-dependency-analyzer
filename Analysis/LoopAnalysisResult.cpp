@@ -221,8 +221,12 @@ void LoopAnalysisResult::gatherResults()
 
     bool is_input_dep = false;
     for (const auto& B : blocks) {
-        m_BBAnalisers[B] = createDependencyAnaliser(B);
         updateLoopDependecies(B);
+        is_input_dep = checkForLoopDependencies(m_initialDependencies);
+        if (is_input_dep) {
+            break;
+        }
+        m_BBAnalisers[B] = createDependencyAnaliser(B);
         auto& analiser = m_BBAnalisers[B];
         analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
         analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
@@ -248,10 +252,10 @@ void LoopAnalysisResult::gatherResults()
     } else {
         reflect();
     }
-    //updateCalledFunctionsList();
-    //updateReturnValueDependencies();
-    //updateOutArgumentDependencies();
-    //updateValueDependencies();
+    updateCalledFunctionsList();
+    updateReturnValueDependencies();
+    updateOutArgumentDependencies();
+    updateValueDependencies();
 }
 
 void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
@@ -283,59 +287,65 @@ void LoopAnalysisResult::setLoopDependencies(const DepInfo& loopDeps)
 }
 
 void LoopAnalysisResult::setInitialValueDependencies(
-            const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies)
+            const DependencyAnaliser::ValueDependencies& valueDependencies)
 {
-    // In practice number of predecessors will be at most 2
-    for (const auto& item : valueDependencies) {
-        auto& valDep = m_valueDependencies[item.first];
-        for (const auto& dep : item.second) {
-            if (valDep.getDependency() <= dep.getDependency()) {
-                valDep.setDependency(dep.getDependency());
-                valDep.addOnDepInfo(dep);
-            }
-        }
-    }
+    m_initialDependencies = valueDependencies;
 }
 
-void LoopAnalysisResult::setOutArguments(const DependencyAnalysisResult::InitialArgumentDependencies& outArgs)
+void LoopAnalysisResult::setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs)
 {
-    for (const auto& arg : outArgs) {
-        auto& argDep = m_outArgDependencies[arg.first];
-        for (const auto& dep : arg.second) {
-            if (argDep.getDependency() <= dep.getDependency()) {
-                argDep.setDependency(dep.getDependency());
-                argDep.mergeDependencies(dep.getArgumentDependencies());
-            }
-        }
-    }
+    m_outArgDependencies = outArgs;
 }
 
 bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
     auto pos = m_BBAnalisers.find(parentBB);
-    assert(pos != m_BBAnalisers.end());
-    return pos->second->isInputDependent(instr);
+    if (pos != m_BBAnalisers.end()) {
+        return pos->second->isInputDependent(instr);
+    }
+
+    // loop info might be invalidated here. lookup in map
+    auto loop_head_pos = m_loopBlocks.find(parentBB);
+    assert(loop_head_pos != m_loopBlocks.end());
+    auto loop_pos = m_BBAnalisers.find(loop_head_pos->second);
+    assert(loop_pos != m_BBAnalisers.end());
+    return loop_pos->second->isInputDependent(instr);
 }
 
 bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
-    auto pos = m_BBAnalisers.find(parentBB);
-    assert(pos != m_BBAnalisers.end());
-    return pos->second->isInputIndependent(instr);
+    auto loop = m_LI.getLoopFor(parentBB);
+    if (loop == &m_L) {
+        auto pos = m_BBAnalisers.find(parentBB);
+        assert(pos != m_BBAnalisers.end());
+        return pos->second->isInputIndependent(instr);
+    }
+    //TODO: implement this part. would need to check the depth for a  loop and redirect call to correct loopAnalysisResult
+    return false;
 }
 
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
-    return m_valueDependencies.find(val) != m_valueDependencies.end();
+    auto pos = m_valueDependencies.find(val);
+    if (pos != m_valueDependencies.end()) {
+        return true;
+    }
+    return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val) const
+const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);
-    assert(pos != m_valueDependencies.end());
-    return pos->second;
+    if (pos != m_valueDependencies.end()) {
+        return pos->second;
+    }
+    auto initial_val_pos = m_initialDependencies.find(val);
+    assert(initial_val_pos != m_initialDependencies.end());
+    // add referenced value
+    m_valueDependencies[val] = initial_val_pos->second;
+    return initial_val_pos->second;
 }
 
 DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -435,17 +445,14 @@ bool LoopAnalysisResult::isSpecialLoopBlock(llvm::BasicBlock* B) const
     return m_L.getHeader() == B || m_latches.find(B) != m_latches.end() || m_L.isLoopExiting(B);
 }
 
-LoopAnalysisResult::PredValDeps LoopAnalysisResult::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B)
+DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B)
 {
-    PredValDeps deps;
-
-    // TODO: why create a vector for dependencies? why not merge
+    // predecessor is outside of the loop
     if (m_L.getHeader() == B) {
-        for (const auto& item : m_valueDependencies) {
-            deps[item.first].push_back(item.second);
-        }
-        return deps;
+        return m_initialDependencies;
     }
+    // add only values modified (or referenced) in predecessor blocks
+    DependencyAnaliser::ValueDependencies deps;
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalisers.find(*pred);
@@ -457,21 +464,29 @@ LoopAnalysisResult::PredValDeps LoopAnalysisResult::getBasicBlockPredecessorsDep
         assert(pos != m_BBAnalisers.end());
         const auto& valueDeps = pos->second->getValuesDependencies();
         for (auto& dep : valueDeps) {
-            deps[dep.first].push_back(dep.second);
+            auto pos = deps.insert(dep);
+            if (!pos.second) {
+                pos.first->second.mergeDependencies(dep.second);
+            }
         }
         ++pred;
     }
+    // add initial values. Note values which have been added from prdecessors are not going to be changed
+    deps.insert(m_initialDependencies.begin(), m_initialDependencies.end());
     return deps;
 }
 
-LoopAnalysisResult::PredArgDeps LoopAnalysisResult::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
+DependencyAnaliser::ArgumentDependenciesMap LoopAnalysisResult::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
 {
-    PredArgDeps deps;
+    DependencyAnaliser::ArgumentDependenciesMap deps;
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         if (!m_L.contains(*pred)) {
             for (const auto& item : m_outArgDependencies) {
-                deps[item.first].push_back(item.second);
+                auto pos = deps.insert(item);
+                if (!pos.second) {
+                    pos.first->second.mergeDependencies(item.second);
+                }
             }
             ++pred;
             continue;
@@ -484,7 +499,10 @@ LoopAnalysisResult::PredArgDeps LoopAnalysisResult::getBasicBlockPredecessorsArg
         assert(pos != m_BBAnalisers.end());
         const auto& argDeps = pos->second->getOutParamsDependencies();
         for (const auto& dep : argDeps) {
-            deps[dep.first].push_back(dep.second);
+            auto pos = deps.insert(dep);
+            if (!pos.second) {
+                pos.first->second.mergeDependencies(dep.second);
+            }
         }
         ++pred;
     }
@@ -607,6 +625,7 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
         LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_virtualCallsInfo,
                                                                         m_inputs, m_FAG, *block_loop, m_LI);
         loopAnalysisResult->setLoopDependencies(depInfo);
+        collectLoopBlocks(block_loop);
         return ReflectingDependencyAnaliserT(loopAnalysisResult);
     }
     // loop argument dependencies will also become basic blocks argument dependencies.
@@ -659,8 +678,21 @@ DepInfo LoopAnalysisResult::getBlockTerminatingDependencies(llvm::BasicBlock* B)
     return DepInfo(DepInfo::VALUE_DEP, values);
 }
 
+void LoopAnalysisResult::collectLoopBlocks(llvm::Loop* block_loop)
+{
+    auto blocks = block_loop->getBlocks();
+    auto header = block_loop->getHeader();
+    for (auto& block : blocks) {
+        m_loopBlocks[block] = header;
+    }
+}
+
 LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createInputDependentAnaliser(llvm::BasicBlock* B)
 {
+    auto block_loop = m_LI.getLoopFor(B);
+    if (block_loop != &m_L) {
+        collectLoopBlocks(block_loop);
+    }
     return ReflectingDependencyAnaliserT(
                     new ReflectingInputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
 }

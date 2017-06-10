@@ -183,39 +183,6 @@ public:
         this->m_dependency = std::max(this->m_dependency, dep);
     }
 
-    void addOnDepInfo(const DepInfo& info)
-    {
-        mergeDependency(info.getDependency());
-        addOnArgumentDependencies(info.getArgumentDependencies());
-        addOnValueDependencies(info.getValueDependencies());
-    }
-
-    void addOnDepInfo(DepInfo&& info)
-    {
-        mergeDependency(info.getDependency());
-        addOnArgumentDependencies(info.getArgumentDependencies());
-        addOnValueDependencies(info.getValueDependencies());
-    }
-
-    void addOnArgumentDependencies(const ArgumentSet& argDeps)
-    {
-        m_argumentDependencies.insert(argDeps.begin(), argDeps.end());
-    }
-
-    void addOnArgumentDependencies(ArgumentSet&& argDeps)
-    {
-        m_argumentDependencies.insert(argDeps.begin(), argDeps.end());
-    }
-
-    void addOnValueDependencies(const ValueSet& valueDeps)
-    {
-        m_valueDependencies.insert(valueDeps.begin(), valueDeps.end());
-    }
-
-    void addOnValueDependencies(ValueSet&& valueDeps)
-    {
-        m_valueDependencies.insert(valueDeps.begin(), valueDeps.end());
-    }
 
 private:
     Dependency m_dependency;

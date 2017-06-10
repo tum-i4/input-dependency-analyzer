@@ -91,10 +91,15 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
 DepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
 {
     auto pos = m_valueDependencies.find(value);
-    if (pos == m_valueDependencies.end()) {
-        return DepInfo();
+    if (pos != m_valueDependencies.end()) {
+        return pos->second;
     }
-    return pos->second;
+    auto initial_val_pos = m_initialDependencies.find(value);
+    if (initial_val_pos != m_initialDependencies.end()) {
+        m_valueDependencies[value] = initial_val_pos->second;
+        return initial_val_pos->second;
+    }
+    return DepInfo();
 }
 
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
@@ -117,7 +122,6 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
 {
     assert(info.isDefined());
     m_valueDependencies[value] = info;
-    m_modifiedValues.insert(value);
     updateAliasesDependencies(value, info);
 }
 
@@ -183,31 +187,14 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
 }
 
 void BasicBlockAnalysisResult::setInitialValueDependencies(
-                    const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies)
+                    const DependencyAnaliser::ValueDependencies& valueDependencies)
 {
-    // In practice number of predecessors will be at most 2
-    for (const auto& item : valueDependencies) {
-        auto& valDep = m_valueDependencies[item.first];
-        for (const auto& dep : item.second) {
-            if (valDep.getDependency() <= dep.getDependency()) {
-                valDep.setDependency(dep.getDependency());
-                valDep.mergeDependencies(dep);
-            }
-        }
-    }
+    m_initialDependencies = valueDependencies;
 }
 
-void BasicBlockAnalysisResult::setOutArguments(const DependencyAnalysisResult::InitialArgumentDependencies& outArgs)
+void BasicBlockAnalysisResult::setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs)
 {
-    for (const auto& arg : outArgs) {
-        auto& argDep = m_outArgDependencies[arg.first];
-        for (const auto& dep : arg.second) {
-            if (argDep.getDependency() <= dep.getDependency()) {
-                argDep.setDependency(dep.getDependency());
-                argDep.mergeDependencies(dep);
-            }
-        }
-    }
+    m_outArgDependencies = outArgs;
 }
 
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
@@ -227,14 +214,25 @@ bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) cons
 
 bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
-    return m_valueDependencies.find(val) != m_valueDependencies.end();
+    auto pos = m_valueDependencies.find(val);
+    if (pos != m_valueDependencies.end()) {
+        return true;
+    }
+    return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const DepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val) const
+const DepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);
-    assert(pos != m_valueDependencies.end());
-    return pos->second;
+    if (pos != m_valueDependencies.end()) {
+        return pos->second;
+    }
+    auto initial_val_pos = m_initialDependencies.find(val);
+    // This is from external usage, through DependencyAnalysisResult interface
+    assert(initial_val_pos != m_initialDependencies.end());
+    // add referenced value
+    m_valueDependencies[val] = initial_val_pos->second;
+    return initial_val_pos->second;
 }
 
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -311,8 +309,8 @@ void BasicBlockAnalysisResult::markAllInputDependent()
         m_inputDependentInstrs.insert(std::make_pair(instr, info));
     }
     m_inputIndependentInstrs.clear();
-    for (auto& val : m_modifiedValues) {
-        m_valueDependencies[val] = info;
+    for (auto& val : m_valueDependencies) {
+        val.second = info;
     }
 
 }
@@ -325,7 +323,9 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
     }
     auto* loadOp = instr->getPointerOperand();
     if (auto opinstr = llvm::dyn_cast<llvm::Instruction>(loadOp)) {
-        info = getInstructionDependencies(opinstr);
+        if (!llvm::dyn_cast<llvm::AllocaInst>(opinstr)) {
+            info = getInstructionDependencies(opinstr);
+        }
     } else {
         info = getDependenciesFromAliases(loadOp);
     }
@@ -337,8 +337,8 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
     if (loadedValue == nullptr) {
         return getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
     }
-    auto pos = m_valueDependencies.find(loadedValue);
-    if (pos == m_valueDependencies.end()) {
+    auto depInfo = getValueDependencies(loadedValue);
+    if (!depInfo.isDefined()) {
         // might be unnecessary
         if (auto loadedValInstr = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
             return getInstructionDependencies(loadedValInstr);
@@ -348,7 +348,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         m_referencedGlobals.insert(globalVal);
         return DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal});
     }
-    return pos->second;
+    return depInfo;
 }
 
 DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(llvm::Instruction* instr)

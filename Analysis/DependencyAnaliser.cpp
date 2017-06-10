@@ -228,9 +228,9 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         if (!args.empty()) {
             info = DepInfo(DepInfo::INPUT_ARGDEP, args);
         } else {
-            auto pos = m_valueDependencies.find(op);
-            if (pos != m_valueDependencies.end()) {
-                info = pos->second;
+            auto depInfo = getValueDependencies(op);
+            if (depInfo.isDefined()) {
+                info = depInfo;
             } else {
                 auto* opInstr = llvm::dyn_cast<llvm::Instruction>(op);
                 assert(opInstr);
@@ -241,7 +241,6 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     }
     auto storedValue = getMemoryValue(storeTo);
     assert(storedValue);
-
     updateInstructionDependencies(storeInst, info);
     updateValueDependencies(storedValue, info);
     updateModAliasesDependencies(storeInst, info);
@@ -351,9 +350,9 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
             ++item;
             continue;
         }
-        auto pos = m_inputDependentInstrs.find(I);
-        if (pos != m_inputDependentInstrs.end()) {
-            item->second = pos->second;
+        auto depInfo = getInstructionDependencies(I);
+        if (depInfo.isInputDep()) {
+            item->second = depInfo;
             //item->second.mergeDependencies(pos->second);
         } else {
             item->second = DepInfo(DepInfo::INPUT_INDEP);
@@ -701,12 +700,12 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
     ValueSet globals;
     for (const auto& val : valueDeps) {
         assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
-        auto pos = m_valueDependencies.find(val);
-        if (pos == m_valueDependencies.end()) {
+        auto depInfo = getValueDependencies(val);
+        if (!depInfo.isDefined()) {
             globals.insert(val);
             continue;
         }
-        info.mergeDependencies(pos->second);
+        info.mergeDependencies(depInfo);
     }
     if (!globals.empty()) {
         info.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, globals));
@@ -799,12 +798,11 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
     for (auto& global : callRefGlobals) {
         llvm::Value* globalVal = llvm::dyn_cast<llvm::Value>(global);
         assert(globalVal != nullptr);
-        auto pos = m_valueDependencies.find(globalVal);
-        if (pos == m_valueDependencies.end()) {
+        auto depInfo = getValueDependencies(globalVal);
+        if (!depInfo.isDefined()) {
             continue;
         }
-        assert(pos->second.isDefined());
-        globalsDepMap[global] = pos->second;
+        globalsDepMap[global] = depInfo;
     }
     return globalsDepMap;
 }
@@ -815,9 +813,9 @@ DepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
         return DepInfo();
     }
-    auto pos = m_valueDependencies.find(argVal);
-    if (pos != m_valueDependencies.end()) {
-        return pos->second;
+    auto depInfo = getValueDependencies(argVal);
+    if (depInfo.isDefined()) {
+        return depInfo;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
         return getInstructionDependencies(argInst);

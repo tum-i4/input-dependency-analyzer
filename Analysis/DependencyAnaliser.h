@@ -145,7 +145,7 @@ protected:
 
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;
-    ValueSet m_modifiedValues;
+    ValueDependencies m_initialDependencies;
     GlobalsSet m_referencedGlobals;
     GlobalsSet m_modifiedGlobals;
 }; // class DependencyAnaliser

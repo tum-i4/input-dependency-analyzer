@@ -64,12 +64,12 @@ protected:
     /// \name Implementation of DependencyAnalysisResult interface
     /// \{
 public:
-    void setInitialValueDependencies(const DependencyAnalysisResult::InitialValueDpendencies& valueDependencies) override;
-    void setOutArguments(const InitialArgumentDependencies& outArgs) override;
+    void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
+    void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
-    const DepInfo& getValueDependencyInfo(llvm::Value* val) const override;
+    const DepInfo& getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
     const DepInfo& getReturnValueDependencies() const override;

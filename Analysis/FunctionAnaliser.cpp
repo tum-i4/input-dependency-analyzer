@@ -46,8 +46,6 @@ public:
 private:
     using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
     using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
-    using PredValDeps = DependencyAnalysisResult::InitialValueDpendencies;
-    using PredArgDeps = DependencyAnalysisResult::InitialArgumentDependencies;
     using DependencyAnalysisResultT = std::unique_ptr<DependencyAnalysisResult>;
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, ArgumentDependenciesMap>;
     using FunctionGlobalsDependencies = std::unordered_map<llvm::Function*, GlobalVariableDependencyMap>;
@@ -100,14 +98,15 @@ private:
     void updateFunctionCallsGlobalsInfo(llvm::BasicBlock* B);
     void updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, llvm::Function* F);
 
+    void updateValueDependencies(llvm::BasicBlock* B);
     void updateCalledFunctionsList(llvm::BasicBlock* B);
     void updateReturnValueDependencies(llvm::BasicBlock* B);
     void updateOutArgumentDependencies(llvm::BasicBlock* B);
     void updateGlobals();
     void updateReferencedGlobals();
     void updateModifiedGlobals();
-    PredValDeps getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
-    PredArgDeps getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
+    DependencyAnaliser::ValueDependencies getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
+    DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
     const DependencyAnalysisResultT& getAnalysisResult(llvm::Instruction* I) const;
 
 private:
@@ -118,6 +117,7 @@ private:
     const FunctionAnalysisGetter& m_FAGetter;
 
     Arguments m_inputs;
+    DependencyAnaliser::ValueDependencies m_valueDependencies; // all value dependencies
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
     DepInfo m_returnValueDependencies;
     FunctionArgumentsDependencies m_calledFunctionsInfo;
@@ -281,6 +281,7 @@ void FunctionAnaliser::Impl::analize()
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
         m_BBAnalysisResults[bb]->gatherResults();
 
+        updateValueDependencies(bb);
         updateCalledFunctionsList(bb);
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
@@ -355,7 +356,8 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             dep.setDependency(DepInfo::DepInfo::INPUT_ARGDEP);
             break;
         }
-        // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
+        // predecessor is in loop
+        // We assume loops are not inifinite, thus this basic block will be reached no mater if loop condition is input dep or not.
         if (m_LI.getLoopFor(pb) != nullptr) {
             ++pred;
             continue;
@@ -464,6 +466,20 @@ void FunctionAnaliser::Impl::updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, 
     }
 }
 
+void FunctionAnaliser::Impl::updateValueDependencies(llvm::BasicBlock* B)
+{
+    // Note1: entry basic block will have all values in its value dependencies list, as all values are allocated in entry block,
+    // hence added to it's value dependencies list
+    // Thus m_valueDependencies will always contain full information about values in function.
+    // Note2: This is not necessarily valid information, e.g. for branches, it will contain the values from the block analyzed later,
+    // but it is then fixed in getBasicBlockPredecessorsDependencies function, which merges dependencies of branch blocks
+    // each block will get only values not present in its' predecessors from this set
+    const auto& block_deps = m_BBAnalysisResults[B]->getValuesDependencies();
+    for (const auto& val : block_deps) {
+        m_valueDependencies[val.first] = val.second;
+    }
+}
+
 void FunctionAnaliser::Impl::updateCalledFunctionsList(llvm::BasicBlock* B)
 {
     const auto& calledFunctions = m_BBAnalysisResults[B]->getCallSitesData();
@@ -512,10 +528,10 @@ void FunctionAnaliser::Impl::updateModifiedGlobals()
     }
 }
 
-FunctionAnaliser::Impl::PredValDeps
+DependencyAnaliser::ValueDependencies
 FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B)
 {
-    PredValDeps deps;
+    DependencyAnaliser::ValueDependencies deps;
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
@@ -531,25 +547,27 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
         assert(pos != m_BBAnalysisResults.end());
         const auto& valueDeps = pos->second->getValuesDependencies();
         for (auto& dep : valueDeps) {
-            deps[dep.first].push_back(dep.second);
+            auto res = deps.insert(dep);
+            if (!res.second) {
+                res.first->second.mergeDependencies(dep.second);
+            }
         }
         ++pred;
     }
+    // Note: values which have been added from predecessors won't change here
+    deps.insert(m_valueDependencies.begin(), m_valueDependencies.end());
     return deps;
 }
 
-FunctionAnaliser::Impl::PredArgDeps
+DependencyAnaliser::ArgumentDependenciesMap
 FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
 {
-    PredArgDeps deps;
     auto pred = pred_begin(B);
     // entry block
     if (pred == pred_end(B)) {
-        for (auto& item : m_outArgDependencies) {
-            deps[item.first].push_back(item.second);
-        }
-        return deps;
+        return m_outArgDependencies;
     }
+    DependencyAnaliser::ArgumentDependenciesMap deps;
     while (pred != pred_end(B)) {
         auto pos = m_BBAnalysisResults.find(*pred);
         if (pos == m_BBAnalysisResults.end()) {
@@ -564,7 +582,10 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
         assert(pos != m_BBAnalysisResults.end());
         const auto& argDeps = pos->second->getOutParamsDependencies();
         for (const auto& dep : argDeps) {
-            deps[dep.first].push_back(dep.second);
+            auto res = deps.insert(dep);
+            if (!res.second) {
+                res.first->second.mergeDependencies(dep.second);
+            }
         }
         ++pred;
     }

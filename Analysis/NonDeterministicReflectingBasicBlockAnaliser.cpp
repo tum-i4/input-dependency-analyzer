@@ -69,7 +69,9 @@ void NonDeterministicReflectingBasicBlockAnaliser::setInitialValueDependencies(
     ReflectingBasicBlockAnaliser::setInitialValueDependencies(valueDependencies);
     for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
         auto pos = valueDependencies.find(dep);
-        m_valueDependencies[dep] = pos->second;
+        if (pos != valueDependencies.end()) {
+            m_valueDependencies[dep] = pos->second;
+        }
     }
 }
 

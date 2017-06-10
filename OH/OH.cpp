@@ -10,7 +10,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h" 
 
-#include "CutVertice/CutVerticesPass.h"
+//#include "CutVertice/CutVerticesPass.h"
 #include "Analysis/InputDependencyAnalysis.h"
 
 using namespace llvm;
@@ -22,12 +22,11 @@ namespace {
 			bool didModify = false;
 			for (auto& B : F) {
                                 auto FI = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
-				std::vector<const char*> CutVertices=getAnalysis<CutVerticesPass>().getArray();
-				if(!CutVertices.empty()&& std::find(CutVertices.begin(),CutVertices.end(),
-					B.getName())!=CutVertices.end()){
-					errs() << "Cut Vertices: " << B.getName() << "\n";
-				}
-                continue;
+				//std::vector<const char*> CutVertices=getAnalysis<CutVerticesPass>().getArray();
+				//if(!CutVertices.empty()&& std::find(CutVertices.begin(),CutVertices.end(),
+				//	B.getName())!=CutVertices.end()){
+				//	errs() << "Cut Vertices: " << B.getName() << "\n";
+				//}
 				for (auto& I : B) {
 					//dbgs() << I << I.getOpcodeName() << "\n";
                                         if (FI->isInputDependent(&I)) {
@@ -43,19 +42,20 @@ namespace {
 						didModify = handleStore(storeInst, &B);
 					} //TODO: else if (handle switch case and other conditions)
 					//terminator indicates the last block
-					else if(ReturnInst *RI = dyn_cast<ReturnInst>(&I)){
-						// Insert *before* ret
-						dbgs() << "**returnInst**\n";
-						printHash(&B, RI, true);	
-						didModify = true;
-					}
+					//else if(ReturnInst *RI = dyn_cast<ReturnInst>(&I)){
+					//	// Insert *before* ret
+					//	dbgs() << "**returnInst**\n";
+					//	printHash(&B, RI, true);	
+					//	didModify = true;
+					//}
 				}
 			}
+                        printHash(&F.back());
 			return didModify;
 		}
 
 		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-			AU.addRequired<CutVerticesPass>();
+			//AU.addRequired<CutVerticesPass>();
 			AU.addRequired<input_dependency::InputDependencyAnalysis>();
 			AU.setPreservesAll();
 		}
@@ -127,19 +127,14 @@ namespace {
 			values.push_back(argument);
 			builder->CreateCall(printfFunc, values);
 		}
-		void printHash(BasicBlock *BB, Instruction *I, bool insertBeforeInstruction){
+		void printHash(BasicBlock *BB) {
 			LLVMContext& Ctx = BB->getParent()->getContext();
 			// get BB parent -> Function -> get parent -> Module 
 			Constant* logHashFunc = BB->getParent()->getParent()->getOrInsertFunction(
 					"logHash", Type::getVoidTy(Ctx),NULL);
-			IRBuilder <> builder(I);
-			auto insertPoint = ++builder.GetInsertPoint();
-			if(insertBeforeInstruction){
-				insertPoint--;
-				insertPoint--;
-			}
+			IRBuilder <> builder(BB);
+                        builder.SetInsertPoint(BB, --builder.GetInsertPoint());
 			dbgs() << "FuncName: "<<BB->getParent()->getName()<<"\n";
-			builder.SetInsertPoint(BB, insertPoint);
 			builder.CreateCall(logHashFunc);	
 		}
 	};
@@ -151,9 +146,13 @@ char OHPass::ID = 0;
 // http://adriansampson.net/blog/clangpass.html
 static void registerOHPass(const PassManagerBuilder &,
 		legacy::PassManagerBase &PM) {
-	PM.add(new CutVerticesPass());
+    PM.add(new input_dependency::InputDependencyAnalysis());
+    //PM.add(new CutVerticesPass());
     PM.add(new OHPass());
 }
 static RegisterStandardPasses
-RegisterMyPass(PassManagerBuilder::EP_EarlyAsPossible,
+RegisterOHPass(PassManagerBuilder::EP_EarlyAsPossible,
 		registerOHPass);
+
+static llvm::RegisterPass<OHPass> X("oh","runs oblivious hashing");
+

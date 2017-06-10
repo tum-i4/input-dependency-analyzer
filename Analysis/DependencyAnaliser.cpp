@@ -73,7 +73,8 @@ void DependencyAnaliser::finalize(const ArgumentDependenciesMap& dependentArgs)
     for (auto& item : m_inputDependentInstrs) {
         if (item.second.isInputDep()) {
             m_finalInputDependentInstrs.insert(item.first);
-        } else if (item.second.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, item.second.getArgumentDependencies())) {
+        } else if (item.second.isInputArgumentDep()
+                   && Utils::haveIntersection(dependentArgs, item.second.getArgumentDependencies())) {
             m_finalInputDependentInstrs.insert(item.first);
         } else {
             m_inputIndependentInstrs.insert(item.first);

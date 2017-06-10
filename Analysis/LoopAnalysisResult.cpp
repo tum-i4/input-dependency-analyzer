@@ -455,14 +455,23 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
     DependencyAnaliser::ValueDependencies deps;
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
+        DependencyAnaliser::ValueDependencies valueDeps;
+
         auto pos = m_BBAnalisers.find(*pred);
-        // predecessor is latch
         if (pos == m_BBAnalisers.end()) {
-            ++pred;
-            continue;
+            auto pred_loop = m_LI.getLoopFor(*pred);
+            if (pred_loop == &m_L) {
+                // predecessor is latch
+                ++pred;
+                continue;
+            }
+            // predecessor is in another loop (nested loop)
+            auto pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
+            assert(pred_pos != m_BBAnalisers.end());
+            valueDeps = pred_pos->second->getValuesDependencies();
+        } else {
+            valueDeps = pos->second->getValuesDependencies();
         }
-        assert(pos != m_BBAnalisers.end());
-        const auto& valueDeps = pos->second->getValuesDependencies();
         for (auto& dep : valueDeps) {
             auto pos = deps.insert(dep);
             if (!pos.second) {
@@ -569,12 +578,10 @@ void LoopAnalysisResult::updateOutArgumentDependencies()
 
 void LoopAnalysisResult::updateValueDependencies()
 {
-    auto BB = m_L.getHeader();
-    const auto& valuesDeps = m_BBAnalisers[BB]->getValuesDependencies();
-    for (const auto& item : valuesDeps) {
-        auto res = m_valueDependencies.insert(item);
-        if (!res.second) {
-            res.first->second.mergeDependencies(item.second);
+    for (const auto& BB_analiser : m_BBAnalisers) {
+        const auto& valuesDeps = BB_analiser.second->getValuesDependencies();
+        for (const auto& item : valuesDeps) {
+            m_valueDependencies[item.first].mergeDependencies(item.second);
         }
     }
 }
@@ -637,6 +644,8 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
     if (depInfo.isInputIndep()) {
         return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
     }
+    for (const auto& dep : depInfo.getValueDependencies()) {
+    }
     return ReflectingDependencyAnaliserT(
                     new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B, depInfo));
 }
@@ -646,7 +655,9 @@ void LoopAnalysisResult::updateLoopDependecies(llvm::BasicBlock* B)
     bool is_latch = m_latches.find(B) != m_latches.end();
     if (m_L.getHeader() == B) {
         auto blockDeps = getBlockTerminatingDependencies(B);
-        updateLoopDependecies(std::move(blockDeps));
+        if (blockDeps.isDefined()) {
+            updateLoopDependecies(std::move(blockDeps));
+        }
     } else if (is_latch || m_L.isLoopExiting(B)) {
         DepInfo deps;
         auto pred = pred_begin(B);
@@ -751,6 +762,12 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         auto pb = *pred;
         // dependencies of latches, headers and exit blocks are dependencies of whole loop, no need to add them for individual blocks
         if (isSpecialLoopBlock(pb)) {
+            ++pred;
+            continue;
+        }
+        // predecessor is in another loop. block B is the only block which can have predecessor in other(nested) loop.
+        // As all loops are considered to be exiting (no infinite loops), B will be executed indipendent on nested loop.
+        if (m_LI.getLoopFor(pb) != &m_L) {
             ++pred;
             continue;
         }

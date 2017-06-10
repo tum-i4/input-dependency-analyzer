@@ -18,7 +18,8 @@ bool Utils::haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& 
         if (pos == inputNums.end()) {
             continue;
         }
-        return pos->second.isInputDep() || pos->second.isInputArgumentDep();
+        return pos->second.isInputDep();
+        //|| pos->second.isInputArgumentDep();
     }
     return false;
 }

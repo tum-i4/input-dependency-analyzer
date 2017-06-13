@@ -263,6 +263,7 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     for (auto& item : m_BBAnalisers) {
         item.second->finalizeResults(dependentArgs);
     }
+    m_functionCallInfo.clear();
     updateFunctionCallInfo();
 }
 

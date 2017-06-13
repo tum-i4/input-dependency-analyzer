@@ -338,7 +338,6 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         if (llvm::dyn_cast<llvm::Constant>(loadOp)) {
             return DepInfo(DepInfo::INPUT_INDEP);
         }
-        llvm::dbgs() << *loadOp << "\n";
         return getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
     }
     auto depInfo = getValueDependencies(loadedValue);

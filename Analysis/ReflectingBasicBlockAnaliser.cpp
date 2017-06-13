@@ -120,9 +120,22 @@ public:
             return depends_on_values.empty();
         }
 
-        bool depends_on(nodeT n)
+        // TODO: is building circular graph and then traversing and cuting circles more efficient?
+        bool depends_on(nodeT n) const
         {
-            return depends_on_values.find(n) != depends_on_values.end();
+            if (depends_on_values.empty()) {
+                return false;
+            }
+            if (depends_on_values.find(n) != depends_on_values.end()) {
+                return true;
+            }
+            for (const auto& dep_on : depends_on_values) {
+                if (dep_on->depends_on(n)) {
+                    return true;
+                }
+            }
+            return false;
+            //return depends_on_values.find(n) != depends_on_values.end();
         }
 
         void dump()
@@ -178,9 +191,9 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
             item = valueDeps.find(process_val);
         }
         auto res = nodes.insert(std::make_pair(item->first, nodeT(new node(item->first))));
-        nodeT val_node = res.first->second;
+        nodeT item_node = res.first->second;
         if (!item->second.isValueDep()) {
-            m_leaves.insert(val_node);
+            m_leaves.insert(item_node);
             continue;
         }
         auto& value_deps = item->second.getValueDependencies();
@@ -191,18 +204,16 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
                 continue;
             }
             auto val_res = nodes.insert(std::make_pair(val, nodeT(new node(val))));
-            auto dep_val = val_res.first->second;
+            auto dep_node = val_res.first->second;
             bool is_global = llvm::dyn_cast<llvm::GlobalVariable>(val);
             if (is_global && valueDeps.find(val) == valueDeps.end()) {
                 continue;
             }
-            if (dep_val->depends_on(val_node)) {
+            if (dep_node->depends_on(item_node)) {
                 values_to_erase.push_back(val);
                 continue;
-                // circular dependency, erase one
-                value_deps.erase(val);
-            } else if (val_node->add_depends_on_value(dep_val)) {
-                dep_val->add_dependent_value(val_node);
+            } else if (item_node->add_depends_on_value(dep_node)) {
+                dep_node->add_dependent_value(item_node);
             }
             // is not in value list modified or referenced in this block
             if (valueDeps.find(val) == valueDeps.end()) {
@@ -215,8 +226,8 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
         if (value_deps.empty() && item->second.getDependency() == DepInfo::VALUE_DEP) {
             item->second.setDependency(DepInfo::INPUT_INDEP);
         }
-        if (val_node->is_leaf()) {
-            m_leaves.insert(val_node);
+        if (item_node->is_leaf()) {
+            m_leaves.insert(item_node);
         }
     }
 }
@@ -365,7 +376,7 @@ DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instructi
         return valdeppos->second;
     }
     if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(instr)) {
-        auto deps = m_valueDependencies[allocaInst];
+        auto deps = getValueDependencies(allocaInst);
         DepInfo info;
         info.mergeDependencies(deps);
         return info;
@@ -513,7 +524,6 @@ void ReflectingBasicBlockAnaliser::updateValueDependentInvokeReferencedGlobals(l
 void ReflectingBasicBlockAnaliser::reflect(llvm::Value* value, const DepInfo& deps)
 {
     assert(deps.isDefined());
-    // remove later
     if (deps.isValueDep()) {
         assert(deps.isOnlyGlobalValueDependent());
     }

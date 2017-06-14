@@ -27,9 +27,13 @@ llvm::Argument* getFunctionArgument(llvm::Function* F, unsigned index)
 DepInfo getFinalizedDepInfo(const ValueSet& values,
                             const DependencyAnaliser::GlobalVariableDependencyMap& globalDeps)
 {
-    DepInfo newInfo;
+    DepInfo newInfo(DepInfo::INPUT_INDEP);
     for (auto& item : values) {
         auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
+        if (global == nullptr) {
+            //llvm::dbgs() << *item << "\n";
+            continue;
+        }
         assert(global != nullptr);
         auto pos = globalDeps.find(global);
         assert(pos != globalDeps.end());
@@ -240,6 +244,7 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
             }
         }
     }
+    assert(info.isDefined());
     auto storedValue = getMemoryValue(storeTo);
     assert(storedValue);
     updateInstructionDependencies(storeInst, info);

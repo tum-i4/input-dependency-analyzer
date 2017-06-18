@@ -11,6 +11,7 @@
 namespace llvm {
 class Loop;
 class LoopInfo;
+class PostDominatorTree;
 }
 
 namespace input_dependency {
@@ -22,6 +23,7 @@ class LoopAnalysisResult : public ReflectingDependencyAnaliser
 public:
     LoopAnalysisResult(llvm::Function* F,
                        llvm::AAResults& AAR,
+                       const llvm::PostDominatorTree& PDom,
                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                        const Arguments& inputs,
                        const FunctionAnalysisGetter& Fgetter,
@@ -113,6 +115,7 @@ private:
 private:
     llvm::Function* m_F;
     llvm::AAResults& m_AAR;
+    const llvm::PostDominatorTree& m_postDomTree;
     const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
     Arguments m_inputs;
     const FunctionAnalysisGetter& m_FAG;

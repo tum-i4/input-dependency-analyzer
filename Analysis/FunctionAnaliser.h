@@ -8,6 +8,7 @@
 namespace llvm {
 class GlobalVariable;
 class LoopInfo;
+class PostDominatorTree;
 }
 
 namespace input_dependency {
@@ -20,6 +21,7 @@ public:
     FunctionAnaliser(llvm::Function* F,
                      llvm::AAResults& AAR,
                      llvm::LoopInfo& LI,
+                     const llvm::PostDominatorTree& PDom,
                      const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                      const FunctionAnalysisGetter& getter);
 

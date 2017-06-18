@@ -7,6 +7,7 @@
 #include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -186,6 +187,7 @@ void LoopTraversalPathCreator::add_to_path(llvm::BasicBlock* block)
 
 LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                        llvm::AAResults& AAR,
+                                       const llvm::PostDominatorTree& PDom,
                                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
                                        const Arguments& inputs,
                                        const FunctionAnalysisGetter& Fgetter,
@@ -193,6 +195,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                        llvm::LoopInfo& LI)
                                 : m_F(F)
                                 , m_AAR(AAR)
+                                , m_postDomTree(PDom)
                                 , m_virtualCallsInfo(virtualCallsInfo)
                                 , m_inputs(inputs)
                                 , m_FAG(Fgetter)
@@ -630,7 +633,7 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
     auto depInfo = getBasicBlockDeps(B);
     auto block_loop = m_LI.getLoopFor(B);
     if (block_loop != &m_L) {
-        LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_virtualCallsInfo,
+        LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree, m_virtualCallsInfo,
                                                                         m_inputs, m_FAG, *block_loop, m_LI);
         loopAnalysisResult->setLoopDependencies(depInfo);
         collectLoopBlocks(block_loop);
@@ -638,14 +641,13 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
     }
     // loop argument dependencies will also become basic blocks argument dependencies.
     // this should not make runtime worse as argument dependencies does not affect reflection algorithm. 
-    depInfo.mergeDependencies(m_loopDependencies.getArgumentDependencies());
+    //depInfo.mergeDependencies(m_loopDependencies.getArgumentDependencies());
+    depInfo.mergeDependencies(m_loopDependencies);
     if (depInfo.isInputArgumentDep()) {
         depInfo.mergeDependency(DepInfo::INPUT_ARGDEP);
     }
     if (depInfo.isInputIndep()) {
         return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
-    }
-    for (const auto& dep : depInfo.getValueDependencies()) {
     }
     return ReflectingDependencyAnaliserT(
                     new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B, depInfo));
@@ -758,6 +760,8 @@ bool LoopAnalysisResult::checkForLoopDependencies(const DependencyAnaliser::Argu
 DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
 {
     DepInfo dep(DepInfo::INPUT_INDEP);
+    bool postdominates_all_predecessors = true;
+    const auto& b_node = m_postDomTree[B];
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         auto pb = *pred;
@@ -774,7 +778,12 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         }
         const auto& deps = getBlockTerminatingDependencies(pb);
         dep.mergeDependencies(deps);
+        auto pred_node = m_postDomTree[*pred];
+        postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
+    }
+    if (postdominates_all_predecessors) {
+        return DepInfo(DepInfo::INPUT_INDEP);
     }
     return dep;
 }

@@ -1,5 +1,7 @@
 #include "Utils.h"
 
+#include "DependencyInfo.h"
+
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Instructions.h"
 
@@ -13,12 +15,17 @@ namespace input_dependency {
 bool Utils::haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& inputNums,
                              const ArgumentSet& selfNums)
 {
+    DepInfo info;
     for (auto& self : selfNums) {
         auto pos = inputNums.find(self);
         if (pos == inputNums.end()) {
             continue;
         }
-        return pos->second.isInputDep();
+        info.mergeDependency(pos->second.getDependency());
+        if (info.isInputDep()) {
+            return true;
+        }
+        //return pos->second.isInputDep();
         //|| pos->second.isInputArgumentDep();
     }
     return false;

@@ -9,6 +9,7 @@
 #include "VirtualCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -27,11 +28,13 @@ public:
     Impl(llvm::Function* F,
          llvm::AAResults& AAR,
          llvm::LoopInfo& LI,
+         const llvm::PostDominatorTree& PDom,
          const VirtualCallSiteAnalysisResult& virtualCallsInfo,
          const FunctionAnalysisGetter& getter)
         : m_F(F)
         , m_AAR(AAR)
         , m_LI(LI)
+        , m_postDomTree(PDom)
         , m_virtualCallsInfo(virtualCallsInfo)
         , m_FAGetter(getter)
         , m_globalsUpdated(false)
@@ -113,6 +116,7 @@ private:
     llvm::Function* m_F;
     llvm::AAResults& m_AAR;
     llvm::LoopInfo& m_LI;
+    const llvm::PostDominatorTree& m_postDomTree;
     const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
     const FunctionAnalysisGetter& m_FAGetter;
 
@@ -265,7 +269,7 @@ void FunctionAnaliser::Impl::analize()
             // Another opetion is mapping all blocks of the loop to the same analiser.
             // this is implementatin of the first option.
             const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
-            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, *m_currentLoop, m_LI);
+            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree, m_virtualCallsInfo, m_inputs, m_FAGetter, *m_currentLoop, m_LI);
             if (depInfo.isDefined()) {
                 loopA->setLoopDependencies(depInfo);
             }
@@ -291,6 +295,11 @@ void FunctionAnaliser::Impl::analize()
 
 void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& dependentArgs)
 {
+    //llvm::dbgs() << "finalizing with dependencies\n";
+    //for (const auto& arg : dependentArgs) {
+    //    llvm::dbgs() << *arg.first << "     " << arg.second.getDependencyName() << "\n";
+    //}
+
     m_calledFunctionsInfo.clear();
     m_calledFunctionGlobalsInfo.clear();
     for (auto& item : m_BBAnalysisResults) {
@@ -348,6 +357,8 @@ FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
 DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const
 {
     DepInfo dep(DepInfo::DepInfo::INPUT_INDEP);
+    bool postdominates_all_predecessors = true;
+    const auto& b_node = m_postDomTree[B];
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         auto pb = *pred;
@@ -357,7 +368,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             break;
         }
         // predecessor is in loop
-        // We assume loops are not inifinite, thus this basic block will be reached no mater if loop condition is input dep or not.
+        // We assume loops are not inifinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
         if (m_LI.getLoopFor(pb) != nullptr) {
             ++pred;
             continue;
@@ -381,7 +392,13 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         if (pos != m_BBAnalysisResults.end()) {
             dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
         }
+        auto pred_node = m_postDomTree[*pred];
+        postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
+    }
+    // if block postdominates all its predecessors, it will be reached independent of predecessors.
+    if (postdominates_all_predecessors) {
+        return DepInfo(DepInfo::INPUT_INDEP);
     }
     return dep;
 }
@@ -608,9 +625,10 @@ const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl:
 FunctionAnaliser::FunctionAnaliser(llvm::Function* F,
                                    llvm::AAResults& AAR,
                                    llvm::LoopInfo& LI,
+                                   const llvm::PostDominatorTree& PDom,
                                    const VirtualCallSiteAnalysisResult& VCAR,
                                    const FunctionAnalysisGetter& getter)
-    : m_analiser(new Impl(F, AAR, LI, VCAR, getter))
+    : m_analiser(new Impl(F, AAR, LI, PDom, VCAR, getter))
 {
 }
 

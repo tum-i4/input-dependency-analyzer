@@ -8,6 +8,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Function.h"
@@ -62,7 +63,8 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
             m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
-            auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, virtualCallsInfo, FAGetter)));
+            const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
+            auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, PDom, virtualCallsInfo, FAGetter)));
             assert(res.second);
             auto& analizer = res.first->second;
             analizer.analize();
@@ -85,6 +87,7 @@ void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addPreserved<llvm::CallGraphWrapperPass>();
     AU.addRequired<llvm::LoopInfoWrapperPass>();
+    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
     AU.setPreservesAll();
 }
 
@@ -150,6 +153,12 @@ bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
 void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, FunctionAnaliser& FA)
 {
     if (m_calleeCallersInfo.find(F) == m_calleeCallersInfo.end()) {
+        auto& arguments = F->getArgumentList();
+        DependencyAnaliser::ArgumentDependenciesMap arg_deps;
+        for (auto& arg : arguments) {
+            arg_deps.insert(std::make_pair(&arg, DepInfo(DepInfo::INPUT_DEP)));
+        }
+        FA.finalizeArguments(arg_deps);
         return;
     }
     const auto& callInfo = getFunctionCallInfo(F);

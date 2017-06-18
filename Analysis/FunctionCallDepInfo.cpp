@@ -40,6 +40,7 @@ void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualD
             toFinalize.erase(old);
             continue;
         }
+        it->second.setDependency(DepInfo::INPUT_DEP);
         ++it;
     }
 }

@@ -551,6 +551,8 @@ void ReflectingBasicBlockAnaliser::reflectOnInstructions(llvm::Value* value, con
         }
         if (instrPos->second.isInputDep() || instrPos->second.isInputArgumentDep()) {
             m_inputDependentInstrs[instr].mergeDependencies(instrPos->second.getArgumentDependencies());
+            m_inputDependentInstrs[instr].mergeDependency(instrPos->second.getDependency());
+            assert(!m_inputDependentInstrs[instr].isValueDep());
         } else if (instrPos->second.isInputIndep()) {
             m_inputIndependentInstrs.insert(instr);
         }

@@ -220,10 +220,6 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
-    auto storeTo = storeInst->getPointerOperand();
-    if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
-        m_modifiedGlobals.insert(global);
-    }
     auto op = storeInst->getOperand(0);
     DepInfo info;
     if (auto* constOp = llvm::dyn_cast<llvm::Constant>(op)) {
@@ -245,10 +241,13 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         }
     }
     assert(info.isDefined());
-    auto storedValue = getMemoryValue(storeTo);
-    assert(storedValue);
+    auto storeTo = storeInst->getPointerOperand();
+    if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
+        m_modifiedGlobals.insert(global);
+    }
     updateInstructionDependencies(storeInst, info);
-    updateValueDependencies(storedValue, info);
+    // Whatever storeTo is (value or instruction) is going to be collected in value list. 
+    updateValueDependencies(storeTo, info);
     updateModAliasesDependencies(storeInst, info);
 }
 
@@ -634,6 +633,8 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
     if (libFuncRetDeps.isInputIndep()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
+    } else if (libFuncRetDeps.isInputDep()) {
+        updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
     } else {
         auto dependencies = getArgumentActualDependencies(libFuncRetDeps.getArgumentDependencies(), argDepMap);
         updateInstructionDependencies(callInst, dependencies);
@@ -692,7 +693,8 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
             }
             llvm::Value* val = getFunctionOutArgumentValue(actualArg);
             if (val == nullptr) {
-                continue;
+                break;
+                //continue;
             }
             updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
             actualArg = argumentValueGetter(index++);
@@ -798,6 +800,7 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionIn
 DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobalsForFunctionCall(llvm::Function* F)
 {
     const auto& FAG = m_FAG(F);
+    llvm::dbgs() << F->getName() << "\n";
     assert(FAG);
     auto& callRefGlobals = FAG->getReferencedGlobals();
     GlobalVariableDependencyMap globalsDepMap;

@@ -30,6 +30,21 @@ const std::string& strlen = "strlen";
 const std::string& malloc = "malloc";
 const std::string& calloc = "calloc";
 const std::string& new_operator = "operator new(unsigned long)";
+
+const std::string& exit = "exit";
+const std::string& free = "free";
+const std::string& realloc = "realloc";
+const std::string& fprintf = "fprintf";
+const std::string& qsort = "qsort";
+const std::string& log = "log";
+const std::string& strcmp = "strcmp";
+const std::string& strcpy = "strcpy";
+const std::string& strcat = "strcat";
+const std::string& fseek = "fseek";
+const std::string& ftell = "ftell";
+const std::string& rewind = "rewind";
+const std::string& fread = "fread";
+const std::string& fclose = "fclose";
 } // namespace C_library
 
 }
@@ -64,6 +79,21 @@ void CLibraryInfo::setup()
     add_calloc();
 
     add_new_operator();
+
+    add_exit();
+    add_free();
+    add_realloc();
+    add_fprintf();
+    add_qsort();
+    add_log();
+    add_strcmp();
+    add_strcpy();
+    add_strcat();
+    add_fseek();
+    add_ftell();
+    add_rewind();
+    add_fread();
+    add_fclose();
 }
 
 void CLibraryInfo::add_printf()
@@ -279,6 +309,158 @@ void CLibraryInfo::add_new_operator()
                               LibFunctionInfo::LibArgumentDependenciesMap(),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(newopInfo));
+}
+
+void CLibraryInfo::add_exit()
+{
+    LibFunctionInfo exitInfo(C_library::exit,
+                             LibFunctionInfo::LibArgumentDependenciesMap(),
+                             LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(exitInfo));
+}
+
+void CLibraryInfo::add_free()
+{
+    LibFunctionInfo freeInfo(C_library::free,
+                             LibFunctionInfo::LibArgumentDependenciesMap(),
+                             LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(freeInfo));
+}
+
+void CLibraryInfo::add_realloc()
+{
+    // content of ptr is not changed
+    // void* realloc (void* ptr, size_t size);
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {0, 1}, argDeps);
+    LibFunctionInfo reallocInfo(C_library::realloc,
+                                std::move(argDeps),
+                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0, 1}});
+    m_libFunctionInfoProcessor(std::move(reallocInfo));
+}
+
+void CLibraryInfo::add_fprintf()
+{
+    // return false is non-deterministic depending on success or failure
+    // int fprintf ( FILE * stream, const char * format, ... );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {0, 1}, argDeps);
+    LibFunctionInfo fprintfInfo(C_library::fprintf,
+                                std::move(argDeps),
+                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(fprintfInfo));
+}
+
+void CLibraryInfo::add_qsort()
+{
+    // does the first argument depend on compar???
+    // void qsort (void* base, size_t num, size_t size, int (*compar)(const void*,const void*));
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {0, 1}, argDeps);
+    LibFunctionInfo qsortInfo(C_library::qsort,
+                              std::move(argDeps),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(qsortInfo));
+}
+
+void CLibraryInfo::add_log()
+{
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    LibFunctionInfo logInfo(C_library::qsort,
+                            LibFunctionInfo::LibArgumentDependenciesMap(),
+                            LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
+    m_libFunctionInfoProcessor(std::move(logInfo));
+}
+
+void CLibraryInfo::add_strcmp()
+{
+    //  int strcmp ( const char * str1, const char * str2 );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    LibFunctionInfo strcmpInfo(C_library::qsort,
+                               LibFunctionInfo::LibArgumentDependenciesMap(),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0, 1}});
+    m_libFunctionInfoProcessor(std::move(strcmpInfo));
+}
+
+void CLibraryInfo::add_strcpy()
+{
+    // char * strcpy ( char * destination, const char * source );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1}, argDeps);
+    LibFunctionInfo strcpyInfo(C_library::qsort,
+                               std::move(argDeps),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {1}});
+    m_libFunctionInfoProcessor(std::move(strcpyInfo));
+}
+
+void CLibraryInfo::add_strcat()
+{
+    //char * strcat ( char * destination, const char * source );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1}, argDeps);
+    LibFunctionInfo strcatInfo(C_library::qsort,
+                               std::move(argDeps),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {1}});
+    m_libFunctionInfoProcessor(std::move(strcatInfo));
+}
+
+void CLibraryInfo::add_fseek()
+{
+    // int fseek ( FILE * stream, long int offset, int origin );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    // FILE* is not literally becomming input dependent.
+    // However following functions, e.g. reads may be non deterministic, thus mark FILE input dependent.
+    addArgWithDeps(0, {0, 1, 2}, argDeps);
+    LibFunctionInfo fseekInfo(C_library::qsort,
+                              std::move(argDeps),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(fseekInfo));
+}
+
+void CLibraryInfo::add_ftell()
+{
+    // return value does not merely depend on FILE*. on failure it will return -1. thus marking it input dependent as is non-deterministic
+    // long int ftell ( FILE * stream );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {0}, argDeps);
+    LibFunctionInfo ftellInfo(C_library::qsort,
+                              std::move(argDeps),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(ftellInfo));
+}
+
+void CLibraryInfo::add_rewind()
+{
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {0}, argDeps);
+    LibFunctionInfo rewindInfo(C_library::qsort,
+                               std::move(argDeps),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(rewindInfo));
+}
+
+void CLibraryInfo::add_fread()
+{
+    // size_t fread ( void * ptr, size_t size, size_t count, FILE * stream );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1, 2, 3}, argDeps);
+    // FILE position is advanced by number of bytes read, which in success is size * count
+    addArgWithDeps(3, {2, 3}, argDeps);
+    LibFunctionInfo freadInfo(C_library::qsort,
+                              std::move(argDeps),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(freadInfo));
+}
+
+void CLibraryInfo::add_fclose()
+{
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    // even if fails, FILE is cleared
+    argDeps.insert(std::make_pair(0, LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP}));
+    LibFunctionInfo fcloseInfo(C_library::qsort,
+                               std::move(argDeps),
+                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
+    m_libFunctionInfoProcessor(std::move(fcloseInfo));
 }
 
 } // namespace input_dependency

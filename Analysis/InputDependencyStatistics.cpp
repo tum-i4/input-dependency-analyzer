@@ -59,6 +59,7 @@ bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
                 } else if (FA->isInputIndependent(&I)) {
                     ++indep_count;
                 } else {
+                    llvm::dbgs() << "Unknown: " << I << "\n";
                     ++unknown_count;
                 }
             }

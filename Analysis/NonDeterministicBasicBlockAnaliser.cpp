@@ -1,6 +1,6 @@
 #include "NonDeterministicBasicBlockAnaliser.h"
 
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -21,11 +21,12 @@ NonDeterministicBasicBlockAnaliser::NonDeterministicBasicBlockAnaliser(
                         llvm::Function* F,
                         llvm::AAResults& AAR,
                         const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                        const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                         const Arguments& inputs,
                         const FunctionAnalysisGetter& Fgetter,
                         llvm::BasicBlock* BB,
                         const DepInfo& nonDetArgs)
-                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
+                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                     , m_nonDetDeps(nonDetArgs)
 {
 }
@@ -68,8 +69,20 @@ void NonDeterministicBasicBlockAnaliser::setInitialValueDependencies(const Depen
     BasicBlockAnalysisResult::setInitialValueDependencies(valueDependencies);
     for (auto& dep : m_nonDetDeps.getValueDependencies()) {
         auto pos = valueDependencies.find(dep);
-        m_valueDependencies[dep] = pos->second;
+        // e.g. global which has not been seen before, but is referenced at this point
+        if (pos != valueDependencies.end()) {
+            m_valueDependencies[dep] = pos->second;
+        } else if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(dep)) {
+            m_referencedGlobals.insert(global);
+        }
     }
+}
+
+DepInfo NonDeterministicBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+{
+    auto depInfo = BasicBlockAnalysisResult::getArgumentValueDependecnies(argVal);
+    addOnDependencyInfo(depInfo);
+    return depInfo;
 }
 
 DepInfo NonDeterministicBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)

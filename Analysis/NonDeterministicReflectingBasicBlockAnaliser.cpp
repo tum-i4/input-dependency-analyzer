@@ -1,6 +1,6 @@
 #include "NonDeterministicReflectingBasicBlockAnaliser.h"
 
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -22,11 +22,12 @@ NonDeterministicReflectingBasicBlockAnaliser::NonDeterministicReflectingBasicBlo
                                      llvm::Function* F,
                                      llvm::AAResults& AAR,
                                      const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                     const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                      const Arguments& inputs,
                                      const FunctionAnalysisGetter& Fgetter,
                                      llvm::BasicBlock* BB,
                                      const DepInfo& nonDetDeps)
-                                : ReflectingBasicBlockAnaliser(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
+                                : ReflectingBasicBlockAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                                 , m_nonDeterministicDeps(nonDetDeps)
 {
 }
@@ -75,6 +76,12 @@ void NonDeterministicReflectingBasicBlockAnaliser::setInitialValueDependencies(
     }
 }
 
+DepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+{
+    auto depInfo = ReflectingBasicBlockAnaliser::getArgumentValueDependecnies(argVal);
+    addOnDependencyInfo(depInfo);
+    return depInfo;
+}
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)
 {

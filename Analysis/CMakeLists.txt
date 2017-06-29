@@ -5,6 +5,7 @@ add_library(InputDependency MODULE
     FunctionAnaliser.cpp
     FunctionCallDepInfo.cpp
     FunctionDOTGraphPrinter.cpp
+    IndirectCallSitesAnalysis.cpp
     InputDependencyAnalysis.cpp
     InputDependencyDebugInfoPrinter.cpp
     InputDependencyStatistics.cpp
@@ -14,13 +15,12 @@ add_library(InputDependency MODULE
     LibraryInfoCollector.cpp
     LibraryInfoManager.cpp
     LoopAnalysisResult.cpp
+    ModuleSizeDebugPass.cpp
     NonDeterministicBasicBlockAnaliser.cpp
     NonDeterministicReflectingBasicBlockAnaliser.cpp
     ReflectingBasicBlockAnaliser.cpp
     STLStringInfo.cpp
     Utils.cpp
-    VirtualCallSitesAnalysis.cpp
-    ModuleSizeDebugPass.cpp
 )
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).

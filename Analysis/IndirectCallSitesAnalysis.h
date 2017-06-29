@@ -34,23 +34,51 @@ private:
     std::unordered_map<llvm::Instruction*, FunctionSet> m_virtualCallCandidates;
 }; // class VirtualCallSiteAnalysisResult
 
-class VirtualCallSitesAnalysis : public llvm::ModulePass
+class IndirectCallSitesAnalysisResult
+{
+public:
+    void addIndirectCallTarget(llvm::CallInst* call, llvm::Function* target);
+    void addIndirectInvokeTarget(llvm::InvokeInst* invoke, llvm::Function* target);
+
+    bool hasIndirectCallTargets(llvm::CallInst* call) const;
+    const FunctionSet& getIndirectCallTargets(llvm::CallInst* call) const;
+    bool hasIndirectInvokeTargets(llvm::InvokeInst* invoke) const;
+    const FunctionSet& getIndirectInvokeTargets(llvm::InvokeInst* invoke) const;
+
+public:
+    void dump();
+
+private:
+    const FunctionSet& getTargets(llvm::Instruction* instr) const;
+
+private:
+    std::unordered_map<llvm::Instruction*, FunctionSet> m_indirectCallTargets;
+}; // class IndirectCallSitesAnalysisResult
+
+
+class IndirectCallSitesAnalysis : public llvm::ModulePass
 {
 public:
     static char ID;
 
-    VirtualCallSitesAnalysis();
+    IndirectCallSitesAnalysis();
 
 public:
     bool runOnModule(llvm::Module& M) override;
 
 public:
-    VirtualCallSiteAnalysisResult& getAnalysisResult();
-    const VirtualCallSiteAnalysisResult& getAnalysisResult() const;
+    VirtualCallSiteAnalysisResult& getVirtualsAnalysisResult();
+    const VirtualCallSiteAnalysisResult& getVirtualsAnalysisResult() const;
+
+    IndirectCallSitesAnalysisResult& getIndirectsAnalysisResult();
+    const IndirectCallSitesAnalysisResult& getIndirectsAnalysisResult() const;
 
 private:
-    class Impl;
-    std::unique_ptr<Impl> m_impl;
+    class VirtualsImpl;
+    std::unique_ptr<VirtualsImpl> m_vimpl;
+
+    class IndirectsImpl;
+    std::unique_ptr<IndirectsImpl> m_iimpl;
 }; // class VirtualCallSitesAnalysis
 
 }

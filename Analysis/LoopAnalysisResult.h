@@ -17,6 +17,7 @@ class PostDominatorTree;
 namespace input_dependency {
 
 class VirtualCallSiteAnalysisResult;
+class IndirectCallSitesAnalysisResult;
 
 class LoopAnalysisResult : public ReflectingDependencyAnaliser
 {
@@ -25,6 +26,7 @@ public:
                        llvm::AAResults& AAR,
                        const llvm::PostDominatorTree& PDom,
                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                       const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                        const Arguments& inputs,
                        const FunctionAnalysisGetter& Fgetter,
                        llvm::Loop& L,
@@ -117,6 +119,7 @@ private:
     llvm::AAResults& m_AAR;
     const llvm::PostDominatorTree& m_postDomTree;
     const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
+    const IndirectCallSitesAnalysisResult& m_indirectCallsInfo;
     Arguments m_inputs;
     const FunctionAnalysisGetter& m_FAG;
     llvm::Loop& m_L;

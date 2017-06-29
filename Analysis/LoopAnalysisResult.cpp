@@ -3,7 +3,7 @@
 #include "ReflectingBasicBlockAnaliser.h"
 #include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicReflectingBasicBlockAnaliser.h"
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -89,7 +89,8 @@ void LoopTraversalPathCreator::construct()
 
 }
 
-bool LoopTraversalPathCreator::add_predecessors(llvm::BasicBlock* block, LoopPathType& blocks)
+bool LoopTraversalPathCreator::add_predecessors(llvm::BasicBlock* block,
+                                                LoopPathType& blocks)
 {
     auto pred = pred_begin(block);
     bool preds_added = true;
@@ -189,6 +190,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                        llvm::AAResults& AAR,
                                        const llvm::PostDominatorTree& PDom,
                                        const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                       const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                        const Arguments& inputs,
                                        const FunctionAnalysisGetter& Fgetter,
                                        llvm::Loop& L,
@@ -197,6 +199,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                 , m_AAR(AAR)
                                 , m_postDomTree(PDom)
                                 , m_virtualCallsInfo(virtualCallsInfo)
+                                , m_indirectCallsInfo(indirectCallsInfo)
                                 , m_inputs(inputs)
                                 , m_FAG(Fgetter)
                                 , m_L(L)
@@ -320,14 +323,16 @@ bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
-    auto loop = m_LI.getLoopFor(parentBB);
-    if (loop == &m_L) {
-        auto pos = m_BBAnalisers.find(parentBB);
-        assert(pos != m_BBAnalisers.end());
+    auto pos = m_BBAnalisers.find(parentBB);
+    if (pos != m_BBAnalisers.end()) {
         return pos->second->isInputIndependent(instr);
     }
-    //TODO: implement this part. would need to check the depth for a  loop and redirect call to correct loopAnalysisResult
-    return false;
+
+    auto loop_head_pos = m_loopBlocks.find(parentBB);
+    assert(loop_head_pos != m_loopBlocks.end());
+    auto loop_pos = m_BBAnalisers.find(loop_head_pos->second);
+    assert(loop_pos != m_BBAnalisers.end());
+    return loop_pos->second->isInputIndependent(instr);
 }
 
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
@@ -466,6 +471,11 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
             auto pred_loop = m_LI.getLoopFor(*pred);
             if (pred_loop == &m_L) {
                 // predecessor is latch
+                ++pred;
+                continue;
+            }
+            if (pred_loop == nullptr) {
+                llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
                 ++pred;
                 continue;
             }
@@ -633,7 +643,9 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
     auto depInfo = getBasicBlockDeps(B);
     auto block_loop = m_LI.getLoopFor(B);
     if (block_loop != &m_L) {
-        LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree, m_virtualCallsInfo,
+        LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree,
+                                                                        m_virtualCallsInfo,
+                                                                        m_indirectCallsInfo,
                                                                         m_inputs, m_FAG, *block_loop, m_LI);
         loopAnalysisResult->setLoopDependencies(depInfo);
         collectLoopBlocks(block_loop);
@@ -647,10 +659,14 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createDepe
         depInfo.mergeDependency(DepInfo::INPUT_ARGDEP);
     }
     if (depInfo.isInputIndep()) {
-        return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
+        return ReflectingDependencyAnaliserT(new ReflectingBasicBlockAnaliser(m_F, m_AAR,
+                                                                              m_virtualCallsInfo,
+                                                                              m_indirectCallsInfo,
+                                                                              m_inputs, m_FAG, B));
     }
     return ReflectingDependencyAnaliserT(
-                    new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B, depInfo));
+                    new NonDeterministicReflectingBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo,
+                                                                     m_inputs, m_FAG, B, depInfo));
 }
 
 void LoopAnalysisResult::updateLoopDependecies(llvm::BasicBlock* B)
@@ -708,7 +724,7 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createInpu
         collectLoopBlocks(block_loop);
     }
     return ReflectingDependencyAnaliserT(
-                    new ReflectingInputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAG, B));
+                    new ReflectingInputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAG, B));
 }
 
 void LoopAnalysisResult::updateLoopDependecies(DepInfo&& depInfo)

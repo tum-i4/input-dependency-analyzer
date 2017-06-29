@@ -13,6 +13,7 @@ class PostDominatorTree;
 
 namespace input_dependency {
 
+class IndirectCallSitesAnalysisResult;
 class VirtualCallSiteAnalysisResult;
 
 class FunctionAnaliser
@@ -23,6 +24,7 @@ public:
                      llvm::LoopInfo& LI,
                      const llvm::PostDominatorTree& PDom,
                      const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                     const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                      const FunctionAnalysisGetter& getter);
 
 public:

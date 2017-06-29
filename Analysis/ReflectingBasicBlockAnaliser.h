@@ -7,6 +7,7 @@
 namespace input_dependency {
 
 class VirtualCallSiteAnalysisResult;
+class IndirectCallSitesAnalysisResult;
 
 /**
 * \class ReflectingBasicBlockAnaliser
@@ -19,6 +20,7 @@ public:
     ReflectingBasicBlockAnaliser(llvm::Function* F,
                                  llvm::AAResults& AAR,
                                  const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                 const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                  const Arguments& inputs,
                                  const FunctionAnalysisGetter& Fgetter,
                                  llvm::BasicBlock* BB);

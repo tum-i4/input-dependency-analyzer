@@ -1,6 +1,6 @@
 #include "ReflectingBasicBlockAnaliser.h"
 
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -254,10 +254,11 @@ ReflectingBasicBlockAnaliser::ReflectingBasicBlockAnaliser(
                         llvm::Function* F,
                         llvm::AAResults& AAR,
                         const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                        const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                         const Arguments& inputs,
                         const FunctionAnalysisGetter& Fgetter,
                         llvm::BasicBlock* BB)
-                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
+                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                     , m_isReflected(false)
 {
 }
@@ -267,6 +268,7 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
 {
     resolveValueDependencies(dependencies, mandatory_deps);
     for (auto& item : m_valueDependencies) {
+        //llvm::dbgs() << "Val: " << *item.first << "\n";
         if (!item.second.isDefined()) {
             continue;
         }
@@ -281,8 +283,27 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     m_valueDependentInstrs.clear();
 
     assert(m_valueDependentInstrs.empty());
+    if (!m_valueDependentOutArguments.empty()) {
+        llvm::dbgs() << m_BB->getName() << "\n";
+        for (const auto& val : m_valueDependentOutArguments) {
+            llvm::dbgs() << "   " << *val.first << "\n";
+        }
+    }
     assert(m_valueDependentOutArguments.empty());
+    if (!m_valueDependentFunctionCallArguments.empty()) {
+        for (const auto& val : m_valueDependentFunctionCallArguments) {
+            llvm::dbgs() << *val.first << "\n";
+            assert(llvm::dyn_cast<llvm::GlobalVariable>(val.first));
+        }
+    }
+    m_valueDependentFunctionCallArguments.clear();
     assert(m_valueDependentFunctionCallArguments.empty());
+    if (!m_valueDependentFunctionInvokeArguments.empty()) {
+        for (const auto& val : m_valueDependentFunctionInvokeArguments) {
+            assert(llvm::dyn_cast<llvm::GlobalVariable>(val.first));
+        }
+    }
+    m_valueDependentFunctionInvokeArguments.clear();
     assert(m_valueDependentFunctionInvokeArguments.empty());
     m_isReflected = true;
 }
@@ -318,6 +339,7 @@ void ReflectingBasicBlockAnaliser::markAllInputDependent()
         }
     }
     m_valueDependentFunctionCallArguments.clear();
+    m_valueDependentOutArguments.clear();
     m_valueDependentFunctionInvokeArguments.clear();
     m_valueDependentCallGlobals.clear();
     m_valueDependentInvokeGlobals.clear();
@@ -345,6 +367,9 @@ void ReflectingBasicBlockAnaliser::processInstrForOutputArgs(llvm::Instruction* 
             item->second.mergeDependencies(valueDepPos->second.getValueDependencies());
             for (const auto& val : item->second.getValueDependencies()) {
                 m_valueDependentOutArguments[val].insert(item->first);
+                if (m_valueDependencies.find(val) == m_valueDependencies.end()) {
+                    m_valueDependencies[val] = m_initialDependencies[val];
+                }
             }
             ++item;
             continue;
@@ -469,6 +494,9 @@ void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallI
         }
         for (const auto& val : dep.second.getValueDependencies()) {
             m_valueDependentFunctionCallArguments[val][callInst].insert(dep.first);
+            if (!llvm::dyn_cast<llvm::GlobalVariable>(val) && m_valueDependencies.find(val) == m_valueDependencies.end()) {
+                m_valueDependencies[val] = m_initialDependencies[val];
+            }
         }
     }
 }
@@ -546,6 +574,7 @@ void ReflectingBasicBlockAnaliser::reflectOnInstructions(llvm::Value* value, con
         auto instrPos = m_instructionValueDependencies.find(instr);
         assert(instrPos != m_instructionValueDependencies.end());
         reflectOnDepInfo(value, instrPos->second, depInfo);
+        assert(instrPos->second.isDefined());
         if (instrPos->second.isValueDep()) {
             continue;
         }
@@ -719,7 +748,6 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
         auto val_pos = m_valueDependencies.find(leaf->get_value());
         assert(val_pos != m_valueDependencies.end());
         assert(!val_pos->second.isValueDep() || val_pos->second.isOnlyGlobalValueDependent());
-        assert(!val_pos->second.isValueDep());
         for (auto& dep_node : leaf->get_dependent_values()) {
             auto dep_val = dep_node->get_value();
             auto dep_val_pos = m_valueDependencies.find(dep_val);

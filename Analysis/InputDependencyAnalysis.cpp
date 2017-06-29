@@ -1,6 +1,6 @@
 #include "InputDependencyAnalysis.h"
 
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -44,7 +44,9 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         return &pos->second;
     };
 
-    const VirtualCallSiteAnalysisResult& virtualCallsInfo = getAnalysis<VirtualCallSitesAnalysis>().getAnalysisResult();
+    const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
+    const VirtualCallSiteAnalysisResult& virtualCallsInfo = indirectCallAnalysis.getVirtualsAnalysisResult();
+    const IndirectCallSitesAnalysisResult& indirectCallsInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
     llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
     llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(&CG);
     llvm::CallGraphSCC CurSCC(CG, &CGI);
@@ -64,7 +66,8 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
             const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
-            auto res = m_functionAnalisers.insert(std::make_pair(F, FunctionAnaliser(F, AAR, LI, PDom, virtualCallsInfo, FAGetter)));
+            FunctionAnaliser analiser(F, AAR, LI, PDom, virtualCallsInfo, indirectCallsInfo, FAGetter);
+            auto res = m_functionAnalisers.insert(std::make_pair(F, analiser));
             assert(res.second);
             auto& analizer = res.first->second;
             analizer.analize();
@@ -80,8 +83,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesCFG();
-    AU.setPreservesAll();
-    AU.addRequired<VirtualCallSitesAnalysis>();
+    AU.addRequired<IndirectCallSitesAnalysis>();
     AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
     llvm::getAAResultsAnalysisUsage(AU);
     AU.addRequired<llvm::CallGraphWrapperPass>();

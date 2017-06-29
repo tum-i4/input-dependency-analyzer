@@ -6,7 +6,7 @@
 #include "LoopAnalysisResult.h"
 #include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicBasicBlockAnaliser.h"
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -30,12 +30,14 @@ public:
          llvm::LoopInfo& LI,
          const llvm::PostDominatorTree& PDom,
          const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+         const IndirectCallSitesAnalysisResult& indirectCallsInfo,
          const FunctionAnalysisGetter& getter)
         : m_F(F)
         , m_AAR(AAR)
         , m_LI(LI)
         , m_postDomTree(PDom)
         , m_virtualCallsInfo(virtualCallsInfo)
+        , m_indirectCallsInfo(indirectCallsInfo)
         , m_FAGetter(getter)
         , m_globalsUpdated(false)
     {
@@ -118,6 +120,7 @@ private:
     llvm::LoopInfo& m_LI;
     const llvm::PostDominatorTree& m_postDomTree;
     const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
+    const IndirectCallSitesAnalysisResult& m_indirectCallsInfo;
     const FunctionAnalysisGetter& m_FAGetter;
 
     Arguments m_inputs;
@@ -178,10 +181,12 @@ const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
 {
     return m_returnValueDependencies;
 }
-
+ 
 bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const
 {
+    llvm::dbgs() << "FUNCTION " << m_F->getName() << "\n";
     auto& lastBB = m_F->back();
+    llvm::dbgs() << "FUNCTION " << m_F->getName() << " last BB " << lastBB.getName() << "\n";
     const auto& pos = m_BBAnalysisResults.find(&lastBB);
     assert(pos != m_BBAnalysisResults.end());
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
@@ -269,18 +274,30 @@ void FunctionAnaliser::Impl::analize()
             // Another opetion is mapping all blocks of the loop to the same analiser.
             // this is implementatin of the first option.
             const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
-            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree, m_virtualCallsInfo, m_inputs, m_FAGetter, *m_currentLoop, m_LI);
+            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR,
+                                                               m_postDomTree,
+                                                               m_virtualCallsInfo,
+                                                               m_indirectCallsInfo,
+                                                               m_inputs,
+                                                               m_FAGetter,
+                                                               *m_currentLoop,
+                                                               m_LI);
             if (depInfo.isDefined()) {
                 loopA->setLoopDependencies(depInfo);
             }
             m_BBAnalysisResults[bb].reset(loopA);
         } else if (auto loop = m_LI.getLoopFor(bb)) {
+            // there are cases when blocks of two not nested loops are processed in mixed order
+            if (!m_currentLoop->contains(loop)) {
+                m_currentLoop = loop;
+            }
             m_loopBlocks[bb] = m_currentLoop->getHeader();
             continue;
         } else {
             //m_currentLoop = nullptr;
             m_BBAnalysisResults[bb] = createBasicBlockAnalysisResult(bb);
         }
+        llvm::dbgs() << "BB " << bb->getName() << "\n";
         m_BBAnalysisResults[bb]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(bb));
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
         m_BBAnalysisResults[bb]->gatherResults();
@@ -346,12 +363,13 @@ FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
     const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(B);
     if (depInfo.isInputDep()) {
         return DependencyAnalysisResultT(
-                    new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, B));
+                    new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
     } else if (depInfo.isInputArgumentDep()) {
         return DependencyAnalysisResultT(
-                new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, B, depInfo));
+           new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
     }
-    return DependencyAnalysisResultT(new BasicBlockAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_inputs, m_FAGetter, B));
+    return DependencyAnalysisResultT(
+            new BasicBlockAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
 }
 
 DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const
@@ -627,8 +645,9 @@ FunctionAnaliser::FunctionAnaliser(llvm::Function* F,
                                    llvm::LoopInfo& LI,
                                    const llvm::PostDominatorTree& PDom,
                                    const VirtualCallSiteAnalysisResult& VCAR,
+                                   const IndirectCallSitesAnalysisResult& ICAR,
                                    const FunctionAnalysisGetter& getter)
-    : m_analiser(new Impl(F, AAR, LI, PDom, VCAR, getter))
+    : m_analiser(new Impl(F, AAR, LI, PDom, VCAR, ICAR, getter))
 {
 }
 

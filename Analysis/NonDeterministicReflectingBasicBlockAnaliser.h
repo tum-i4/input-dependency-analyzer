@@ -6,6 +6,7 @@
 namespace input_dependency {
 
 class VirtualCallSiteAnalysisResult;
+class IndirectCallSitesAnalysisResult;
 
 // TODO: can derive from NonDeterministicBasicBlockAnaliser.
 class NonDeterministicReflectingBasicBlockAnaliser : public ReflectingBasicBlockAnaliser
@@ -14,6 +15,7 @@ public:
     NonDeterministicReflectingBasicBlockAnaliser(llvm::Function* F,
                                                 llvm::AAResults& AAR,
                                                 const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                                const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                                 const Arguments& inputs,
                                                 const FunctionAnalysisGetter& Fgetter,
                                                 llvm::BasicBlock* BB,
@@ -31,6 +33,7 @@ public:
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
+    DepInfo getArgumentValueDependecnies(llvm::Value* argVal) override;
 
 private:
     DepInfo addOnDependencyInfo(const DepInfo& info);

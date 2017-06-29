@@ -1,6 +1,6 @@
 #include "InputDependentBasicBlockAnaliser.h"
 
-#include "VirtualCallSitesAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Function.h"
@@ -12,10 +12,11 @@ namespace input_dependency {
 InputDependentBasicBlockAnaliser::InputDependentBasicBlockAnaliser(llvm::Function* F,
                                                                    llvm::AAResults& AAR,
                                                                    const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                                                   const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                                                    const Arguments& inputs,
                                                                    const FunctionAnalysisGetter& Fgetter,
                                                                    llvm::BasicBlock* BB)
-                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
+                    : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
 {
 }
 
@@ -66,10 +67,11 @@ DepInfo InputDependentBasicBlockAnaliser::getValueDependencies(llvm::Value* valu
 ReflectingInputDependentBasicBlockAnaliser::ReflectingInputDependentBasicBlockAnaliser(llvm::Function* F,
                                                                    llvm::AAResults& AAR,
                                                                    const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                                                   const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                                                    const Arguments& inputs,
                                                                    const FunctionAnalysisGetter& Fgetter,
                                                                    llvm::BasicBlock* BB)
-                    : InputDependentBasicBlockAnaliser(F, AAR, virtualCallsInfo, inputs, Fgetter, BB)
+                    : InputDependentBasicBlockAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
 {
 }
 

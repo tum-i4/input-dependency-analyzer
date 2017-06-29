@@ -17,10 +17,11 @@ namespace input_dependency {
 BasicBlockAnalysisResult::BasicBlockAnalysisResult(llvm::Function* F,
                                                    llvm::AAResults& AAR,
                                                    const VirtualCallSiteAnalysisResult& virtualCallsInfo,
+                                                   const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                                                    const Arguments& inputs,
                                                    const FunctionAnalysisGetter& Fgetter,
                                                    llvm::BasicBlock* BB)
-                                : DependencyAnaliser(F, AAR, virtualCallsInfo, inputs, Fgetter)
+                                : DependencyAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter)
                                 , m_BB(BB)
 {
 }
@@ -49,11 +50,12 @@ void BasicBlockAnalysisResult::dumpResults() const
 void BasicBlockAnalysisResult::analize()
 {
     for (auto& I : *m_BB) {
-    //    llvm::dbgs() << "Instruction " << I << "\n";
+        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
             m_valueDependencies[allocInst] = DepInfo(DepInfo::INPUT_INDEP);
+            updateInstructionDependencies(allocInst, DepInfo(DepInfo::INPUT_INDEP));
         } else if (auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
             processReturnInstr(retInst);
         }  else if (auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(&I)) {
@@ -351,6 +353,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         m_referencedGlobals.insert(globalVal);
         return DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal});
     }
+    assert(depInfo.isDefined());
     return depInfo;
 }
 

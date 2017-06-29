@@ -64,6 +64,7 @@ public:
     const DepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
     // Returns collected data for function calls in this function
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
@@ -112,7 +113,7 @@ private:
     void updateModifiedGlobals();
     DependencyAnaliser::ValueDependencies getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
-    const DependencyAnalysisResultT& getAnalysisResult(llvm::Instruction* I) const;
+    const DependencyAnalysisResultT& getAnalysisResult(llvm::BasicBlock* B) const;
 
 private:
     llvm::Function* m_F;
@@ -144,13 +145,13 @@ private:
 
 bool FunctionAnaliser::Impl::isInputDependent(llvm::Instruction* instr) const
 {
-    const auto& analysisRes = getAnalysisResult(instr);
+    const auto& analysisRes = getAnalysisResult(instr->getParent());
     return analysisRes->isInputDependent(instr);
 }
 
 bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
 {
-    const auto& analysisRes = getAnalysisResult(instr);
+    const auto& analysisRes = getAnalysisResult(instr->getParent());
     return analysisRes->isInputIndependent(instr);
 }
 
@@ -184,9 +185,7 @@ const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
  
 bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const
 {
-    llvm::dbgs() << "FUNCTION " << m_F->getName() << "\n";
     auto& lastBB = m_F->back();
-    llvm::dbgs() << "FUNCTION " << m_F->getName() << " last BB " << lastBB.getName() << "\n";
     const auto& pos = m_BBAnalysisResults.find(&lastBB);
     assert(pos != m_BBAnalysisResults.end());
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
@@ -202,6 +201,26 @@ const DepInfo& FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::Globa
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
     assert(val != nullptr);
     return pos->second->getValueDependencyInfo(val);
+}
+
+DepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const
+{
+    if (val == nullptr || block == nullptr) {
+        return DepInfo();
+    }
+    if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+        return getGlobalVariableDependencies(global);
+    }
+    const auto& analysisRes = getAnalysisResult(block);
+    if (analysisRes->hasValueDependencyInfo(val)) {
+        return analysisRes->getValueDependencyInfo(val);
+    }
+    auto instr = llvm::dyn_cast<llvm::Instruction>(val);
+    assert(instr != nullptr);
+    if (instr->getParent() == block) {
+        return analysisRes->getInstructionDependencies(instr);
+    }
+    return DepInfo();
 }
 
 const DependencyAnaliser::ArgumentDependenciesMap&
@@ -627,9 +646,8 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
     return deps;
 }
 
-const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl::getAnalysisResult(llvm::Instruction* instr) const
+const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl::getAnalysisResult(llvm::BasicBlock* bb) const
 {
-    auto bb = instr->getParent();
     assert(bb->getParent() == m_F);
     auto looppos = m_loopBlocks.find(bb);
     if (looppos != m_loopBlocks.end()) {
@@ -741,6 +759,11 @@ bool FunctionAnaliser::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) co
 const DepInfo& FunctionAnaliser::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
 {
     return m_analiser->getGlobalVariableDependencies(global);
+}
+
+DepInfo FunctionAnaliser::getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const
+{
+    return m_analiser->getDependencyInfoFromBlock(val, block);
 }
 
 const GlobalsSet& FunctionAnaliser::getReferencedGlobals() const

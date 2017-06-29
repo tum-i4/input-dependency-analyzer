@@ -21,6 +21,7 @@ class LoadInst;
 class InvokeInst;
 class ReturnInst;
 class StoreInst;
+class PHINode;
 
 }
 

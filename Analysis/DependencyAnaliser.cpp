@@ -172,6 +172,38 @@ void DependencyAnaliser::processInstruction(llvm::Instruction* inst)
     updateInstructionDependencies(inst, getInstructionDependencies(inst));
 }
 
+void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
+{
+    DepInfo info;
+    for (unsigned i = 0; i < phi->getNumIncomingValues(); ++i) {
+        llvm::Value* val = phi->getIncomingValue(i);
+        if (val == nullptr) {
+            continue;
+        }
+        if (llvm::dyn_cast<llvm::Constant>(val)) {
+            info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
+            continue;
+        }
+        auto valDeps = getValueDependencies(val);
+        if (valDeps.isDefined()) {
+            info.mergeDependencies(valDeps);
+        } else {
+            auto selfF = phi->getParent()->getParent();
+            assert(selfF != nullptr);
+            auto selfFunctionResults = m_FAG(selfF);
+            assert(selfFunctionResults);
+            info.mergeDependencies(selfFunctionResults->getDependencyInfoFromBlock(val, phi->getIncomingBlock(i)));
+        }
+        if (info.isInputDep()) {
+            break;
+        }
+    }
+    if (!info.isDefined()) {
+        info.mergeDependencies(DepInfo(DepInfo::INPUT_DEP));
+    }
+    updateInstructionDependencies(phi, info);
+}
+
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
 {
     auto retValue = retInst->getReturnValue();

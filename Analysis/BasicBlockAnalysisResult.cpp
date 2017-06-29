@@ -66,6 +66,8 @@ void BasicBlockAnalysisResult::analize()
             processCallInst(callInst);
         } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
             processInvokeInst(invokeInst);
+        } else if (auto* phi = llvm::dyn_cast<llvm::PHINode>(&I)) {
+            processPhiNode(phi);
         } else {
             processInstruction(&I);
         }

@@ -83,6 +83,7 @@ public:
     const DepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
 
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;

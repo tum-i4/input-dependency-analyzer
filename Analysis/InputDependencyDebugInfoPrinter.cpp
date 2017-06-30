@@ -1,7 +1,8 @@
 #include "InputDependencyDebugInfoPrinter.h"
 
 #include "InputDependencyAnalysis.h"
-
+#include "InputDepInstructionsRecorder.h"
+#include "LoggingUtils.h"
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -18,29 +19,6 @@
 
 namespace input_dependency {
 
-namespace {
-
-void log_instruction(llvm::Instruction& instr, std::ofstream& log_stream)
-{
-    const auto& debug_loc = instr.getDebugLoc();
-    if (debug_loc.get() == nullptr) {
-        llvm::dbgs() << "No debug info for instruction " << instr << "\n";
-        return;
-    }
-    auto file = debug_loc.get()->getScope()->getFile();
-    const std::string file_name = file->getFilename();
-    log_stream << "file: " << file_name
-               << " line: "
-               << debug_loc.getLine()
-               << " column: "
-               << debug_loc.getCol() << "\n";
-
-    //llvm::dbgs() << instr << "\n";
-}
-
-}
-
-
 char InputDependencyDebugInfoPrinterPass::ID = 0;
 
 void InputDependencyDebugInfoPrinterPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
@@ -54,9 +32,12 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
     auto& inputDepRes = getAnalysis<InputDependencyAnalysis>();
 
     const std::string module_name = M.getName();
-    std::string file_name = module_name + "_dbginfo";
+    std::string file_name = module_name + ".dbg";
     std::ofstream dbg_infostrm;
     dbg_infostrm.open(file_name);
+
+    InputDepInstructionsRecorder& recorder = InputDepInstructionsRecorder::get();
+    recorder.set_record();
 
     for (auto& F : M) {
         auto funcInputDep = inputDepRes.getAnalysisInfo(&F);
@@ -64,14 +45,19 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
             llvm::dbgs() << "No input dependency info for function " << F.getName() << " in module " << module_name << "\n";
             continue;
         }
+        llvm::dbgs() << F.getName() << "\n";
         for (auto& B : F) {
+            if (inputDepRes.isInputDependent(&B)) {
+                recorder.record(&B);
+            }
             for (auto& I : B) {
                 if (funcInputDep->isInputDependent(&I)) {
-                    log_instruction(I, dbg_infostrm);
+                    LoggingUtils::log_instruction_dbg_info(I, dbg_infostrm);
                 }
             }
         }
     }
+    recorder.dump_dbg_info();
     dbg_infostrm.close();
 
     return false;

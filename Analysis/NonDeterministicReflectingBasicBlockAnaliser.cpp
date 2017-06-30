@@ -1,6 +1,7 @@
 #include "NonDeterministicReflectingBasicBlockAnaliser.h"
 
 #include "IndirectCallSitesAnalysis.h"
+#include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -29,7 +30,19 @@ NonDeterministicReflectingBasicBlockAnaliser::NonDeterministicReflectingBasicBlo
                                      const DepInfo& nonDetDeps)
                                 : ReflectingBasicBlockAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                                 , m_nonDeterministicDeps(nonDetDeps)
+                                , m_is_final_inputDep(false)
 {
+}
+
+void NonDeterministicReflectingBasicBlockAnaliser::finalizeResults(const ArgumentDependenciesMap& dependentArgs)
+{
+    ReflectingBasicBlockAnaliser::finalizeResults(dependentArgs);
+    if (m_nonDeterministicDeps.isInputDep()) {
+        m_is_final_inputDep = true;
+    }
+    if (m_nonDeterministicDeps.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, m_nonDeterministicDeps.getArgumentDependencies())) {
+        m_is_final_inputDep = true;
+    } 
 }
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)

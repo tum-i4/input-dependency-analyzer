@@ -1,6 +1,7 @@
 #include "InputDependencyAnalysis.h"
 
 #include "IndirectCallSitesAnalysis.h"
+#include "InputDepInstructionsRecorder.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -28,6 +29,9 @@ char InputDependencyAnalysis::ID = 0;
 
 bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 {
+    // Disable later
+    InputDepInstructionsRecorder::get().set_record();
+
     m_module = &M;
     llvm::Optional<llvm::BasicAAResult> BAR;
     llvm::Optional<llvm::AAResults> AAR;
@@ -108,6 +112,16 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Instruction* instr) const
     auto* F = instr->getParent()->getParent();
     assert(F != nullptr);
     return isInputDependent(F, instr);
+}
+
+bool InputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) const
+{
+    auto F = block->getParent();
+    auto pos = m_functionAnalisers.find(F);
+    if (pos == m_functionAnalisers.end()) {
+        return false;
+    }
+    return pos->second.isInputDependentBlock(block);
 }
 
 FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)

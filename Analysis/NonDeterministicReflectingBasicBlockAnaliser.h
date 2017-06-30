@@ -27,6 +27,9 @@ public:
     NonDeterministicReflectingBasicBlockAnaliser& operator =(NonDeterministicReflectingBasicBlockAnaliser&&) = delete;
 
 public:
+    void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+
+public:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     DepInfo getValueDependencies(llvm::Value* value) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
@@ -40,6 +43,7 @@ private:
 
 private:
     DepInfo m_nonDeterministicDeps;
+    bool m_is_final_inputDep;
 }; // class NonDeterministiReflectingBasicBlockAnaliser
 } // namespace input_dependency
 

@@ -63,6 +63,8 @@ public:
     void setLoopDependencies(const DepInfo& loopDeps);
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
     void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
+    // make sure call this after finalization
+    bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
@@ -77,6 +79,7 @@ public:
     const FunctionSet& getCallSitesData() const override;
     const GlobalsSet& getReferencedGlobals() const override;
     const GlobalsSet& getModifiedGlobals() const override;
+    const ReflectingDependencyAnaliserT& getAnalysisResult(llvm::BasicBlock* block) const;
     void markAllInputDependent() override;
     /// \}
 
@@ -143,6 +146,7 @@ private:
 
     DepInfo m_loopDependencies;
     bool m_isReflected;
+    bool m_is_inputDep;
 }; // class LoopAnalysisResult
 
 } // namespace input_dependency

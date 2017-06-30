@@ -2,6 +2,7 @@
 
 #include "DependencyInfo.h"
 
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Instructions.h"
 
@@ -65,6 +66,13 @@ bool Utils::isLibraryFunction(llvm::Function* F, llvm::Module* M)
     //|| F->getLinkage() == llvm::GlobalValue::LinkOnceODRLinkage);
 }
 
+llvm::Loop* Utils::getTopLevelLoop(llvm::Loop* loop, llvm::Loop* topParent)
+{
+    while (loop->getParentLoop() != topParent) {
+        loop = loop->getParentLoop();
+    }
+    return loop;
+}
 
 std::string Utils::demangle_name(const std::string& name)
 {

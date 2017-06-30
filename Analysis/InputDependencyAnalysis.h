@@ -10,6 +10,7 @@ namespace llvm {
 class CallGraph;
 class Function;
 class Instruction;
+class BasicBlock;
 class Module;
 }
 
@@ -38,6 +39,7 @@ private:
 public:
     bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const;
     bool isInputDependent(llvm::Instruction* instr) const;
+    bool isInputDependent(llvm::BasicBlock* block) const;
 
     const InputDependencyAnalysisInfo& getAnalysisInfo() const
     {

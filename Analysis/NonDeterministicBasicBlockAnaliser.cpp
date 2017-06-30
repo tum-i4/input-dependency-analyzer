@@ -1,6 +1,7 @@
 #include "NonDeterministicBasicBlockAnaliser.h"
 
 #include "IndirectCallSitesAnalysis.h"
+#include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -31,6 +32,16 @@ NonDeterministicBasicBlockAnaliser::NonDeterministicBasicBlockAnaliser(
 {
 }
 
+void NonDeterministicBasicBlockAnaliser::finalizeResults(const ArgumentDependenciesMap& dependentArgs)
+{
+    BasicBlockAnalysisResult::finalizeResults(dependentArgs);
+    if (m_nonDetDeps.isInputDep()) {
+        m_is_inputDep = true;
+    }
+    if (m_nonDetDeps.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, m_nonDetDeps.getArgumentDependencies())) {
+        m_is_inputDep = true;
+    } 
+}
 
 DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {

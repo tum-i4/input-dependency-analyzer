@@ -24,6 +24,12 @@ public:
     InputDependentBasicBlockAnaliser& operator =(const InputDependentBasicBlockAnaliser&) = delete;
     InputDependentBasicBlockAnaliser& operator =(InputDependentBasicBlockAnaliser&&) = delete;
 
+public:
+    bool isInputDependent(llvm::BasicBlock* block) const override
+    {
+        return true;
+    }
+
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
@@ -49,6 +55,11 @@ public:
                                                const FunctionAnalysisGetter& Fgetter,
                                                llvm::BasicBlock* BB);
 public:
+    bool isInputDependent(llvm::BasicBlock* block) const override
+    {
+        return true;
+    }
+
     void reflect(const DependencyAnaliser::ValueDependencies&, const DepInfo&) override
     {
     }

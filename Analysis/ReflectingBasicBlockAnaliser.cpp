@@ -283,19 +283,19 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     m_valueDependentInstrs.clear();
 
     assert(m_valueDependentInstrs.empty());
-    if (!m_valueDependentOutArguments.empty()) {
-        llvm::dbgs() << m_BB->getName() << "\n";
-        for (const auto& val : m_valueDependentOutArguments) {
-            llvm::dbgs() << "   " << *val.first << "\n";
-        }
-    }
+    //if (!m_valueDependentOutArguments.empty()) {
+    //    llvm::dbgs() << m_BB->getName() << "\n";
+    //    for (const auto& val : m_valueDependentOutArguments) {
+    //        llvm::dbgs() << "   " << *val.first << "\n";
+    //    }
+    //}
     assert(m_valueDependentOutArguments.empty());
-    if (!m_valueDependentFunctionCallArguments.empty()) {
-        for (const auto& val : m_valueDependentFunctionCallArguments) {
-            llvm::dbgs() << *val.first << "\n";
-            assert(llvm::dyn_cast<llvm::GlobalVariable>(val.first));
-        }
-    }
+    //if (!m_valueDependentFunctionCallArguments.empty()) {
+    //    for (const auto& val : m_valueDependentFunctionCallArguments) {
+    //        llvm::dbgs() << *val.first << "\n";
+    //        assert(llvm::dyn_cast<llvm::GlobalVariable>(val.first));
+    //    }
+    //}
     m_valueDependentFunctionCallArguments.clear();
     assert(m_valueDependentFunctionCallArguments.empty());
     if (!m_valueDependentFunctionInvokeArguments.empty()) {
@@ -613,15 +613,29 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
 
     for (const auto& fargs : valPos->second) {
         auto callInst = fargs.first;
-        auto F = callInst->getCalledFunction();
-        auto Fpos = m_functionCallInfo.find(F);
-        assert(Fpos != m_functionCallInfo.end());
-        auto& callDeps = Fpos->second.getArgumentDependenciesForCall(callInst);
-        for (auto& arg : fargs.second) {
-            auto argPos = callDeps.find(arg);
-            assert(argPos != callDeps.end());
-            reflectOnDepInfo(value, argPos->second, depInfo);
-            // TODO: need to delete if becomes input indep?
+        FunctionSet targets;
+        auto calledF = callInst->getCalledFunction();
+        if (calledF == nullptr) {
+            if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
+                targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
+            } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
+                targets = m_indirectCallsInfo.getIndirectCallTargets(callInst);
+            } else {
+                continue;
+            }
+        } else {
+            targets.insert(calledF);
+        }
+        for (auto& F : targets) {
+            auto Fpos = m_functionCallInfo.find(F);
+            assert(Fpos != m_functionCallInfo.end());
+            auto& callDeps = Fpos->second.getArgumentDependenciesForCall(callInst);
+            for (auto& arg : fargs.second) {
+                auto argPos = callDeps.find(arg);
+                assert(argPos != callDeps.end());
+                reflectOnDepInfo(value, argPos->second, depInfo);
+                // TODO: need to delete if becomes input indep?
+            }
         }
     }
     m_valueDependentFunctionCallArguments.erase(valPos);
@@ -638,6 +652,9 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionReferencedGlobals(llvm
         auto callInst = fargs.first;
         auto F = callInst->getCalledFunction();
         auto Fpos = m_functionCallInfo.find(F);
+        if (Fpos == m_functionCallInfo.end()) {
+            continue;
+        }
         assert(Fpos != m_functionCallInfo.end());
         auto& callDeps = Fpos->second.getGlobalsDependenciesForCall(callInst);
         for (auto& arg : fargs.second) {
@@ -658,15 +675,29 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
 
     for (const auto& fargs : valPos->second) {
         auto invokeInst = fargs.first;
-        auto F = invokeInst->getCalledFunction();
-        auto Fpos = m_functionCallInfo.find(F);
-        assert(Fpos != m_functionCallInfo.end());
-        auto& invokeDeps = Fpos->second.getArgumentDependenciesForInvoke(invokeInst);
-        for (auto& arg : fargs.second) {
-            auto argPos = invokeDeps.find(arg);
-            assert(argPos != invokeDeps.end());
-            reflectOnDepInfo(value, argPos->second, depInfo);
-            // TODO: need to delete if becomes input indep?
+        auto invokedF = invokeInst->getCalledFunction();
+        FunctionSet targets;
+        if (invokedF == nullptr) {
+            if (m_virtualCallsInfo.hasVirtualInvokeCandidates(invokeInst)) {
+                targets = m_virtualCallsInfo.getVirtualInvokeCandidates(invokeInst);
+            } else if (m_indirectCallsInfo.hasIndirectInvokeTargets(invokeInst)) {
+                targets = m_indirectCallsInfo.getIndirectInvokeTargets(invokeInst);
+            } else {
+                continue;
+            }
+        } else {
+            targets.insert(invokedF);
+        }
+        for (auto& F : targets) {
+            auto Fpos = m_functionCallInfo.find(F);
+            assert(Fpos != m_functionCallInfo.end());
+            auto& invokeDeps = Fpos->second.getArgumentDependenciesForInvoke(invokeInst);
+            for (auto& arg : fargs.second) {
+                auto argPos = invokeDeps.find(arg);
+                assert(argPos != invokeDeps.end());
+                reflectOnDepInfo(value, argPos->second, depInfo);
+                // TODO: need to delete if becomes input indep?
+            }
         }
     }
     m_valueDependentFunctionInvokeArguments.erase(valPos);
@@ -683,6 +714,9 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionReferencedGlobals(llv
         auto invokeInst = fargs.first;
         auto F = invokeInst->getCalledFunction();
         auto Fpos = m_functionCallInfo.find(F);
+        if (Fpos == m_functionCallInfo.end()) {
+            return;
+        }
         assert(Fpos != m_functionCallInfo.end());
         auto& invokeDeps = Fpos->second.getGlobalsDependenciesForInvoke(invokeInst);
         for (auto& arg : fargs.second) {

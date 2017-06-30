@@ -7,6 +7,7 @@
 #include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicBasicBlockAnaliser.h"
 #include "IndirectCallSitesAnalysis.h"
+#include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -58,6 +59,7 @@ private:
 public:
     bool isInputDependent(llvm::Instruction* instr) const;
     bool isInputIndependent(llvm::Instruction* instr) const;
+    bool isInputDependentBlock(llvm::BasicBlock* block) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -153,6 +155,12 @@ bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
 {
     const auto& analysisRes = getAnalysisResult(instr->getParent());
     return analysisRes->isInputIndependent(instr);
+}
+
+bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) const
+{
+    const auto& analysisRes = getAnalysisResult(block);
+    return analysisRes->isInputDependent(block);
 }
 
 bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
@@ -316,7 +324,6 @@ void FunctionAnaliser::Impl::analize()
             //m_currentLoop = nullptr;
             m_BBAnalysisResults[bb] = createBasicBlockAnalysisResult(bb);
         }
-        llvm::dbgs() << "BB " << bb->getName() << "\n";
         m_BBAnalysisResults[bb]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(bb));
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
         m_BBAnalysisResults[bb]->gatherResults();
@@ -649,11 +656,20 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
 const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl::getAnalysisResult(llvm::BasicBlock* bb) const
 {
     assert(bb->getParent() == m_F);
-    auto looppos = m_loopBlocks.find(bb);
-    if (looppos != m_loopBlocks.end()) {
-        bb = looppos->second;
-    }
     auto pos = m_BBAnalysisResults.find(bb);
+    if (pos != m_BBAnalysisResults.end()) {
+        return pos->second;
+    }
+    if (auto loop = m_LI.getLoopFor(bb)) {
+        auto top_loop = Utils::getTopLevelLoop(loop);
+        bb = top_loop->getHeader();
+    } else {
+        auto looppos = m_loopBlocks.find(bb);
+        if (looppos != m_loopBlocks.end()) {
+            bb = looppos->second;
+        }
+    }
+    pos = m_BBAnalysisResults.find(bb);
     assert(pos != m_BBAnalysisResults.end());
     return pos->second;
 }
@@ -729,6 +745,11 @@ bool FunctionAnaliser::isInputIndependent(llvm::Instruction* instr) const
 bool FunctionAnaliser::isInputIndependent(const llvm::Instruction* instr) const
 {
     return m_analiser->isInputIndependent(const_cast<llvm::Instruction*>(instr));
+}
+
+bool FunctionAnaliser::isInputDependentBlock(llvm::BasicBlock* block) const
+{
+    return m_analiser->isInputDependentBlock(block);
 }
 
 bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const

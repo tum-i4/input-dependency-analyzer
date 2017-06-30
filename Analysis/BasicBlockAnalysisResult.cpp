@@ -23,6 +23,7 @@ BasicBlockAnalysisResult::BasicBlockAnalysisResult(llvm::Function* F,
                                                    llvm::BasicBlock* BB)
                                 : DependencyAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter)
                                 , m_BB(BB)
+                                , m_is_inputDep(false)
 {
 }
 
@@ -201,9 +202,15 @@ void BasicBlockAnalysisResult::setOutArguments(const DependencyAnaliser::Argumen
     m_outArgDependencies = outArgs;
 }
 
+bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
+{
+    assert(block == m_BB);
+    return m_is_inputDep;
+}
+
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 {
-    assert(instr->getParent()->getParent() == m_F);
+    assert(instr->getParent() == m_BB);
     if (m_finalized) {
         return m_finalInputDependentInstrs.find(instr) != m_finalInputDependentInstrs.end();
     }
@@ -299,6 +306,7 @@ const GlobalsSet& BasicBlockAnalysisResult::getModifiedGlobals() const
 
 void BasicBlockAnalysisResult::markAllInputDependent()
 {
+    m_is_inputDep = true;
     DepInfo info(DepInfo::INPUT_DEP);
     // out arg dependencies
     m_returnValueDependencies = info;

@@ -68,6 +68,7 @@ protected:
 public:
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
     void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
+    bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
@@ -87,6 +88,7 @@ public:
 
 protected:
     llvm::BasicBlock* m_BB;
+    bool m_is_inputDep;
 }; // class BasicBlockAnalysisResult
 
 } // namespace input_dependency

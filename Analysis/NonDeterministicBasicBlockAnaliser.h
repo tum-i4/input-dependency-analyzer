@@ -24,6 +24,9 @@ public:
     NonDeterministicBasicBlockAnaliser& operator =(const NonDeterministicBasicBlockAnaliser&) = delete;
     NonDeterministicBasicBlockAnaliser& operator =(NonDeterministicBasicBlockAnaliser&&) = delete;
 
+public:
+    void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:

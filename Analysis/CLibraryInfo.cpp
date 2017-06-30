@@ -366,7 +366,7 @@ void CLibraryInfo::add_qsort()
 void CLibraryInfo::add_log()
 {
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
-    LibFunctionInfo logInfo(C_library::qsort,
+    LibFunctionInfo logInfo(C_library::log,
                             LibFunctionInfo::LibArgumentDependenciesMap(),
                             LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(logInfo));
@@ -376,7 +376,7 @@ void CLibraryInfo::add_strcmp()
 {
     //  int strcmp ( const char * str1, const char * str2 );
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
-    LibFunctionInfo strcmpInfo(C_library::qsort,
+    LibFunctionInfo strcmpInfo(C_library::strcmp,
                                LibFunctionInfo::LibArgumentDependenciesMap(),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0, 1}});
     m_libFunctionInfoProcessor(std::move(strcmpInfo));
@@ -387,7 +387,7 @@ void CLibraryInfo::add_strcpy()
     // char * strcpy ( char * destination, const char * source );
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     addArgWithDeps(0, {1}, argDeps);
-    LibFunctionInfo strcpyInfo(C_library::qsort,
+    LibFunctionInfo strcpyInfo(C_library::strcpy,
                                std::move(argDeps),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {1}});
     m_libFunctionInfoProcessor(std::move(strcpyInfo));
@@ -398,7 +398,7 @@ void CLibraryInfo::add_strcat()
     //char * strcat ( char * destination, const char * source );
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     addArgWithDeps(0, {1}, argDeps);
-    LibFunctionInfo strcatInfo(C_library::qsort,
+    LibFunctionInfo strcatInfo(C_library::strcat,
                                std::move(argDeps),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {1}});
     m_libFunctionInfoProcessor(std::move(strcatInfo));
@@ -411,7 +411,7 @@ void CLibraryInfo::add_fseek()
     // FILE* is not literally becomming input dependent.
     // However following functions, e.g. reads may be non deterministic, thus mark FILE input dependent.
     addArgWithDeps(0, {0, 1, 2}, argDeps);
-    LibFunctionInfo fseekInfo(C_library::qsort,
+    LibFunctionInfo fseekInfo(C_library::fseek,
                               std::move(argDeps),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
     m_libFunctionInfoProcessor(std::move(fseekInfo));
@@ -423,7 +423,7 @@ void CLibraryInfo::add_ftell()
     // long int ftell ( FILE * stream );
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     addArgWithDeps(0, {0}, argDeps);
-    LibFunctionInfo ftellInfo(C_library::qsort,
+    LibFunctionInfo ftellInfo(C_library::ftell,
                               std::move(argDeps),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
     m_libFunctionInfoProcessor(std::move(ftellInfo));
@@ -433,7 +433,7 @@ void CLibraryInfo::add_rewind()
 {
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     addArgWithDeps(0, {0}, argDeps);
-    LibFunctionInfo rewindInfo(C_library::qsort,
+    LibFunctionInfo rewindInfo(C_library::rewind,
                                std::move(argDeps),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
     m_libFunctionInfoProcessor(std::move(rewindInfo));
@@ -446,7 +446,7 @@ void CLibraryInfo::add_fread()
     addArgWithDeps(0, {1, 2, 3}, argDeps);
     // FILE position is advanced by number of bytes read, which in success is size * count
     addArgWithDeps(3, {2, 3}, argDeps);
-    LibFunctionInfo freadInfo(C_library::qsort,
+    LibFunctionInfo freadInfo(C_library::fread,
                               std::move(argDeps),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
     m_libFunctionInfoProcessor(std::move(freadInfo));
@@ -457,7 +457,7 @@ void CLibraryInfo::add_fclose()
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     // even if fails, FILE is cleared
     argDeps.insert(std::make_pair(0, LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP}));
-    LibFunctionInfo fcloseInfo(C_library::qsort,
+    LibFunctionInfo fcloseInfo(C_library::fclose,
                                std::move(argDeps),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
     m_libFunctionInfoProcessor(std::move(fcloseInfo));

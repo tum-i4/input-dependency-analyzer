@@ -206,6 +206,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                 , m_LI(LI)
                                 , m_globalsUpdated(false)
                                 , m_isReflected(false)
+                                , m_is_inputDep(false)
 {
     using BlocksVector = llvm::SmallVector<llvm::BasicBlock*, 10>;
     BlocksVector loop_latches;
@@ -225,7 +226,7 @@ void LoopAnalysisResult::gatherResults()
     //    llvm::dbgs() << block->getName() << "\n";
     //}
 
-    bool is_input_dep = false;
+        bool is_input_dep = false;
     for (const auto& B : blocks) {
         updateLoopDependecies(B);
         is_input_dep = checkForLoopDependencies(m_initialDependencies);
@@ -271,6 +272,12 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
+    if (m_loopDependencies.isInputDep()) {
+        m_is_inputDep = true;
+    } else if (m_loopDependencies.isInputArgumentDep()
+            && Utils::haveIntersection(dependentArgs, m_loopDependencies.getArgumentDependencies())) {
+        m_is_inputDep = true;
+    }
 }
 
 void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
@@ -304,35 +311,29 @@ void LoopAnalysisResult::setOutArguments(const DependencyAnaliser::ArgumentDepen
     m_outArgDependencies = outArgs;
 }
 
+bool LoopAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
+{
+    if (m_is_inputDep) {
+        return true;
+    }
+    bool is_in_loop = (m_BBAnalisers.find(block) != m_BBAnalisers.end()) || (m_loopBlocks.find(block) != m_loopBlocks.end());
+    assert(is_in_loop);
+    const auto& analysisRes = getAnalysisResult(block);
+    return analysisRes->isInputDependent(block);
+}
+
 bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
-    auto pos = m_BBAnalisers.find(parentBB);
-    if (pos != m_BBAnalisers.end()) {
-        return pos->second->isInputDependent(instr);
-    }
-
-    // loop info might be invalidated here. lookup in map
-    auto loop_head_pos = m_loopBlocks.find(parentBB);
-    assert(loop_head_pos != m_loopBlocks.end());
-    auto loop_pos = m_BBAnalisers.find(loop_head_pos->second);
-    assert(loop_pos != m_BBAnalisers.end());
-    return loop_pos->second->isInputDependent(instr);
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isInputDependent(instr);
 }
 
 bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
-    auto pos = m_BBAnalisers.find(parentBB);
-    if (pos != m_BBAnalisers.end()) {
-        return pos->second->isInputIndependent(instr);
-    }
-
-    auto loop_head_pos = m_loopBlocks.find(parentBB);
-    assert(loop_head_pos != m_loopBlocks.end());
-    auto loop_pos = m_BBAnalisers.find(loop_head_pos->second);
-    assert(loop_pos != m_BBAnalisers.end());
-    return loop_pos->second->isInputIndependent(instr);
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isInputIndependent(instr);
 }
 
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
@@ -361,6 +362,19 @@ DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto parentBB = instr->getParent();
     auto pos = m_BBAnalisers.find(parentBB);
+    if (pos != m_BBAnalisers.end()) {
+        return pos->second->getInstructionDependencies(instr);
+    }
+    if (auto loop = m_LI.getLoopFor(parentBB)) {
+        auto parentLoop = Utils::getTopLevelLoop(loop, &m_L);
+        parentBB = parentLoop->getHeader();
+    } else {
+        auto looppos = m_loopBlocks.find(parentBB);
+        if (looppos != m_loopBlocks.end()) {
+            parentBB = looppos->second;
+        }
+    }
+    pos = m_BBAnalisers.find(parentBB);
     assert(pos != m_BBAnalisers.end());
     return pos->second->getInstructionDependencies(instr);
 }
@@ -431,11 +445,27 @@ const GlobalsSet& LoopAnalysisResult::getModifiedGlobals() const
     return m_modifiedGlobals;
 }
 
+const LoopAnalysisResult::ReflectingDependencyAnaliserT& LoopAnalysisResult::getAnalysisResult(llvm::BasicBlock* block) const
+{
+    auto pos = m_BBAnalisers.find(block);
+    if (pos != m_BBAnalisers.end()) {
+        return pos->second;
+    }
+
+    // loop info might be invalidated here. lookup in map
+    auto loop_head_pos = m_loopBlocks.find(block);
+    assert(loop_head_pos != m_loopBlocks.end());
+    auto loop_pos = m_BBAnalisers.find(loop_head_pos->second);
+    assert(loop_pos != m_BBAnalisers.end());
+    return loop_pos->second;
+}
+
 void LoopAnalysisResult::markAllInputDependent()
 {
     for (auto& bbAnaliser : m_BBAnalisers) {
         bbAnaliser.second->markAllInputDependent();
     }
+    m_is_inputDep = true;
 }
 
 void LoopAnalysisResult::reflect(const DependencyAnaliser::ValueDependencies& dependencies, const DepInfo& mandatory_deps)
@@ -721,7 +751,13 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createInpu
 {
     auto block_loop = m_LI.getLoopFor(B);
     if (block_loop != &m_L) {
+        LoopAnalysisResult* loopAnalysisResult = new LoopAnalysisResult(m_F, m_AAR, m_postDomTree,
+                                                                        m_virtualCallsInfo,
+                                                                        m_indirectCallsInfo,
+                                                                        m_inputs, m_FAG, *block_loop, m_LI);
+        loopAnalysisResult->setLoopDependencies(DepInfo(DepInfo::INPUT_DEP));
         collectLoopBlocks(block_loop);
+        return ReflectingDependencyAnaliserT(loopAnalysisResult);
     }
     return ReflectingDependencyAnaliserT(
                     new ReflectingInputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAG, B));

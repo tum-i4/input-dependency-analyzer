@@ -77,6 +77,8 @@ public:
     bool isInputIndependent(llvm::Instruction* instr) const;
     bool isInputIndependent(const llvm::Instruction* instr) const;
 
+    bool isInputDependentBlock(llvm::BasicBlock* block) const;
+
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;

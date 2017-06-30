@@ -1,5 +1,6 @@
 #include "DependencyAnaliser.h"
 
+#include "InputDepInstructionsRecorder.h"
 #include "FunctionAnaliser.h"
 #include "LibFunctionInfo.h"
 #include "LibraryInfoManager.h"
@@ -256,7 +257,7 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto op = storeInst->getOperand(0);
-    DepInfo info(DepInfo::INPUT_DEP);
+    DepInfo info;
     if (auto* constOp = llvm::dyn_cast<llvm::Constant>(op)) {
         info = DepInfo(DepInfo::INPUT_INDEP);
     } else {
@@ -272,6 +273,10 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
                 }
             }
         }
+    }
+    if (!info.isDefined()) {
+        info = DepInfo(DepInfo::INPUT_DEP);
+        InputDepInstructionsRecorder::get().record(storeInst);
     }
     assert(info.isDefined());
     auto storeTo = storeInst->getPointerOperand();
@@ -294,13 +299,13 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 processCallSiteWithMultipleTargets(callInst, m_virtualCallsInfo.getVirtualCallCandidates(callInst));
             } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
-                llvm::dbgs() << "Processing indirect call " << *callInst << "\n";
                 processCallSiteWithMultipleTargets(callInst, m_indirectCallsInfo.getIndirectCallTargets(callInst));
             } else {
                 // make all out args input dependent
                 updateCallInputDependentOutArgDependencies(callInst);
                 // make return value input dependent
                 updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+                InputDepInstructionsRecorder::get().record(callInst);
                 // make all globals input dependent?
             }
         }
@@ -325,8 +330,10 @@ void DependencyAnaliser::processCallSiteWithMultipleTargets(llvm::CallInst* call
     for (auto F : targets) {
         updateFunctionCallSiteInfo(callInst, F);
         if (m_FAG(F) == nullptr) {
+            llvm::dbgs() << "Analysis results not available for indirect call target: " << F->getName() << "\n";
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+            InputDepInstructionsRecorder::get().record(callInst);
             // update globals??? May result to inaccuracies 
         } else {
             updateCallSiteOutArgDependencies(callInst, F);
@@ -343,6 +350,7 @@ void DependencyAnaliser::processInvokeSiteWithMultipleTargets(llvm::InvokeInst* 
         if (m_FAG(F) == nullptr) {
             updateInvokeInputDependentOutArgDependencies(invokeInst);
             updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+            InputDepInstructionsRecorder::get().record(invokeInst);
             // update globals??? May result to inaccuracies 
         } else {
             updateInvokeSiteOutArgDependencies(invokeInst, F);
@@ -369,6 +377,7 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
                 updateInvokeInputDependentOutArgDependencies(invokeInst);
                 // make return value input dependent
                 updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+                InputDepInstructionsRecorder::get().record(invokeInst);
                 // make all globals input dependent?
             }
         }
@@ -682,6 +691,7 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+        InputDepInstructionsRecorder::get().record(callInst);
         return;
     }
     libInfo.resolveLibFunctionInfo(F, Fname);
@@ -711,6 +721,7 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        InputDepInstructionsRecorder::get().record(invokeInst);
         return;
     }
     libInfo.resolveLibFunctionInfo(F, Fname);

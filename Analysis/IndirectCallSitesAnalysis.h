@@ -38,7 +38,9 @@ class IndirectCallSitesAnalysisResult
 {
 public:
     void addIndirectCallTarget(llvm::CallInst* call, llvm::Function* target);
+    void addIndirectCallTargets(llvm::CallInst* call, const FunctionSet& targets);
     void addIndirectInvokeTarget(llvm::InvokeInst* invoke, llvm::Function* target);
+    void addIndirectInvokeTargets(llvm::InvokeInst* invoke, const FunctionSet& targets);
 
     bool hasIndirectCallTargets(llvm::CallInst* call) const;
     const FunctionSet& getIndirectCallTargets(llvm::CallInst* call) const;

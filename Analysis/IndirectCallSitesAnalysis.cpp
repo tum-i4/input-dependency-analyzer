@@ -21,6 +21,21 @@
 
 namespace input_dependency {
 
+namespace {
+
+bool isIndirectCall(llvm::CallInst* inst)
+{
+    return inst->getCalledFunction() == nullptr;
+}
+
+bool isIndirectInvoke(llvm::InvokeInst* inst)
+{
+    return inst->getCalledFunction() == nullptr;
+}
+
+}
+
+
 class IndirectCallSitesAnalysis::IndirectsImpl
 {
 public:
@@ -38,80 +53,64 @@ public:
     } 
 
 private:
-    void collectTypeTestUsers(llvm::Function* F);
-    void collectCallTargets(llvm::Module& M);
-    void determineIndirectCallTargets();
+    void buildIndirectCallTargets();
 
 private:
     IndirectCallSitesAnalysisResult analysisRes;
-    std::unordered_map<llvm::Metadata*, llvm::Instruction*> typed_calls;
-    std::unordered_map<llvm::Function*, llvm::Metadata*> functions_type;
+    std::unordered_map<llvm::Instruction*, llvm::FunctionType*> call_types;
+    std::unordered_map<llvm::FunctionType*, FunctionSet> type_functions;
 };
 
 void IndirectCallSitesAnalysis::IndirectsImpl::runOnModule(llvm::Module& M)
 {
-    llvm::Function* TypeTestFunc = M.getFunction(llvm::Intrinsic::getName(llvm::Intrinsic::type_test));
-    if (TypeTestFunc == nullptr) {
-        return;
+    for (auto& F : M) {
+        auto type = F.getFunctionType();
+        type_functions[type].insert(&F);
+        llvm::Value* calledValue = nullptr;
+        for (auto& B : F) {
+            for (auto& I : B) {
+                calledValue = nullptr;
+                if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(&I)) {
+                    if (isIndirectCall(callInst)) {
+                        calledValue = callInst->getCalledValue();
+                    }
+                } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
+                    if (isIndirectInvoke(invokeInst)) {
+                        calledValue = invokeInst->getCalledValue();
+                    }
+                }
+                if (calledValue != nullptr) {
+                    auto calledType = calledValue->getType();
+                    if (auto pointerTy = llvm::dyn_cast<llvm::PointerType>(calledType)) {
+                        calledType = pointerTy->getElementType();
+                    }
+                    auto funcTy = llvm::dyn_cast<llvm::FunctionType>(calledType);
+                    if (funcTy == nullptr) {
+                        continue;
+                    }
+                    auto res = call_types.insert(std::make_pair(&I, funcTy));
+                    assert(res.second);
+                }
+            }
+        }
     }
-    collectTypeTestUsers(TypeTestFunc);
-    collectCallTargets(M);
-    determineIndirectCallTargets();
+    buildIndirectCallTargets();
     analysisRes.dump();
 }
 
-void IndirectCallSitesAnalysis::IndirectsImpl::determineIndirectCallTargets()
+void IndirectCallSitesAnalysis::IndirectsImpl::buildIndirectCallTargets()
 {
-    for (auto& function_type : functions_type) {
-        auto type = function_type.second;
-        auto typed_call_pos = typed_calls.find(type);
-        if (typed_call_pos == typed_calls.end()) {
+    for (auto& indirectCall : call_types) {
+        auto indirectCallTargets = type_functions.find(indirectCall.second);
+        if (indirectCallTargets == type_functions.end()) {
             continue;
         }
-        if (auto callInst = llvm::dyn_cast<llvm::CallInst>(typed_call_pos->second)) {
-            analysisRes.addIndirectCallTarget(callInst, function_type.first);
-        } else if (auto invokeInst = llvm::dyn_cast<llvm::InvokeInst>(typed_call_pos->second)) {
-            analysisRes.addIndirectInvokeTarget(invokeInst, function_type.first);
-        }
-    }
-}
-
-void IndirectCallSitesAnalysis::IndirectsImpl::collectTypeTestUsers(llvm::Function* F)
-{
-    auto I = F->use_begin();
-    while (I != F->use_end()) {
-        auto CI = llvm::dyn_cast<llvm::CallInst>(I->getUser());
-        ++I;
-        if (!CI) {
-            continue;
-        }
-        llvm::Metadata* TypeId = llvm::cast<llvm::MetadataAsValue>(CI->getArgOperand(1))->getMetadata();
-        llvm::Value* Ptr = CI->getArgOperand(0)->stripPointerCasts();
-        auto ptr_use = Ptr->use_begin();
-        while (ptr_use != Ptr->use_end()) {
-            if (auto callInst = llvm::dyn_cast<llvm::CallInst>(ptr_use->getUser())) {
-                typed_calls[TypeId] = callInst;
-            } else if (auto invokeInst = llvm::dyn_cast<llvm::InvokeInst>(ptr_use->getUser())) {
-                typed_calls[TypeId] = invokeInst;
-            }
-            ++ptr_use;
-        }
-    }
-}
-
-void IndirectCallSitesAnalysis::IndirectsImpl::collectCallTargets(llvm::Module& M)
-{
-    llvm::SmallVector<llvm::MDNode *, 1> Types;
-    Types.clear();
-    for (auto& F : M) {
-        Types.clear();
-        F.getMetadata(llvm::LLVMContext::MD_type, Types);
-        if (Types.empty()) {
-            continue;
-        }
-        for (auto& type : Types) {
-            auto TypeID = type->getOperand(1).get();
-            functions_type[&F] = TypeID;
+        if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(indirectCall.first)) {
+            analysisRes.addIndirectCallTargets(callInst, indirectCallTargets->second);
+        } else {
+            auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(indirectCall.first);
+            assert(invokeInst != nullptr);
+            analysisRes.addIndirectInvokeTargets(invokeInst, indirectCallTargets->second);
         }
     }
 }
@@ -346,9 +345,19 @@ void IndirectCallSitesAnalysisResult::addIndirectCallTarget(llvm::CallInst* call
     m_indirectCallTargets[call].insert(target);
 }
 
+void IndirectCallSitesAnalysisResult::addIndirectCallTargets(llvm::CallInst* call, const FunctionSet& targets)
+{
+    m_indirectCallTargets[call].insert(targets.begin(), targets.end());
+}
+
 void IndirectCallSitesAnalysisResult::addIndirectInvokeTarget(llvm::InvokeInst* call, llvm::Function* target)
 {
     m_indirectCallTargets[call].insert(target);
+}
+
+void IndirectCallSitesAnalysisResult::addIndirectInvokeTargets(llvm::InvokeInst* invoke, const FunctionSet& targets)
+{
+    m_indirectCallTargets[invoke].insert(targets.begin(), targets.end());
 }
 
 bool IndirectCallSitesAnalysisResult::hasIndirectCallTargets(llvm::CallInst* call) const

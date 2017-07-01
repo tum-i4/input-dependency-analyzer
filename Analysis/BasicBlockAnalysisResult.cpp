@@ -324,7 +324,23 @@ void BasicBlockAnalysisResult::markAllInputDependent()
     for (auto& val : m_valueDependencies) {
         val.second = info;
     }
+}
 
+long unsigned BasicBlockAnalysisResult::get_input_dep_count() const
+{
+    return m_finalInputDependentInstrs.size();
+}
+
+long unsigned BasicBlockAnalysisResult::get_input_indep_count() const
+{
+    return m_inputIndependentInstrs.size();
+}
+
+long unsigned BasicBlockAnalysisResult::get_input_unknowns_count() const
+{
+    assert(m_BB->getInstList().size() >= get_input_dep_count() + get_input_indep_count());
+    auto count = m_BB->getInstList().size() - get_input_dep_count() - get_input_indep_count();
+    return count;
 }
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)

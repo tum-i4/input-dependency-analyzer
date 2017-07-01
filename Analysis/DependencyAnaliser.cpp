@@ -77,12 +77,19 @@ DependencyAnaliser::DependencyAnaliser(llvm::Function* F,
 
 void DependencyAnaliser::finalize(const ArgumentDependenciesMap& dependentArgs)
 {
+    m_finalInputDependentInstrs.clear();
     for (auto& item : m_inputDependentInstrs) {
         if (item.second.isInputDep()) {
             m_finalInputDependentInstrs.insert(item.first);
+            if (m_inputIndependentInstrs.find(item.first) != m_inputIndependentInstrs.end()) {
+                m_inputIndependentInstrs.erase(item.first);
+            }
         } else if (item.second.isInputArgumentDep()
                    && Utils::haveIntersection(dependentArgs, item.second.getArgumentDependencies())) {
             m_finalInputDependentInstrs.insert(item.first);
+            if (m_inputIndependentInstrs.find(item.first) != m_inputIndependentInstrs.end()) {
+                m_inputIndependentInstrs.erase(item.first);
+            }
         } else {
             m_inputIndependentInstrs.insert(item.first);
         }

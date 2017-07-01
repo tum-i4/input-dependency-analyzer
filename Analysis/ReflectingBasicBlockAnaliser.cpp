@@ -632,6 +632,9 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
             auto& callDeps = Fpos->second.getArgumentDependenciesForCall(callInst);
             for (auto& arg : fargs.second) {
                 auto argPos = callDeps.find(arg);
+                if (argPos == callDeps.end()) {
+                    continue;
+                }
                 assert(argPos != callDeps.end());
                 reflectOnDepInfo(value, argPos->second, depInfo);
                 // TODO: need to delete if becomes input indep?
@@ -807,7 +810,24 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
         }
     }
     for (auto& item : m_valueDependencies) {
-        assert(!item.second.isValueDep() || item.second.isOnlyGlobalValueDependent());
+        if (item.second.isValueDep() && !item.second.isOnlyGlobalValueDependent()) {
+            llvm::dbgs() << "   Value dependency after resolving.\n";
+            llvm::dbgs() << "   Block: " << m_BB->getName() << "\n";
+            llvm::dbgs() << "    Value: " << *item.first << "\n";
+            auto& valueDeps = item.second.getValueDependencies();
+            auto it = valueDeps.begin();
+            while (it != valueDeps.end()) {
+                if (!llvm::dyn_cast<llvm::GlobalVariable>(*it)) {
+                    auto old_it = it;
+                    ++it;
+                    valueDeps.erase(old_it);
+                    continue;
+                }
+                ++it;
+            }
+
+        }
+        //assert(!item.second.isValueDep() || item.second.isOnlyGlobalValueDependent());
     }
 }
 

@@ -30,6 +30,44 @@ void print_stats(const std::string& function_name, unsigned deps, unsigned indep
 
 }
 
+void InputDependencyStatistics::report(llvm::Module& M, const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const
+{
+    unsigned module_dep_count = 0;
+    unsigned module_indep_count = 0;
+    unsigned module_unknown_count = 0;
+
+    for (auto& F : M) {
+        auto FA_pos = inputDepInfo.find(&F);
+        if (FA_pos == inputDepInfo.end()) {
+            continue;
+        }
+        const auto& FA = FA_pos->second;
+        unsigned dep_count = FA.get_input_dep_count();
+        unsigned indep_count = FA.get_input_indep_count();
+        unsigned unknown_count = FA.get_input_unknowns_count();
+        //for (const auto& B : F) {
+        //    for (const auto& I : B) {
+        //        if (FA.isInputDependent(&I)) {
+        //            ++dep_count;
+        //        } else if (FA.isInputIndependent(&I)) {
+        //            ++indep_count;
+        //        } else {
+        //            llvm::dbgs() << "Unknown: " << I << "\n";
+        //            ++unknown_count;
+        //        }
+        //    }
+        //}
+        //assert(dep_count == FA.get_input_dep_count());
+        //assert(indep_count == FA.get_input_indep_count());
+        //assert(unknown_count == FA.get_input_unknowns_count());
+        print_stats(F.getName(), dep_count, indep_count, unknown_count);
+        module_dep_count += dep_count;
+        module_indep_count += indep_count;
+        module_unknown_count += unknown_count;
+    }
+    print_stats(M.getName(), module_dep_count, module_indep_count, module_unknown_count);
+}
+
 char InputDependencyStatisticsPass::ID = 0;
 
 void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
@@ -40,37 +78,9 @@ void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) co
 
 bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
 {
-    unsigned module_dep_count = 0;
-    unsigned module_indep_count = 0;
-    unsigned module_unknown_count = 0;
     const auto& IDA = getAnalysis<InputDependencyAnalysis>();
-    for (auto& F : M) {
-        unsigned dep_count = 0;
-        unsigned indep_count = 0;
-        unsigned unknown_count = 0;
-        const auto& FA = IDA.getAnalysisInfo(&F);
-        if (FA == nullptr) {
-            continue;
-        }
-        for (const auto& B : F) {
-            for (const auto& I : B) {
-                if (FA->isInputDependent(&I)) {
-                    ++dep_count;
-                } else if (FA->isInputIndependent(&I)) {
-                    ++indep_count;
-                } else {
-                    llvm::dbgs() << "Unknown: " << I << "\n";
-                    ++unknown_count;
-                }
-            }
-        }
-        print_stats(F.getName(), dep_count, indep_count, unknown_count);
-        module_dep_count += dep_count;
-        module_indep_count += indep_count;
-        module_unknown_count += unknown_count;
-    }
-    print_stats(M.getName(), module_dep_count, module_indep_count, module_unknown_count);
-
+    InputDependencyStatistics statistics;
+    statistics.report(M, IDA.getAnalysisInfo());
     return false;
 }
 

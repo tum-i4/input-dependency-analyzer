@@ -95,7 +95,7 @@ void IndirectCallSitesAnalysis::IndirectsImpl::runOnModule(llvm::Module& M)
         }
     }
     buildIndirectCallTargets();
-    analysisRes.dump();
+    //analysisRes.dump();
 }
 
 void IndirectCallSitesAnalysis::IndirectsImpl::buildIndirectCallTargets()

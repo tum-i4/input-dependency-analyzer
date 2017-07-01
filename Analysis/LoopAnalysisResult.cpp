@@ -21,6 +21,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <chrono>
 
 namespace input_dependency {
 
@@ -217,6 +218,9 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
 
 void LoopAnalysisResult::gatherResults()
 {
+    //typedef std::chrono::high_resolution_clock Clock;
+    //auto tic = Clock::now();
+
     LoopTraversalPathCreator pathCreator(m_LI, m_L);
     pathCreator.construct();
     auto blocks = pathCreator.getPath();
@@ -263,6 +267,9 @@ void LoopAnalysisResult::gatherResults()
     updateReturnValueDependencies();
     updateOutArgumentDependencies();
     updateValueDependencies();
+
+    //auto toc = Clock::now();
+    //llvm::dbgs() << "Elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
 }
 
 void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
@@ -466,6 +473,33 @@ void LoopAnalysisResult::markAllInputDependent()
         bbAnaliser.second->markAllInputDependent();
     }
     m_is_inputDep = true;
+}
+
+long unsigned LoopAnalysisResult::get_input_dep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_input_dep_count();
+    }
+    return count;
+}
+
+long unsigned LoopAnalysisResult::get_input_indep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_input_indep_count();
+    }
+    return count;
+}
+
+long unsigned LoopAnalysisResult::get_input_unknowns_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_input_unknowns_count();
+    }
+    return count;
 }
 
 void LoopAnalysisResult::reflect(const DependencyAnaliser::ValueDependencies& dependencies, const DepInfo& mandatory_deps)

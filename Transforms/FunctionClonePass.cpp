@@ -1,5 +1,6 @@
 #include "FunctionClonePass.h"
 
+#include "Analysis/InputDependencyStatistics.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -31,6 +32,10 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     std::unordered_set<llvm::Function*> processed;
     while (it != M.end()) {
         auto F = &*it;
+        if (F->isDeclaration() || F->isIntrinsic()) {
+            ++it;
+            continue;
+        }
         if (processed.find(F) != processed.end()) {
             ++it;
             continue;
@@ -57,12 +62,16 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
         }
         ++it;
     }
+
+    dumpStatistics(M);
+
     return isChanged;
 }
 
 std::unordered_set<llvm::Function*> FunctionClonePass::doClone(const input_dependency::FunctionAnaliser* analiser,
                                                                llvm::Function* calledF)
 {
+    llvm::dbgs() << "   doClone " << calledF->getName() << "\n";
     std::unordered_set<llvm::Function*> clonedFunctions;
     if (m_functionCloneInfo.find(calledF) == m_functionCloneInfo.end()) {
         FunctionClone clone(calledF);
@@ -113,6 +122,12 @@ void FunctionClonePass::cloneFunctionAnalysisInfo(const input_dependency::Functi
     clonedAnaliser.setFunction(Fclone);
     clonedAnaliser.finalizeArguments(argumentDeps);
     m_duplicatedAnalysisInfo.emplace(Fclone, std::move(clonedAnaliser));
+}
+
+void FunctionClonePass::dumpStatistics(llvm::Module& M)
+{
+    input_dependency::InputDependencyStatistics statistics;
+    statistics.report(M, m_duplicatedAnalysisInfo);
 }
 
 static llvm::RegisterPass<FunctionClonePass> X(

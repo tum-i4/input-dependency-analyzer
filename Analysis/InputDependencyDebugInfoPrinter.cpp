@@ -31,7 +31,9 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
 {
     auto& inputDepRes = getAnalysis<InputDependencyAnalysis>();
 
-    const std::string module_name = M.getName();
+    std::string module_name = M.getName();
+    auto dot_pos = module_name.find_first_of('.');
+    module_name = module_name.substr(0, dot_pos);
     std::string file_name = module_name + ".dbg";
     std::ofstream dbg_infostrm;
     dbg_infostrm.open(file_name);
@@ -40,6 +42,9 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
     recorder.set_record();
 
     for (auto& F : M) {
+        if (F.isDeclaration() || F.isIntrinsic()) {
+            continue;
+        }
         auto funcInputDep = inputDepRes.getAnalysisInfo(&F);
         if (funcInputDep == nullptr) {
             llvm::dbgs() << "No input dependency info for function " << F.getName() << " in module " << module_name << "\n";

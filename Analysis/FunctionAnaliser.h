@@ -93,6 +93,10 @@ public:
     llvm::Function* getFunction();
     const llvm::Function* getFunction() const;
 
+    // for debug only
+    long unsigned get_input_dep_count() const;
+    long unsigned get_input_indep_count() const;
+    long unsigned get_input_unknowns_count() const;
     void dump() const;
 
 private:

@@ -21,6 +21,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <chrono>
+
 namespace input_dependency {
 
 class FunctionAnaliser::Impl
@@ -77,6 +79,9 @@ public:
     void analize();
     void finalizeArguments(const ArgumentDependenciesMap& dependentArgNos);
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps);
+    long unsigned get_input_dep_count() const;
+    long unsigned get_input_indep_count() const;
+    long unsigned get_input_unknowns_count() const;
     void dump() const;
 
     FunctionSet getCallSitesData() const
@@ -286,6 +291,8 @@ const GlobalsSet& FunctionAnaliser::Impl::getModifiedGlobals() const
 
 void FunctionAnaliser::Impl::analize()
 {
+    //typedef std::chrono::high_resolution_clock Clock;
+    //auto tic = Clock::now();
     collectArguments();
     auto it = m_F->begin();
     for (; it != m_F->end(); ++it) {
@@ -333,7 +340,9 @@ void FunctionAnaliser::Impl::analize()
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
     }
-    m_inputs.clear();
+    //m_inputs.clear();
+    //auto toc = Clock::now();
+    //llvm::dbgs() << "Elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
 }
 
 void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& dependentArgs)
@@ -357,6 +366,33 @@ void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& 
     for (auto& item : m_BBAnalysisResults) {
         item.second->finalizeGlobals(globalsDeps);
     }
+}
+
+long unsigned FunctionAnaliser::Impl::get_input_dep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_input_dep_count();
+    }
+    return count;
+}
+
+long unsigned FunctionAnaliser::Impl::get_input_indep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_input_indep_count();
+    }
+    return count;
+}
+
+long unsigned FunctionAnaliser::Impl::get_input_unknowns_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_input_unknowns_count();
+    }
+    return count;
 }
 
 void FunctionAnaliser::Impl::dump() const
@@ -795,6 +831,21 @@ const GlobalsSet& FunctionAnaliser::getReferencedGlobals() const
 const GlobalsSet& FunctionAnaliser::getModifiedGlobals() const
 {
     return m_analiser->getModifiedGlobals();
+}
+
+long unsigned FunctionAnaliser::get_input_dep_count() const
+{
+    return m_analiser->get_input_dep_count();
+}
+
+long unsigned FunctionAnaliser::get_input_indep_count() const
+{
+    return m_analiser->get_input_indep_count();
+}
+
+long unsigned FunctionAnaliser::get_input_unknowns_count() const
+{
+    return m_analiser->get_input_unknowns_count();
 }
 
 void FunctionAnaliser::dump() const

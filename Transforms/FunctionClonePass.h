@@ -38,6 +38,7 @@ private:
     void cloneFunctionAnalysisInfo(const input_dependency::FunctionAnaliser* analiser,
                                    llvm::Function* Fclone,
                                    const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argumentDeps);
+    void dumpStatistics(llvm::Module& M);
 
 private:
     input_dependency::InputDependencyAnalysis* IDA;

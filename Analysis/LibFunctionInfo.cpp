@@ -3,6 +3,8 @@
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
 
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace {
 

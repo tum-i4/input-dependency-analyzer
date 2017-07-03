@@ -418,7 +418,9 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
                                                                  const DepInfo& info)
 {
     assert(info.isDefined());
-    if (info.isValueDep()) {
+    if (info.isInputDep()) {
+        m_inputDependentInstrs[instr] = DepInfo(DepInfo::INPUT_DEP);
+    } else if (info.isValueDep()) {
         m_instructionValueDependencies[instr] = info;
         updateValueDependentInstructions(info, instr);
     } else if (info.isInputIndep()) {
@@ -426,7 +428,7 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
         assert(info.getValueDependencies().empty());
         m_inputIndependentInstrs.insert(instr);
     } else {
-        assert(info.isInputDep() || info.isInputArgumentDep());
+        assert(info.isInputArgumentDep());
         m_inputDependentInstrs[instr] = info;
     }
 }
@@ -441,8 +443,10 @@ DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* i
 {
     auto* loadOp = instr->getPointerOperand();
     llvm::Value* loadedValue = getMemoryValue(loadOp);
-
     DepInfo info = BasicBlockAnalysisResult::getLoadInstrDependencies(instr);
+    if (loadedValue == nullptr) {
+        return info;
+    }
     if (auto loadedInst = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
         auto alloca = llvm::dyn_cast<llvm::AllocaInst>(loadedInst);
         if (!alloca) {
@@ -811,9 +815,9 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     }
     for (auto& item : m_valueDependencies) {
         if (item.second.isValueDep() && !item.second.isOnlyGlobalValueDependent()) {
-            llvm::dbgs() << "   Value dependency after resolving.\n";
-            llvm::dbgs() << "   Block: " << m_BB->getName() << "\n";
-            llvm::dbgs() << "    Value: " << *item.first << "\n";
+            //llvm::dbgs() << "   Value dependency after resolving.\n";
+            //llvm::dbgs() << "   Block: " << m_BB->getName() << "\n";
+            //llvm::dbgs() << "    Value: " << *item.first << "\n";
             auto& valueDeps = item.second.getValueDependencies();
             auto it = valueDeps.begin();
             while (it != valueDeps.end()) {
@@ -824,6 +828,9 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
                     continue;
                 }
                 ++it;
+            }
+            if (valueDeps.empty() && item.second.getDependency() == DepInfo::VALUE_DEP) {
+                item.second.setDependency(DepInfo::INPUT_INDEP);
             }
 
         }

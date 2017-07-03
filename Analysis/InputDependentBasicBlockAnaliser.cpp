@@ -41,11 +41,9 @@ void InputDependentBasicBlockAnaliser::processStoreInst(llvm::StoreInst* storeIn
     if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
         m_modifiedGlobals.insert(global);
     }
-    auto storedValue = getMemoryValue(storeTo);
-    assert(storedValue);
     DepInfo info(DepInfo::INPUT_DEP);
     updateInstructionDependencies(storeInst, info);
-    updateValueDependencies(storedValue, info);
+    updateValueDependencies(storeTo, info);
     updateModAliasesDependencies(storeInst, info);
 }
 

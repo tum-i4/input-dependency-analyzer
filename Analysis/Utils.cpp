@@ -74,6 +74,15 @@ llvm::Loop* Utils::getTopLevelLoop(llvm::Loop* loop, llvm::Loop* topParent)
     return loop;
 }
 
+int Utils::getLoopDepthDiff(llvm::Loop* loop1, llvm::Loop* loop2)
+{
+    if (loop1 == nullptr || loop2 == nullptr) {
+        return 0;
+    }
+    // assume loops are in the same loop hierarchy
+    return loop1->getLoopDepth() - loop2->getLoopDepth();
+}
+
 std::string Utils::demangle_name(const std::string& name)
 {
     int status = -1;

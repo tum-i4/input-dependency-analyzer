@@ -2,6 +2,7 @@
 #include "Utils.h"
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -15,7 +16,7 @@ DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepI
 {
     DepInfo resultInfo;
     for (auto& dep : valueDeps) {
-        auto global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
+        auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
         assert(global != nullptr);
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {

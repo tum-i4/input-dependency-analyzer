@@ -41,6 +41,7 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
     InputDepInstructionsRecorder& recorder = InputDepInstructionsRecorder::get();
     recorder.set_record();
 
+    LoggingUtils logger;
     for (auto& F : M) {
         if (F.isDeclaration() || F.isIntrinsic()) {
             continue;
@@ -57,11 +58,12 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
             }
             for (auto& I : B) {
                 if (funcInputDep->isInputDependent(&I)) {
-                    LoggingUtils::log_instruction_dbg_info(I, dbg_infostrm);
+                    logger.log_instruction_dbg_info(I, dbg_infostrm);
                 }
             }
         }
     }
+    logger.log_not_logged_count(dbg_infostrm);
     recorder.dump_dbg_info();
     dbg_infostrm.close();
 

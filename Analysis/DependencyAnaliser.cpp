@@ -22,6 +22,9 @@ llvm::Argument* getFunctionArgument(llvm::Function* F, unsigned index)
     while (index-- != 0) {
         ++it;
     }
+    if (it == F->getArgumentList().end()) {
+        return nullptr;
+    }
     return &*it;
 }
 
@@ -326,43 +329,14 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         updateLibFunctionCallInstructionDependencies(callInst, argDepMap);
     } else {
         updateFunctionCallSiteInfo(callInst, F);
-        updateCallSiteOutArgDependencies(callInst, F);
-        updateCallInstructionDependencies(callInst, F);
-        updateGlobalsAfterFunctionCall(callInst, F);
-    }
-}
-
-void DependencyAnaliser::processCallSiteWithMultipleTargets(llvm::CallInst* callInst, const FunctionSet& targets)
-{
-    for (auto F : targets) {
-        updateFunctionCallSiteInfo(callInst, F);
+        // analysis result of callee is not available. e.g cyclic calls, recursive calls
         if (m_FAG(F) == nullptr) {
-            llvm::dbgs() << "Analysis results not available for indirect call target: " << F->getName() << "\n";
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
-            InputDepInstructionsRecorder::get().record(callInst);
-            // update globals??? May result to inaccuracies 
         } else {
             updateCallSiteOutArgDependencies(callInst, F);
             updateCallInstructionDependencies(callInst, F);
             updateGlobalsAfterFunctionCall(callInst, F);
-        }
-    }
-}
-
-void DependencyAnaliser::processInvokeSiteWithMultipleTargets(llvm::InvokeInst* invokeInst, const FunctionSet& targets)
-{
-    for (auto F : targets) {
-        updateFunctionInvokeSiteInfo(invokeInst, F);
-        if (m_FAG(F) == nullptr) {
-            updateInvokeInputDependentOutArgDependencies(invokeInst);
-            updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
-            InputDepInstructionsRecorder::get().record(invokeInst);
-            // update globals??? May result to inaccuracies 
-        } else {
-            updateInvokeSiteOutArgDependencies(invokeInst, F);
-            updateInvokeInstructionDependencies(invokeInst, F);
-            updateGlobalsAfterFunctionInvoke(invokeInst, F);
         }
     }
 }
@@ -398,9 +372,50 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
         updateLibFunctionInvokeInstructionDependencies(invokeInst, argDepMap);
     } else {
         updateFunctionInvokeSiteInfo(invokeInst, F);
-        updateInvokeSiteOutArgDependencies(invokeInst, F);
-        updateInvokeInstructionDependencies(invokeInst, F);
-        updateGlobalsAfterFunctionInvoke(invokeInst, F);
+        // cyclic call
+        if (m_FAG(F) == nullptr) {
+            updateInvokeInputDependentOutArgDependencies(invokeInst);
+            updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        } else {
+            updateInvokeSiteOutArgDependencies(invokeInst, F);
+            updateInvokeInstructionDependencies(invokeInst, F);
+            updateGlobalsAfterFunctionInvoke(invokeInst, F);
+        }
+    }
+}
+
+void DependencyAnaliser::processCallSiteWithMultipleTargets(llvm::CallInst* callInst, const FunctionSet& targets)
+{
+    for (auto F : targets) {
+        updateFunctionCallSiteInfo(callInst, F);
+        if (m_FAG(F) == nullptr) {
+            //llvm::dbgs() << "Analysis results not available for indirect call target: " << F->getName() << "\n";
+            updateCallInputDependentOutArgDependencies(callInst);
+            updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+            InputDepInstructionsRecorder::get().record(callInst);
+            // update globals??? May result to inaccuracies 
+        } else {
+            updateCallSiteOutArgDependencies(callInst, F);
+            updateCallInstructionDependencies(callInst, F);
+            updateGlobalsAfterFunctionCall(callInst, F);
+        }
+    }
+}
+
+void DependencyAnaliser::processInvokeSiteWithMultipleTargets(llvm::InvokeInst* invokeInst, const FunctionSet& targets)
+{
+    for (auto F : targets) {
+        updateFunctionInvokeSiteInfo(invokeInst, F);
+        if (m_FAG(F) == nullptr) {
+            updateInvokeInputDependentOutArgDependencies(invokeInst);
+            updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+            InputDepInstructionsRecorder::get().record(invokeInst);
+            // update globals??? May result to inaccuracies 
+        } else {
+            updateInvokeSiteOutArgDependencies(invokeInst, F);
+            updateInvokeInstructionDependencies(invokeInst, F);
+            updateGlobalsAfterFunctionInvoke(invokeInst, F);
+        }
     }
 }
 
@@ -783,6 +798,7 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
     DepInfo info(DepInfo::INPUT_INDEP);
     ValueSet globals;
     for (const auto& val : valueDeps) {
+        // what if from loop?
         assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
         auto depInfo = getValueDependencies(val);
         if (!depInfo.isDefined()) {
@@ -852,6 +868,9 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCa
             continue;
         }
         auto arg = getFunctionArgument(F, i);
+        if (arg == nullptr) {
+            continue;
+        }
         argDepMap[arg] = deps;
     }
     return argDepMap;
@@ -868,6 +887,9 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionIn
             continue;
         }
         auto arg = getFunctionArgument(F, i);
+        if (arg == nullptr) {
+            continue;
+        }
         argDepMap[arg] = deps;
     }
     return argDepMap;

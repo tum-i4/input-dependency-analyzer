@@ -291,8 +291,8 @@ const GlobalsSet& FunctionAnaliser::Impl::getModifiedGlobals() const
 
 void FunctionAnaliser::Impl::analize()
 {
-    //typedef std::chrono::high_resolution_clock Clock;
-    //auto tic = Clock::now();
+    typedef std::chrono::high_resolution_clock Clock;
+    auto tic = Clock::now();
     collectArguments();
     auto it = m_F->begin();
     for (; it != m_F->end(); ++it) {
@@ -321,6 +321,12 @@ void FunctionAnaliser::Impl::analize()
             }
             m_BBAnalysisResults[bb].reset(loopA);
         } else if (auto loop = m_LI.getLoopFor(bb)) {
+            // For irregular loops a random block from a loop can come before loop header in a bitcode.
+            // If this is the case, skip this block here, it will be analized later when analysing the loop
+            if (m_currentLoop == nullptr) {
+                m_loopBlocks[bb] = Utils::getTopLevelLoop(loop)->getHeader();
+                continue;
+            }
             // there are cases when blocks of two not nested loops are processed in mixed order
             if (!m_currentLoop->contains(loop)) {
                 m_currentLoop = loop;
@@ -340,9 +346,11 @@ void FunctionAnaliser::Impl::analize()
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
     }
-    //m_inputs.clear();
-    //auto toc = Clock::now();
-    //llvm::dbgs() << "Elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+    m_inputs.clear();
+    auto toc = Clock::now();
+    if (getenv("INPUT_DEP_TIME")) {
+        llvm::dbgs() << "Elapsed time input-dep " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+    }
 }
 
 void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& dependentArgs)

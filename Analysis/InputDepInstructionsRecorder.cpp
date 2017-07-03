@@ -30,9 +30,11 @@ void InputDepInstructionsRecorder::dump_dbg_info() const
 {
     std::ofstream dbg_infostrm;
     dbg_infostrm.open("recorded_inputdeps.dbg");
+    LoggingUtils logger;
     for (auto& I : m_input_dep_instructions) {
-        LoggingUtils::log_instruction_dbg_info(*I, dbg_infostrm);
+        logger.log_instruction_dbg_info(*I, dbg_infostrm);
     }
+    logger.log_not_logged_count(dbg_infostrm);
     dbg_infostrm.close();
 }
 

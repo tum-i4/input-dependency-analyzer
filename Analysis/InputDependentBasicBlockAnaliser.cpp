@@ -62,6 +62,21 @@ DepInfo InputDependentBasicBlockAnaliser::getValueDependencies(llvm::Value* valu
     return DepInfo(DepInfo::INPUT_DEP);
 }
 
+void InputDependentBasicBlockAnaliser::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
+{
+    BasicBlockAnalysisResult::updateInstructionDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
+}
+
+void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info)
+{
+    BasicBlockAnalysisResult::updateValueDependencies(value, DepInfo(DepInfo::INPUT_DEP));
+}
+
+void InputDependentBasicBlockAnaliser::updateReturnValueDependencies(const DepInfo& info)
+{
+    BasicBlockAnalysisResult::updateReturnValueDependencies(DepInfo(DepInfo::INPUT_DEP));
+}
+
 ReflectingInputDependentBasicBlockAnaliser::ReflectingInputDependentBasicBlockAnaliser(llvm::Function* F,
                                                                    llvm::AAResults& AAR,
                                                                    const VirtualCallSiteAnalysisResult& virtualCallsInfo,

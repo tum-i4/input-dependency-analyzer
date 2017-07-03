@@ -906,6 +906,9 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
     }
+    llvm::BasicBlock* header = m_L.getHeader();
+    auto header_node = m_postDomTree[header];
+    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
@@ -918,11 +921,11 @@ DepInfo LoopAnalysisResult::getBlockTerminatingDependencies(llvm::BasicBlock* B)
     if (termInstr == nullptr) {
         return DepInfo(DepInfo::INPUT_DEP);
     }
-    if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
-        if (branchInstr->isUnconditional()) {
-            return DepInfo();
-        }
-    }
+    //if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
+    //    if (branchInstr->isUnconditional()) {
+    //        return DepInfo();
+    //    }
+    //}
     auto pos = m_BBAnalisers.find(B);
     if (pos == m_BBAnalisers.end()) {
         ValueSet values = Utils::dissolveInstruction(termInstr);

@@ -69,6 +69,8 @@ void BasicBlockAnalysisResult::analize()
             processInvokeInst(invokeInst);
         } else if (auto* phi = llvm::dyn_cast<llvm::PHINode>(&I)) {
             processPhiNode(phi);
+        } else if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(&I)) {
+            processBitCast(bitcast);
         } else {
             processInstruction(&I);
         }

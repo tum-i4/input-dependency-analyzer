@@ -9,6 +9,7 @@ namespace llvm {
 
 class AAResults;
 class Argument;
+class BitCastInst;
 class BasicBlock;
 class Function;
 class GlobalVariable;

@@ -215,6 +215,29 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
     updateInstructionDependencies(phi, info);
 }
 
+void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
+{
+    auto castedValue = bitcast->getOperand(0);
+    assert(castedValue != nullptr);
+    DepInfo depInfo;
+    auto args = isInput(castedValue);
+    if (!args.empty()) {
+        depInfo = DepInfo(DepInfo::INPUT_ARGDEP, args);
+    }
+    auto valueDeps = getValueDependencies(castedValue);
+    depInfo.mergeDependencies(valueDeps);
+    if (!depInfo.isDefined()) {
+        if (auto instr = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
+            auto valueDeps = getInstructionDependencies(instr);
+            depInfo.mergeDependencies(valueDeps);
+        }
+    }
+
+    assert(depInfo.isDefined());
+    updateValueDependencies(bitcast, depInfo);
+    updateInstructionDependencies(bitcast, depInfo);
+}
+
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
 {
     auto retValue = retInst->getReturnValue();

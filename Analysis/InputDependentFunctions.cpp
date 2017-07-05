@@ -1,8 +1,8 @@
 #include "InputDependentFunctions.h"
 
 #include "FunctionDominanceTree.h"
-#include "input-dependency/InputDependencyAnalysis.h"
-#include "input-dependency/IndirectCallSitesAnalysis.h"
+#include "InputDependencyAnalysis.h"
+#include "IndirectCallSitesAnalysis.h"
 
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/BasicBlock.h"
@@ -12,20 +12,20 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/InstrTypes.h"
 
-namespace oh {
+namespace input_dependency {
 
 char InputDependentFunctionsPass::ID = 0;
 
 void InputDependentFunctionsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
-    AU.addRequired<input_dependency::IndirectCallSitesAnalysis>();
-    AU.addRequired<input_dependency::InputDependencyAnalysis>();
+    AU.addRequired<IndirectCallSitesAnalysis>();
+    AU.addRequired<InputDependencyAnalysis>();
     AU.addRequired<FunctionDominanceTreePass>();
 }
 
 std::unordered_set<llvm::Function*> get_call_targets(llvm::CallInst* callInst,
-                                                     const input_dependency::IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
+                                                     const IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
 {
     std::unordered_set<llvm::Function*> indirectTargets;
     auto calledF = callInst->getCalledFunction();
@@ -38,7 +38,7 @@ std::unordered_set<llvm::Function*> get_call_targets(llvm::CallInst* callInst,
 }
 
 std::unordered_set<llvm::Function*> get_invoke_targets(llvm::InvokeInst* callInst,
-                                                     const input_dependency::IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
+                                                     const IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
 {
     std::unordered_set<llvm::Function*> indirectTargets;
     auto calledF = callInst->getCalledFunction();
@@ -51,7 +51,7 @@ std::unordered_set<llvm::Function*> get_invoke_targets(llvm::InvokeInst* callIns
 }
 
 void InputDependentFunctionsPass::process_non_det_block(llvm::BasicBlock& block,
-                                              const input_dependency::IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
+                                              const IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
 {
     
     std::unordered_set<llvm::Function*> targets;
@@ -70,8 +70,8 @@ void InputDependentFunctionsPass::process_non_det_block(llvm::BasicBlock& block,
 
 void InputDependentFunctionsPass::process_call(llvm::Function* parentF,
                                     const FunctionSet& targets,
-                                    const input_dependency::IndirectCallSitesAnalysisResult& indirectCallSitesInfo,
-                                    const input_dependency::InputDependencyAnalysis& inputDepAnalysis,
+                                    const IndirectCallSitesAnalysisResult& indirectCallSitesInfo,
+                                    const InputDependencyAnalysis& inputDepAnalysis,
                                     const FunctionDominanceTree& domTree,
                                     FunctionSet& processed_functions)
 {
@@ -105,8 +105,8 @@ void InputDependentFunctionsPass::process_call(llvm::Function* parentF,
 }
 
 void InputDependentFunctionsPass::process_function(llvm::Function* F,
-                                         const input_dependency::IndirectCallSitesAnalysisResult& indirectCallSitesInfo,
-                                         const input_dependency::InputDependencyAnalysis& inputDepAnalysis,
+                                         const IndirectCallSitesAnalysisResult& indirectCallSitesInfo,
+                                         const InputDependencyAnalysis& inputDepAnalysis,
                                          const FunctionDominanceTree& domTree,
                                          FunctionSet& processed_functions)
 {
@@ -135,14 +135,14 @@ void InputDependentFunctionsPass::process_function(llvm::Function* F,
 
 bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
 {
-    const auto& inputDepAnalysis = getAnalysis<input_dependency::InputDependencyAnalysis>();
+    const auto& inputDepAnalysis = getAnalysis<InputDependencyAnalysis>();
     const auto& domTree = getAnalysis<FunctionDominanceTreePass>().get_dominance_tree();
     std::unordered_set<llvm::Function*> processed_functions;
     for (auto& F : M) {
         if (F.isDeclaration() || F.isIntrinsic()) {
             continue;
         }
-        const auto& indirectCallAnalysis = getAnalysis<input_dependency::IndirectCallSitesAnalysis>();
+        const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
         process_function(&F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
     }
@@ -162,5 +162,5 @@ bool InputDependentFunctionsPass::is_function_called_in_non_det_block(llvm::Func
     return functions_called_in_non_det_blocks.find(F) != functions_called_in_non_det_blocks.end();
 }
 
-//static llvm::RegisterPass<InputDependentFunctionsPass> X("function-call-info","Collects information about function calls");
+static llvm::RegisterPass<InputDependentFunctionsPass> X("function-call-info","Collects information about function calls");
 }

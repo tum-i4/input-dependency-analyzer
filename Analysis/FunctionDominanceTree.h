@@ -11,7 +11,7 @@ class Function;
 class Module;
 }
 
-namespace oh {
+namespace input_dependency {
 
 class FunctionDominanceTree
 {

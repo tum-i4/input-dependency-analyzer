@@ -12,7 +12,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 
-namespace oh {
+namespace input_dependency {
 
 FunctionDominanceTree::DomNode::DomNode(llvm::Function* f)
     : function(f)

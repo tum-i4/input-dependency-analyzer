@@ -9,5 +9,6 @@ link_directories(${LLVM_LIBRARY_DIRS})
 link_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNDEBUG")
 
 add_subdirectory(Analysis)  # Use your pass name here.

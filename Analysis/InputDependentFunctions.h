@@ -30,8 +30,7 @@ public:
     bool runOnModule(llvm::Module& M) override;
 
 public:
-    bool is_function_called_in_a_loop(llvm::Function* F) const;
-    bool is_function_called_in_non_det_block(llvm::Function* F) const;
+    bool is_function_input_dependent(llvm::Function* F) const;
 
 private:
     using FunctionSet = std::unordered_set<llvm::Function*>;

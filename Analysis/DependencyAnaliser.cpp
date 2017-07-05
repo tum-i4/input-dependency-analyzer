@@ -42,8 +42,9 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
         auto pos = globalDeps.find(global);
         assert(pos != globalDeps.end());
         assert(pos->second.isDefined());
-        assert(!pos->second.isValueDep());
-        newInfo.mergeDependencies(pos->second);
+        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
+        newInfo.mergeDependencies(pos->second.getArgumentDependencies());
+        newInfo.mergeDependency(pos->second.getDependency());
     }
     return newInfo;
 }

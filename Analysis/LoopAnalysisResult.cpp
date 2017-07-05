@@ -577,7 +577,7 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
                 continue;
             }
             if (pred_loop == nullptr) {
-                llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
+                //llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
                 ++pred;
                 continue;
             }

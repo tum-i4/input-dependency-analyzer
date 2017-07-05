@@ -152,12 +152,7 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
     return false;
 }
 
-bool InputDependentFunctionsPass::is_function_called_in_a_loop(llvm::Function* F) const
-{
-    return functions_called_in_loop.find(F) != functions_called_in_loop.end();
-}
-
-bool InputDependentFunctionsPass::is_function_called_in_non_det_block(llvm::Function* F) const
+bool InputDependentFunctionsPass::is_function_input_dependent(llvm::Function* F) const
 {
     return functions_called_in_non_det_blocks.find(F) != functions_called_in_non_det_blocks.end();
 }

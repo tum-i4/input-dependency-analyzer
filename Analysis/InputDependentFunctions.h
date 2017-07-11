@@ -31,10 +31,12 @@ public:
 
 public:
     bool is_function_input_dependent(llvm::Function* F) const;
+    bool is_function_input_independent(llvm::Function* F) const;
 
 private:
     using FunctionSet = std::unordered_set<llvm::Function*>;
 
+    void erase_from_deterministic_functions(const FunctionSet& targets);
     void process_non_det_block(llvm::BasicBlock& block,
                                const IndirectCallSitesAnalysisResult& indirectCallSitesInfo);
     void process_function(llvm::Function* F,
@@ -52,6 +54,7 @@ private:
 private:
     FunctionSet functions_called_in_loop;
     FunctionSet functions_called_in_non_det_blocks;
+    FunctionSet functions_called_in_det_blocks;
 };
 
 }

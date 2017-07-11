@@ -50,6 +50,14 @@ std::unordered_set<llvm::Function*> get_invoke_targets(llvm::InvokeInst* callIns
     return indirectTargets;
 }
 
+void InputDependentFunctionsPass::erase_from_deterministic_functions(const FunctionSet& targets)
+{
+    for (const auto& target : targets) {
+        functions_called_in_det_blocks.erase(target);
+    }
+}
+
+
 void InputDependentFunctionsPass::process_non_det_block(llvm::BasicBlock& block,
                                               const IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
 {
@@ -64,6 +72,7 @@ void InputDependentFunctionsPass::process_non_det_block(llvm::BasicBlock& block,
         }
         if (!targets.empty()) {
             functions_called_in_non_det_blocks.insert(targets.begin(), targets.end());
+            erase_from_deterministic_functions(targets);
         }
     }
 }
@@ -78,6 +87,7 @@ void InputDependentFunctionsPass::process_call(llvm::Function* parentF,
     bool is_non_det_caller = (functions_called_in_non_det_blocks.find(parentF) != functions_called_in_non_det_blocks.end());
     if (is_non_det_caller) {
         functions_called_in_non_det_blocks.insert(targets.begin(), targets.end());
+        erase_from_deterministic_functions(targets);
         return;
     }
     auto domNode = domTree.get_function_dominators(parentF);
@@ -101,6 +111,9 @@ void InputDependentFunctionsPass::process_call(llvm::Function* parentF,
     }
     if (is_non_det_caller) {
         functions_called_in_non_det_blocks.insert(targets.begin(), targets.end());
+        erase_from_deterministic_functions(targets);
+    } else {
+        functions_called_in_det_blocks.insert(targets.begin(), targets.end());
     }
 }
 
@@ -142,19 +155,33 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
         if (F.isDeclaration() || F.isIntrinsic()) {
             continue;
         }
+        if (F.getName() == "main") {
+            functions_called_in_det_blocks.insert(&F);
+        }
         const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
         process_function(&F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
     }
-    for (const auto& f : functions_called_in_non_det_blocks) {
-        llvm::dbgs() << "Function is called from non-det block " << f->getName() << "\n";
-    }
+    //for (auto& F : M) {
+    //    if (functions_called_in_non_det_blocks.find(&F) == functions_called_in_non_det_blocks.end()
+    //        && functions_called_in_det_blocks.find(&F) == functions_called_in_det_blocks.end()) {
+    //        llvm::dbgs() << "   " << F.getName() << "\n";
+    //    }
+    //}
+    //for (const auto& f : functions_called_in_non_det_blocks) {
+    //    llvm::dbgs() << "Function is called from non-det block " << f->getName() << "\n";
+    //}
     return false;
 }
 
 bool InputDependentFunctionsPass::is_function_input_dependent(llvm::Function* F) const
 {
     return functions_called_in_non_det_blocks.find(F) != functions_called_in_non_det_blocks.end();
+}
+
+bool InputDependentFunctionsPass::is_function_input_independent(llvm::Function* F) const
+{
+    return functions_called_in_det_blocks.find(F) != functions_called_in_det_blocks.end();
 }
 
 static llvm::RegisterPass<InputDependentFunctionsPass> X("function-call-info","Collects information about function calls");

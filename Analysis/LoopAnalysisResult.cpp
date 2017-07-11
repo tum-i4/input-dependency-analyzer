@@ -296,6 +296,7 @@ void LoopAnalysisResult::gatherResults()
                 m_BBAnalisers[B]->gatherResults();
             }
         }
+        m_is_inputDep = true;
     } else {
         reflect();
     }
@@ -317,6 +318,19 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
+    auto& loop_dependencies = m_loopDependencies.getValueDependencies();
+    if (!loop_dependencies.empty()) {
+        for (auto& loopDep : loop_dependencies) {
+            auto dep = m_valueDependencies.find(loopDep);
+            if (dep != m_valueDependencies.end()) {
+                m_loopDependencies.mergeDependencies(dep->second);
+            }
+        }
+    }
+    loop_dependencies.clear();
+    if (m_loopDependencies.isValueDep()) {
+        m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
+    }
     if (m_loopDependencies.isInputDep()) {
         m_is_inputDep = true;
     } else if (m_loopDependencies.isInputArgumentDep()
@@ -929,6 +943,9 @@ DepInfo LoopAnalysisResult::getBlockTerminatingDependencies(llvm::BasicBlock* B)
     auto pos = m_BBAnalisers.find(B);
     if (pos == m_BBAnalisers.end()) {
         ValueSet values = Utils::dissolveInstruction(termInstr);
+        if (values.empty()) {
+            return DepInfo(DepInfo::INPUT_INDEP);
+        }
         return DepInfo(DepInfo::VALUE_DEP, values);
     }
     return pos->second->getInstructionDependencies(termInstr);

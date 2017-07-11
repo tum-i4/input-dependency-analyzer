@@ -7,6 +7,7 @@
 namespace llvm {
 class Function;
 class BasicBlock;
+class CallGraph;
 }
 
 namespace input_dependency {
@@ -36,6 +37,7 @@ public:
 private:
     using FunctionSet = std::unordered_set<llvm::Function*>;
 
+    std::vector<llvm::Function*> collect_functons(llvm::Module& M);
     void erase_from_deterministic_functions(const FunctionSet& targets);
     void process_non_det_block(llvm::BasicBlock& block,
                                const IndirectCallSitesAnalysisResult& indirectCallSitesInfo);

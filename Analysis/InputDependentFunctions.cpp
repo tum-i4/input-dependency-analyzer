@@ -3,8 +3,12 @@
 #include "FunctionDominanceTree.h"
 #include "InputDependencyAnalysis.h"
 #include "IndirectCallSitesAnalysis.h"
+#include "Utils.h"
 
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
@@ -19,9 +23,12 @@ char InputDependentFunctionsPass::ID = 0;
 void InputDependentFunctionsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
+    AU.setPreservesCFG();
     AU.addRequired<IndirectCallSitesAnalysis>();
     AU.addRequired<InputDependencyAnalysis>();
     AU.addRequired<FunctionDominanceTreePass>();
+    AU.addRequired<llvm::CallGraphWrapperPass>();
+    AU.addPreserved<llvm::CallGraphWrapperPass>();
 }
 
 std::unordered_set<llvm::Function*> get_call_targets(llvm::CallInst* callInst,
@@ -61,7 +68,6 @@ void InputDependentFunctionsPass::erase_from_deterministic_functions(const Funct
 void InputDependentFunctionsPass::process_non_det_block(llvm::BasicBlock& block,
                                               const IndirectCallSitesAnalysisResult& indirectCallSitesInfo)
 {
-    
     std::unordered_set<llvm::Function*> targets;
     for (auto& I : block) {
         targets.clear();
@@ -123,7 +129,7 @@ void InputDependentFunctionsPass::process_function(llvm::Function* F,
                                          const FunctionDominanceTree& domTree,
                                          FunctionSet& processed_functions)
 {
-    llvm::dbgs() << "Process function " << F->getName() << "\n";
+    //llvm::dbgs() << "Process function " << F->getName() << "\n";
     if (processed_functions.find(F) != processed_functions.end()) {
         return;
     }
@@ -146,17 +152,55 @@ void InputDependentFunctionsPass::process_function(llvm::Function* F,
     }
 }
 
+std::vector<llvm::Function*> InputDependentFunctionsPass::collect_functons(llvm::Module& M)
+{
+    std::vector<llvm::Function*> module_functions;
+
+    llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
+    llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(&CG);
+    llvm::CallGraphSCC CurSCC(CG, &CGI);
+    while (!CGI.isAtEnd()) {
+        // Copy the current SCC and increment past it so that the pass can hack
+        // on the SCC if it wants to without invalidating our iterator.
+        const std::vector<llvm::CallGraphNode *> &NodeVec = *CGI;
+        CurSCC.initialize(NodeVec.data(), NodeVec.data() + NodeVec.size());
+        for (llvm::CallGraphNode* node : CurSCC) {
+            llvm::Function* F = node->getFunction();
+            if (F == nullptr || Utils::isLibraryFunction(F, &M)) {
+                continue;
+            }
+            module_functions.insert(module_functions.begin(), F);
+        }
+        ++CGI;
+
+    }
+    return module_functions;
+}
+
 bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
 {
+    auto module_functions = collect_functons(M);
     const auto& inputDepAnalysis = getAnalysis<InputDependencyAnalysis>();
     const auto& domTree = getAnalysis<FunctionDominanceTreePass>().get_dominance_tree();
-    std::unordered_set<llvm::Function*> processed_functions;
+    FunctionSet processed_functions;
+    for (auto& F : module_functions) {
+        if (F->isDeclaration() || F->isIntrinsic()) {
+            continue;
+        }
+        if (F->getName() == "main") {
+            functions_called_in_det_blocks.insert(F);
+        }
+        const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
+        const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
+        process_function(F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
+    }
+    // go through others
     for (auto& F : M) {
         if (F.isDeclaration() || F.isIntrinsic()) {
             continue;
         }
-        if (F.getName() == "main") {
-            functions_called_in_det_blocks.insert(&F);
+        if (processed_functions.find(&F) != processed_functions.end()) {
+            continue;
         }
         const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
@@ -168,8 +212,8 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
     //        llvm::dbgs() << "   " << F.getName() << "\n";
     //    }
     //}
-    //for (const auto& f : functions_called_in_non_det_blocks) {
-    //    llvm::dbgs() << "Function is called from non-det block " << f->getName() << "\n";
+    //for (const auto& f : functions_called_in_det_blocks) {
+    //    llvm::dbgs() << "Function is called from det block " << f->getName() << "\n";
     //}
     return false;
 }

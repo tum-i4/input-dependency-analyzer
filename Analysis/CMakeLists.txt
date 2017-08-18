@@ -23,6 +23,8 @@ add_library(InputDependency MODULE
     LoggingUtils.cpp
     Utils.cpp
     InputDepInstructionsRecorder.cpp
+    DotPrinter.cpp
+    value_dependence_graph.cpp
 )
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).

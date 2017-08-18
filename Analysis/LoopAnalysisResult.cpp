@@ -93,6 +93,10 @@ void LoopTraversalPathCreator::construct()
 bool LoopTraversalPathCreator::add_predecessors(llvm::BasicBlock* block,
                                                 LoopPathType& blocks)
 {
+    auto block_loop = m_LI.getLoopFor(block);
+    if (block_loop && block_loop->getHeader() == block && block_loop->getLoopDepth() == 1) {
+        return true;
+    }
     auto pred = pred_begin(block);
     bool preds_added = true;
     // add notion of seen blocks, not to traverse pred's second time
@@ -135,6 +139,7 @@ void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
                                               LoopPathType& blocks)
 {
     auto succ = succ_begin(block);
+    auto block_loop = m_LI.getLoopFor(block);
     while (succ != succ_end(block)) {
         if (seen_blocks.find(*succ) != seen_blocks.end()) {
             ++succ;
@@ -159,14 +164,45 @@ void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
                     //assert(m_L.isLoopExiting(block));
                 } else if (m_L.contains(succ_loop)) {
                     // assert block is subloop head
+                    if (succ_loop->getHeader() != block) {
+                        //llvm::dbgs() << "bo " << block->getName() << "\n";
+                        //llvm::dbgs() << m_L.getHeader()->getName() << " "
+                        //             << succ_loop->getHeader()->getName() << "\n";
+                        bool is_valid = succ_loop->isLoopExiting(block);
+                        is_valid |= block_loop->getParentLoop()->isLoopExiting(block);
+                        assert(is_valid);
+                        //assert(succ_loop->isLoopExiting(block));
+                        ++succ;
+                        continue;
+                    }
                     assert(succ_loop->getHeader() == block);
                 }
                 ++succ;
                 continue;
             }
         }
-        blocks.push_back(*succ);
+        blocks.push_front(*succ);
         ++succ;
+    }
+    if (block_loop != &m_L && block_loop->getHeader() == block && m_L.contains(block_loop)
+        && block_loop->getLoopDepth() - m_L.getLoopDepth() == 1) {
+        llvm::SmallVector<llvm::BasicBlock*, 10> exit_blocks;
+        block_loop->getExitingBlocks(exit_blocks);
+        for (const auto& exit_b : exit_blocks) {
+            //llvm::dbgs() << "   " << exit_b->getName() << "\n";
+            // With using evil goto statements, it is possible to exit a loop at any level from a loop at any inner level.
+            // E.g. the inner most loop may exit the outer most loop.
+            // Of course, still the exiting loop should be contained in a loop which will exit
+            // we are not adding exit blocks, which are not directly contained by a current loop,
+            // or any loop which is directly contained in by a current loop.
+            auto exitLoop = m_LI.getLoopFor(exit_b);
+            if (exitLoop == nullptr || Utils::getLoopDepthDiff(exitLoop, &m_L) != 1) {
+                llvm::dbgs() << "Skipping exit block " << exit_b->getName() << "\n";
+                continue;
+            }
+            blocks.push_front(exit_b);
+        }
+        //blocks.insert(blocks.begin(), exit_blocks.begin(), exit_blocks.end());
     }
 }
 
@@ -218,19 +254,19 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
 
 void LoopAnalysisResult::gatherResults()
 {
-    //typedef std::chrono::high_resolution_clock Clock;
-    //auto tic = Clock::now();
+    typedef std::chrono::high_resolution_clock Clock;
+    auto tic = Clock::now();
 
     LoopTraversalPathCreator pathCreator(m_LI, m_L);
     pathCreator.construct();
     auto blocks = pathCreator.getPath();
 
-    //llvm::dbgs() << "Loop will be traversed in order\n";
-    //for (const auto& block : blocks) {
-    //    llvm::dbgs() << block->getName() << "\n";
-    //}
+    llvm::dbgs() << "Loop will be traversed in order\n";
+    for (const auto& block : blocks) {
+        llvm::dbgs() << block->getName() << "\n";
+    }
 
-        bool is_input_dep = false;
+    bool is_input_dep = false;
     for (const auto& B : blocks) {
         updateLoopDependecies(B);
         is_input_dep = checkForLoopDependencies(m_initialDependencies);
@@ -242,6 +278,7 @@ void LoopAnalysisResult::gatherResults()
         analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
         analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
         analiser->gatherResults();
+        updateValueDependencies(B);
         is_input_dep = checkForLoopDependencies(B);
         if (is_input_dep) {
             break;
@@ -258,6 +295,7 @@ void LoopAnalysisResult::gatherResults()
                 //analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
                 //analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
                 m_BBAnalisers[B]->gatherResults();
+                updateValueDependencies(B);
             }
         }
     } else {
@@ -268,8 +306,10 @@ void LoopAnalysisResult::gatherResults()
     updateOutArgumentDependencies();
     updateValueDependencies();
 
-    //auto toc = Clock::now();
-    //llvm::dbgs() << "Elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+    auto toc = Clock::now();
+    if (getenv("LOOP_TIME")) {
+        llvm::dbgs() << "Elapsed time loop " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+    }
 }
 
 void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
@@ -559,6 +599,7 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
         ++pred;
     }
     // add initial values. Note values which have been added from prdecessors are not going to be changed
+    deps.insert(m_valueDependencies.begin(), m_valueDependencies.end());
     deps.insert(m_initialDependencies.begin(), m_initialDependencies.end());
     return deps;
 }
@@ -656,11 +697,20 @@ void LoopAnalysisResult::updateOutArgumentDependencies()
 
 void LoopAnalysisResult::updateValueDependencies()
 {
+    m_valueDependencies.clear();
     for (const auto& BB_analiser : m_BBAnalisers) {
         const auto& valuesDeps = BB_analiser.second->getValuesDependencies();
         for (const auto& item : valuesDeps) {
             m_valueDependencies[item.first].mergeDependencies(item.second);
         }
+    }
+}
+
+void LoopAnalysisResult::updateValueDependencies(llvm::BasicBlock* B)
+{
+    const auto& block_deps = m_BBAnalisers[B]->getValuesDependencies();
+    for (const auto& val : block_deps) {
+        m_valueDependencies[val.first] = val.second;
     }
 }
 
@@ -690,8 +740,19 @@ void LoopAnalysisResult::updateModifiedGlobals()
 void LoopAnalysisResult::reflect()
 {
     DependencyAnaliser::ValueDependencies valueDependencies;
+    //for (const auto& bb : m_BBAnalisers) {
+    //    llvm::dbgs() << "   " << bb.first->getName() << "\n";
+    //}
     for (const auto& latch : m_latches) {
-        auto valueDeps = m_BBAnalisers[latch]->getValuesDependencies();
+        auto pos = m_BBAnalisers.find(latch);
+        if (pos == m_BBAnalisers.end()) {
+            auto latch_loop = m_LI.getLoopFor(latch);
+            if (latch_loop == &m_L) {
+                llvm::dbgs() << "yah " << latch->getName() << "\n";
+            }
+        }
+        assert(pos != m_BBAnalisers.end());
+        auto valueDeps = pos->second->getValuesDependencies();
         for (const auto& dep : valueDeps) {
             auto res = valueDependencies.insert(dep);
             if (!res.second) {
@@ -742,7 +803,7 @@ void LoopAnalysisResult::updateLoopDependecies(llvm::BasicBlock* B)
             updateLoopDependecies(std::move(blockDeps));
         }
     } else if (is_latch || m_L.isLoopExiting(B)) {
-        DepInfo deps;
+        DepInfo deps = getBlockTerminatingDependencies(B);
         auto pred = pred_begin(B);
         while (pred != pred_end(B)) {
             auto pb = *pred;

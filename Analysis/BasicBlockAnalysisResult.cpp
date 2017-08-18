@@ -74,6 +74,13 @@ void BasicBlockAnalysisResult::analize()
         }
         processInstrForOutputArgs(&I);
     }
+    //for (auto val_dep : m_initialDependencies) {
+    //    // won't insert if already exists
+    //    // consider bb chain A -> B -> C, where B is the current bb.
+    //    // if variable v changes its dep info in A,
+    //    // and B does not change that value, C will get incorrect info for v (not the one from A)
+    //    m_valueDependencies.insert(val_dep);
+    //}
 }
 
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)

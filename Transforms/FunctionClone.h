@@ -28,7 +28,8 @@ public:
 
 public:
     static mask createMaskForCall(const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps,
-                                  unsigned size);
+                                  unsigned size,
+                                  bool is_variadic);
 
 public:
     bool hasCloneForMask(const mask& m) const;

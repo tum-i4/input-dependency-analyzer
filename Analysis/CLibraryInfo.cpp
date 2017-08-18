@@ -196,7 +196,7 @@ void CLibraryInfo::add_sscanf()
 {
     // int sscanf ( const char * s, const char * format, ...);
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
-    addArgWithDeps(2, {0, 1}, argDeps);
+    //addArgWithDeps(2, {0, 1}, argDeps);
     LibFunctionInfo sscanfInfo(C_library::sscanf,
                                std::move(argDeps),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});

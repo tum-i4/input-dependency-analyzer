@@ -48,6 +48,9 @@ void NonDeterministicReflectingBasicBlockAnaliser::finalizeResults(const Argumen
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto depInfo = ReflectingBasicBlockAnaliser::getInstructionDependencies(instr);
+    if (depInfo.isInputDep()) {
+        return depInfo;
+    }
     depInfo.mergeDependencies(m_nonDeterministicDeps);
     return depInfo;
 }
@@ -56,6 +59,9 @@ DepInfo NonDeterministicReflectingBasicBlockAnaliser::getValueDependencies(llvm:
 {
     auto depInfo = ReflectingBasicBlockAnaliser::getValueDependencies(value);
     if (!depInfo.isDefined()) {
+        return depInfo;
+    }
+    if (depInfo.isInputDep()) {
         return depInfo;
     }
     depInfo.mergeDependencies(m_nonDeterministicDeps);
@@ -81,12 +87,12 @@ void NonDeterministicReflectingBasicBlockAnaliser::setInitialValueDependencies(
                                                                     const DependencyAnaliser::ValueDependencies& valueDependencies)
 {
     ReflectingBasicBlockAnaliser::setInitialValueDependencies(valueDependencies);
-    for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
-        auto pos = valueDependencies.find(dep);
-        if (pos != valueDependencies.end()) {
-            m_valueDependencies[dep] = pos->second;
-        }
-    }
+    //for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
+    //    auto pos = valueDependencies.find(dep);
+    //    if (pos != valueDependencies.end()) {
+    //        m_valueDependencies[dep] = pos->second;
+    //    }
+    //}
 }
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
@@ -98,6 +104,9 @@ DepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecni
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)
 {
+    if (info.isInputDep()) {
+        return info;
+    }
     auto newInfo = info;
     newInfo.mergeDependencies(m_nonDeterministicDeps);
     return newInfo;

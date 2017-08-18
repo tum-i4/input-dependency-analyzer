@@ -12,6 +12,7 @@ void LoggingUtils::log_instruction_dbg_info(llvm::Instruction& instr, std::ofstr
     const auto& debug_loc = instr.getDebugLoc();
     if (debug_loc.get() == nullptr) {
         llvm::dbgs() << "No debug info for instruction " << instr << "\n";
+        ++not_logged;
         return;
     }
     auto file = debug_loc.get()->getScope()->getFile();
@@ -25,6 +26,10 @@ void LoggingUtils::log_instruction_dbg_info(llvm::Instruction& instr, std::ofstr
     //llvm::dbgs() << instr << "\n";
 }
 
+void LoggingUtils::log_not_logged_count(std::ofstream& log_stream)
+{
+    log_stream << "Not logged instruction number: " << not_logged;
+}
 
 }
 

@@ -55,6 +55,9 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             assert(analysisInfo != nullptr);
             const auto& callSites = analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
+                if (callSite->isDeclaration() || callSite->isIntrinsic()) {
+                    continue;
+                }
                 const auto& clonedFunctions = doClone(analysisInfo, callSite);
                 to_process.insert(clonedFunctions.begin(), clonedFunctions.end());
             }
@@ -72,6 +75,7 @@ std::unordered_set<llvm::Function*> FunctionClonePass::doClone(const input_depen
                                                                llvm::Function* calledF)
 {
     llvm::dbgs() << "   doClone " << calledF->getName() << "\n";
+
     std::unordered_set<llvm::Function*> clonedFunctions;
     if (m_functionCloneInfo.find(calledF) == m_functionCloneInfo.end()) {
         FunctionClone clone(calledF);
@@ -89,7 +93,9 @@ std::unordered_set<llvm::Function*> FunctionClonePass::doClone(const input_depen
     auto functionCallDepInfo = analiser->getFunctionCallDepInfo(calledF);
     auto& callArgDeps = functionCallDepInfo.getCallsArgumentDependencies();
     for (auto& argDepItem : callArgDeps) {
-        const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDepItem.second, calledF->getArgumentList().size());
+        const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDepItem.second,
+                                                                           calledF->getArgumentList().size(),
+                                                                           calledF->isVarArg());
         llvm::Function* F = nullptr;
         if (clone.hasCloneForMask(mask)) {
             F = clone.getClonedFunction(mask);

@@ -36,12 +36,22 @@ llvm::Function* FunctionClone::doCloneForMask(const mask& m)
 }
 
 FunctionClone::mask FunctionClone::createMaskForCall(const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps,
-                                                     unsigned size)
+                                                     unsigned size,
+                                                     bool is_variadic)
 {
     mask callSiteMask(size);
     for (const auto& argDep : argDeps) {
+        if (!argDep.first) {
+            continue;
+        }
         unsigned index = argDep.first->getArgNo();
-        assert(index < size);
+        if (is_variadic) {
+            if (index >= size) {
+                callSiteMask.resize(index);
+            }
+        } else {
+            assert(index < size);
+        }
         if (argDep.second.isInputIndep()) {
             callSiteMask[index] = false;
         } else if (argDep.second.isInputDep() || argDep.second.isInputArgumentDep()) {

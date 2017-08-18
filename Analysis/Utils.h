@@ -19,6 +19,7 @@ public:
 
     static bool isLibraryFunction(llvm::Function* F, llvm::Module* M);
     static llvm::Loop* getTopLevelLoop(llvm::Loop* loop, llvm::Loop* topParent = nullptr);
+    static int getLoopDepthDiff(llvm::Loop* loop1, llvm::Loop* loop2);
 
     static std::string demangle_name(const std::string& name);
 }; // class Utils

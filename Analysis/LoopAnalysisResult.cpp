@@ -261,10 +261,10 @@ void LoopAnalysisResult::gatherResults()
     pathCreator.construct();
     auto blocks = pathCreator.getPath();
 
-    llvm::dbgs() << "Loop will be traversed in order\n";
-    for (const auto& block : blocks) {
-        llvm::dbgs() << block->getName() << "\n";
-    }
+    //llvm::dbgs() << "Loop will be traversed in order\n";
+    //for (const auto& block : blocks) {
+    //    llvm::dbgs() << block->getName() << "\n";
+    //}
 
     bool is_input_dep = false;
     for (const auto& B : blocks) {

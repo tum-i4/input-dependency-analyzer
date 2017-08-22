@@ -738,10 +738,10 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     graph.build(m_valueDependencies, m_initialDependencies);
     value_dependence_graph::nodeT root = graph.get_root();
     
-    std::string name = m_BB->getParent()->getName();
-    name += "_";
-    name += m_BB->getName();
-    graph.dump(name);
+    //std::string name = m_BB->getParent()->getName();
+    //name += "_";
+    //name += m_BB->getName();
+    //graph.dump(name);
     resolveDependencies(graph.get_leaves(), m_valueDependencies);
 
     for (auto& item : m_valueDependencies) {

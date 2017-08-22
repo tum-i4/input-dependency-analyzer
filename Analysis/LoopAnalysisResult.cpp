@@ -171,7 +171,6 @@ void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
                         bool is_valid = succ_loop->isLoopExiting(block);
                         is_valid |= block_loop->getParentLoop()->isLoopExiting(block);
                         assert(is_valid);
-                        //assert(succ_loop->isLoopExiting(block));
                         ++succ;
                         continue;
                     }

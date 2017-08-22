@@ -40,7 +40,7 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
         }
         assert(global != nullptr);
         auto pos = globalDeps.find(global);
-        // ??????????/
+        // ??????????
         if (pos == globalDeps.end()) {
             continue;
         }
@@ -338,6 +338,7 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
     } else {
         updateFunctionCallSiteInfo(callInst, F);
         // cyclic call
+        // analysis result of callee is not available. e.g cyclic calls, recursive calls
         if (m_FAG(F) == nullptr) {
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
@@ -813,6 +814,8 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
             // TODO:
             continue;
         }
+        // what if from loop?
+        assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
         auto depInfo = getValueDependencies(val);
         if (!depInfo.isDefined()) {
             globals.insert(val);

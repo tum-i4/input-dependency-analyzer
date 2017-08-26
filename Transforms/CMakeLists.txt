@@ -1,6 +1,8 @@
 add_library(Transforms MODULE
    FunctionClonePass.cpp 
    FunctionClone.cpp
+   FunctionExtraction.cpp
+   FunctionSnippet.cpp
 )
 
 link_directories(analysis)

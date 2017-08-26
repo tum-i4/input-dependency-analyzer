@@ -14,6 +14,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include "FunctionSnippet.h"
+#include "Utils.h"
 #include "Analysis/InputDependencyStatistics.h"
 
 #include <vector>
@@ -23,49 +24,186 @@ namespace oh {
 
 namespace {
 
-using InputDependencyAnalysisInfo = input_dependency::FunctionAnaliser;
-using Snippet_type = std::shared_ptr<Snippet>;
-using BasicBlockRange = std::pair<BasicBlocksSnippet::iterator, BasicBlocksSnippet::iterator>;
-using snippet_list = std::vector<Snippet_type>;
-
-bool is_valid_snippet(InstructionsSnippet::iterator begin,
-                      InstructionsSnippet::iterator end,
-                      llvm::BasicBlock* block)
+class SnippetsCreator
 {
-    bool valid = (begin != block->end());
-    valid &= (begin->getParent() == block);
-    if (end != block->end()) {
-        valid &= (end->getParent() == block);
+public:
+    using InputDependencyAnalysisInfo = input_dependency::FunctionAnaliser;
+    using Snippet_type = std::shared_ptr<Snippet>;
+    using BasicBlockRange = std::pair<BasicBlocksSnippet::iterator, BasicBlocksSnippet::iterator>;
+    using snippet_list = std::vector<Snippet_type>;
+
+public:
+    SnippetsCreator(llvm::Function& F)
+        : m_F(F)
+    {
     }
-    return valid;
-}
 
-bool is_valid_snippet(BasicBlocksSnippet::iterator begin,
-                      BasicBlocksSnippet::iterator end,
-                      llvm::Function* parent)
-{
-    return (begin != parent->end() && begin != end);
-}
+    void set_input_dep_info(InputDependencyAnalysisInfo* info)
+    {
+        m_input_dep_info = info;
+    }
 
-// TODO: check if llvm has function returning iterator for given block
-llvm::Function::iterator get_block_pos(llvm::BasicBlock* block)
+    void set_post_dom_tree(llvm::PostDominatorTree* pdom)
+    {
+        m_pdom = pdom;
+    }
+
+    const snippet_list& get_snippets() const
+    {
+        return m_snippets;
+    }
+
+public:
+    void collect_snippets(bool expand);
+    void expand_snippets();
+
+private:
+    snippet_list collect_block_snippets(llvm::Function::iterator block_it);
+    bool can_root_blocks_snippet(llvm::BasicBlock* block) const;
+    BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos);
+    llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block);
+    void update_processed_blocks(const llvm::BasicBlock* block,
+                                 const llvm::BasicBlock* stop_block,
+                                 std::unordered_set<const llvm::BasicBlock*>& processed_blocks);
+
+private:
+    llvm::Function& m_F;
+    InputDependencyAnalysisInfo* m_input_dep_info;
+    llvm::PostDominatorTree* m_pdom;
+    std::unordered_map<llvm::BasicBlock*, snippet_list> m_block_snippets;
+    snippet_list m_snippets;
+};
+
+void SnippetsCreator::collect_snippets(bool expand)
 {
-    auto it = block->getParent()->begin();
-    while (&*it != block && it != block->getParent()->end()) {
+    std::unordered_set<const llvm::BasicBlock*> processed_blocks;
+    auto it = m_F.begin();
+    while (it != m_F.end()) {
+        auto B = &*it;
+        auto pos = processed_blocks.find(B);
+        if (pos != processed_blocks.end()) {
+            ++it;
+            continue;
+        }
+        auto block_snippets = collect_block_snippets(it);
+        if (!can_root_blocks_snippet(B)) {
+            ++it;
+            processed_blocks.insert(B);
+            m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
+            m_block_snippets[B] = block_snippets;
+            continue;
+        }
+        // assert back end iter is block's terminator
+        auto blocks_range = get_blocks_snippet(it);
+        if (!BasicBlocksSnippet::is_valid_snippet(blocks_range.first, blocks_range.second, &m_F)) {
+            llvm::dbgs() << "Failed to create snippet out of blocks, starting with block "
+                         << B->getName() << "\n";
+        } else {
+            auto back = block_snippets.back();
+            block_snippets.pop_back();
+            update_processed_blocks(&*blocks_range.first, &*blocks_range.second, processed_blocks);
+            Snippet_type blocks_snippet(new BasicBlocksSnippet(&m_F,
+                                                               blocks_range.first,
+                                                               blocks_range.second,
+                                                               *back->to_instrSnippet()));
+            block_snippets.push_back(blocks_snippet);
+        }
+        // for some blocks will run insert twice
+        processed_blocks.insert(B);
+        m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
+        m_block_snippets[B] = block_snippets;
         ++it;
     }
-    return it;
+    if (expand) {
+        expand_snippets();
+    }
 }
 
-llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block, const llvm::PostDominatorTree& PDom)
+void SnippetsCreator::expand_snippets()
 {
-    const auto& b_node = PDom[block];
+    for (auto& snippet : m_snippets) {
+        snippet->expand();
+    }
+
+    auto it = m_snippets.begin();
+    while (it != m_snippets.end()) {
+        if ((*it)->to_blockSnippet()) {
+            // do not merge blocks' snippet. may improve later
+            ++it;
+            continue;
+        }
+        auto next_it = it + 1;
+        if ((*it)->intersects(**next_it)) {
+            (*next_it)->merge(**it);
+            auto old = it;
+            ++it;
+            m_snippets.erase(old);
+        } else {
+            ++it;
+        }
+    }
+}
+
+SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Function::iterator block_it)
+{
+    snippet_list snippets;
+    auto block = &*block_it;
+    InstructionsSnippet::iterator begin = block->end();
+    InstructionsSnippet::iterator end = block->end();
+    auto it = block->begin();
+    while (it != block->end()) {
+        llvm::Instruction* I = &*it;
+        if (!m_input_dep_info->isInputDependent(I)) {
+            if (InstructionsSnippet::is_valid_snippet(begin, end, block)) {
+                snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
+                begin = block->end();
+                end = block->end();
+            }
+        } else {
+            if (begin != block->end()) {
+                end = it;
+            } else {
+                begin = it;
+                end = it;
+            }
+        }
+        ++it;
+    }
+    if (InstructionsSnippet::is_valid_snippet(begin, end, block)) {
+        snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
+    }
+    return snippets;
+}
+
+bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
+{
+    auto terminator = block->getTerminator();
+    if (!m_input_dep_info->isInputDependent(terminator)) {
+        return false;
+    }
+    auto branch = llvm::dyn_cast<llvm::BranchInst>(terminator);
+    if (!branch || !branch->isConditional()) {
+        return false;
+    }
+    return true;
+}
+
+SnippetsCreator::BasicBlockRange SnippetsCreator::get_blocks_snippet(llvm::Function::iterator begin_block_pos)
+{
+    auto end_block = find_block_postdominator(&*begin_block_pos);
+    llvm::Function::iterator end_block_pos = Utils::get_block_pos(end_block);
+    return std::make_pair(begin_block_pos, end_block_pos);
+}
+
+llvm::BasicBlock* SnippetsCreator::find_block_postdominator(llvm::BasicBlock* block)
+{
+    const auto& b_node = (*m_pdom)[block];
     auto F = block->getParent();
     auto block_to_process = block;
     while (block_to_process != nullptr) {
         if (block_to_process != block) {
-            auto pr_node = PDom[block_to_process];
-            if (PDom.dominates(pr_node, b_node)) {
+            auto pr_node = (*m_pdom)[block_to_process];
+            if (m_pdom->dominates(pr_node, b_node)) {
                 break;
             }
         }
@@ -81,62 +219,9 @@ llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block, const llvm::
     return block_to_process;
 }
 
-BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos, const llvm::PostDominatorTree& PDom)
-{
-    auto end_block = find_block_postdominator(&*begin_block_pos, PDom);
-    llvm::Function::iterator end_block_pos = get_block_pos(end_block);
-    return std::make_pair(begin_block_pos, end_block_pos);
-}
-
-snippet_list collect_block_snippets(llvm::Function::iterator block_it,
-                                    const InputDependencyAnalysisInfo& input_dep_info,
-                                    const llvm::PostDominatorTree& PDom)
-{
-    snippet_list snippets;
-    auto block = &*block_it;
-    InstructionsSnippet::iterator begin = block->end();
-    InstructionsSnippet::iterator end = block->end();
-    auto it = block->begin();
-    while (it != block->end()) {
-        llvm::Instruction* I = &*it;
-        if (!input_dep_info.isInputDependent(I)) {
-            if (is_valid_snippet(begin, end, block)) {
-                snippets.push_back(Snippet_type(new InstructionsSnippet(begin, end)));
-                begin = block->end();
-                end = block->end();
-            }
-        } else {
-            if (begin != block->end()) {
-                end = it;
-            } else {
-                begin = it;
-                end = it;
-            }
-        }
-        ++it;
-    }
-    if (is_valid_snippet(begin, end, block)) {
-        snippets.push_back(Snippet_type(new InstructionsSnippet(begin, end)));
-    }
-    return snippets;
-}
-
-bool can_root_blocks_snippet(llvm::BasicBlock* block,
-                             const InputDependencyAnalysisInfo& input_dep_info)
-{
-    auto terminator = block->getTerminator();
-    if (!input_dep_info.isInputDependent(terminator)) {
-        return false;
-    }
-    auto branch = llvm::dyn_cast<llvm::BranchInst>(terminator);
-    if (!branch || !branch->isConditional()) {
-        return false;
-    }
-    return true;
-}
-
-void update_processed_blocks(const llvm::BasicBlock* block, const llvm::BasicBlock* stop_block,
-                             std::unordered_set<const llvm::BasicBlock*>& processed_blocks)
+void SnippetsCreator::update_processed_blocks(const llvm::BasicBlock* block,
+                                              const llvm::BasicBlock* stop_block,
+                                              std::unordered_set<const llvm::BasicBlock*>& processed_blocks)
 {
     if (block == stop_block) {
         return;
@@ -166,53 +251,19 @@ bool FunctionExtractionPass::runOnFunction(llvm::Function& F)
     bool modified = false;
     auto input_dep_info = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
     assert(input_dep_info != nullptr);
-    const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>().getPostDomTree();
+    llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>().getPostDomTree();
 
     // map from block to snippets?
-    std::vector<Snippet_type> snippets;
-    std::unordered_set<const llvm::BasicBlock*> processed_blocks;
-
-    auto it = F.begin();
-    while (it != F.end()) {
-        auto B = &*it;
-        auto pos = processed_blocks.find(B);
-        if (pos != processed_blocks.end()) {
-            ++it;
-            continue;
-        }
-        auto block_snippets = collect_block_snippets(it, *input_dep_info, PDom);
-
-        if (!can_root_blocks_snippet(B, *input_dep_info)) {
-            ++it;
-            processed_blocks.insert(B);
-            snippets.insert(snippets.end(), block_snippets.begin(), block_snippets.end());
-            continue;
-        }
-        // assert back end iter is block's terminator
-        auto blocks_range = get_blocks_snippet(it, PDom);
-        if (!is_valid_snippet(blocks_range.first, blocks_range.second, &F)) {
-            llvm::dbgs() << "Failed to create snippet out of blocks, starting with block "
-                         << B->getName() << "\n";
-        } else {
-            auto back = block_snippets.back();
-            block_snippets.pop_back();
-            update_processed_blocks(&*blocks_range.first, &*blocks_range.second, processed_blocks);
-            Snippet_type blocks_snippet(new BasicBlocksSnippet(blocks_range.first,
-                                                               blocks_range.second,
-                                                               *back->to_instrSnippet()));
-            block_snippets.push_back(blocks_snippet);
-        }
-        // for some blocks will run insert twice
-        processed_blocks.insert(B);
-        snippets.insert(snippets.end(), block_snippets.begin(), block_snippets.end());
-        ++it;
-    }
+    SnippetsCreator creator(F);
+    creator.set_input_dep_info(input_dep_info);
+    creator.set_post_dom_tree(PDom);
+    creator.collect_snippets(true);
+    const auto& snippets = creator.get_snippets();
 
     llvm::dbgs() << "Snippets for function " << F.getName() << "\n";
-    for (const auto& snippet : snippets) {
+    for (auto& snippet : snippets) {
         snippet->dump();
     }
-    llvm::dbgs() << "\n";
     return modified;
 }
 

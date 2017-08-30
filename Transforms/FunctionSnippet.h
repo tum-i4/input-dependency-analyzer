@@ -5,6 +5,10 @@
 
 #include <unordered_set>
 
+namespace llvm {
+class LLVMContext;
+}
+
 namespace oh
 {
 
@@ -19,12 +23,25 @@ class BasicBlocksSnippet;
 class Snippet
 {
 public:
+    using ValueSet = std::unordered_set<llvm::Value*>;
+
+public:
     virtual bool is_valid_snippet() const = 0;
+    virtual bool is_single_instr_snippet() const
+    {
+        return false;
+    }
     virtual bool intersects(const Snippet& snippet) const = 0;
     virtual void expand() = 0;
+    virtual void collect_used_values() = 0;
     virtual void merge(const Snippet& snippet) = 0;
-    virtual llvm::Function* toFunction() = 0;
+    virtual llvm::Function* to_function() = 0;
     virtual void dump() const = 0;
+
+    const ValueSet& get_used_values() const
+    {
+        return m_used_values;
+    }
 
     virtual InstructionsSnippet* to_instrSnippet()
     {
@@ -35,6 +52,9 @@ public:
     {
         return nullptr;
     }
+
+protected:
+    ValueSet m_used_values; 
 };
 
 class InstructionsSnippet : public Snippet
@@ -47,10 +67,12 @@ public:
 
 public:
     bool is_valid_snippet() const override;
+    bool is_single_instr_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
+    void collect_used_values() override;
     void merge(const Snippet& snippet) override;
-    llvm::Function* toFunction() override;
+    llvm::Function* to_function() override;
     void dump() const override;
     virtual InstructionsSnippet* to_instrSnippet() override;
 
@@ -99,8 +121,9 @@ public:
     bool is_valid_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
+    void collect_used_values() override;
     void merge(const Snippet& snippet) override;
-    llvm::Function* toFunction() override;
+    llvm::Function* to_function() override;
     void dump() const override;
     virtual BasicBlocksSnippet* to_blockSnippet() override;
 

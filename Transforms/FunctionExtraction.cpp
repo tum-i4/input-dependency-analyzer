@@ -59,6 +59,7 @@ public:
 
 private:
     snippet_list collect_block_snippets(llvm::Function::iterator block_it);
+    bool derive_input_dependency_from_args(llvm::Instruction* I) const;
     bool can_root_blocks_snippet(llvm::BasicBlock* block) const;
     BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos);
     llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block);
@@ -70,7 +71,6 @@ private:
     llvm::Function& m_F;
     InputDependencyAnalysisInfo* m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
-    std::unordered_map<llvm::BasicBlock*, snippet_list> m_block_snippets;
     snippet_list m_snippets;
 };
 
@@ -90,7 +90,6 @@ void SnippetsCreator::collect_snippets(bool expand)
             ++it;
             processed_blocks.insert(B);
             m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
-            m_block_snippets[B] = block_snippets;
             continue;
         }
         // assert back end iter is block's terminator
@@ -111,7 +110,6 @@ void SnippetsCreator::collect_snippets(bool expand)
         // for some blocks will run insert twice
         processed_blocks.insert(B);
         m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
-        m_block_snippets[B] = block_snippets;
         ++it;
     }
     if (expand) {
@@ -124,6 +122,11 @@ void SnippetsCreator::expand_snippets()
     for (auto& snippet : m_snippets) {
         snippet->expand();
     }
+    if (m_snippets.size() == 1) {
+        if ((*m_snippets.begin())->is_single_instr_snippet()) {
+            m_snippets.clear();
+        }
+    }
 
     auto it = m_snippets.begin();
     while (it != m_snippets.end()) {
@@ -133,8 +136,20 @@ void SnippetsCreator::expand_snippets()
             continue;
         }
         auto next_it = it + 1;
+        if (next_it == m_snippets.end()) {
+            // last snippet and is one instruction snippet
+            if ((*it)->is_single_instr_snippet()) {
+                m_snippets.erase(it);
+            }
+            break;
+        }
         if ((*it)->intersects(**next_it)) {
             (*next_it)->merge(**it);
+            auto old = it;
+            ++it;
+            m_snippets.erase(old);
+        } else if ((*it)->is_single_instr_snippet()) {
+            // e.g. load of input dep pointer, to store input indep value to it
             auto old = it;
             ++it;
             m_snippets.erase(old);
@@ -153,13 +168,31 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
     auto it = block->begin();
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
-        if (!m_input_dep_info->isInputDependent(I)) {
+        bool is_input_dep = m_input_dep_info->isInputDependent(I);
+        if (!is_input_dep) {
+            // TODO: what other instructions might be intresting?
+            if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
+                if (callInst->getFunctionType()->getReturnType()->isVoidTy()) {
+                    is_input_dep = derive_input_dependency_from_args(I);
+                }
+            }
+        }
+        if (!is_input_dep) {
             if (InstructionsSnippet::is_valid_snippet(begin, end, block)) {
                 snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
                 begin = block->end();
                 end = block->end();
             }
         } else {
+            if (auto store = llvm::dyn_cast<llvm::StoreInst>(I)) {
+                // Skip the instruction storing argument to a local variable. This should happen anyway, no need to extract
+                if (llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
+                    ++it;
+                    continue;
+                }
+            } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(I)) {
+                break;
+            }
             if (begin != block->end()) {
                 end = it;
             } else {
@@ -173,6 +206,22 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
         snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
     }
     return snippets;
+}
+
+bool SnippetsCreator::derive_input_dependency_from_args(llvm::Instruction* I) const
+{
+    // return true if all arguments are input dependent
+    bool is_input_dep = true;
+    for (unsigned i = 0; i < I->getNumOperands(); ++i) {
+        auto op = I->getOperand(i);
+        if (auto op_inst = llvm::dyn_cast<llvm::Instruction>(op)) {
+            is_input_dep = m_input_dep_info->isInputDependent(op_inst);
+            if (!is_input_dep) {
+                break;
+            }
+        }
+    }
+    return is_input_dep;
 }
 
 bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
@@ -250,9 +299,14 @@ bool FunctionExtractionPass::runOnFunction(llvm::Function& F)
 {
     bool modified = false;
     auto input_dep_info = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
+    if (input_dep_info == nullptr) {
+        // extracted function
+        return false;
+    }
     assert(input_dep_info != nullptr);
     llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>().getPostDomTree();
 
+    llvm::dbgs() << "Snippets for function " << F.getName() << "\n";
     // map from block to snippets?
     SnippetsCreator creator(F);
     creator.set_input_dep_info(input_dep_info);
@@ -260,9 +314,12 @@ bool FunctionExtractionPass::runOnFunction(llvm::Function& F)
     creator.collect_snippets(true);
     const auto& snippets = creator.get_snippets();
 
-    llvm::dbgs() << "Snippets for function " << F.getName() << "\n";
     for (auto& snippet : snippets) {
-        snippet->dump();
+        //snippet->dump();
+    }
+    for (auto& snippet : snippets) {
+        //snippet->dump();
+        snippet->to_function();
     }
     return modified;
 }

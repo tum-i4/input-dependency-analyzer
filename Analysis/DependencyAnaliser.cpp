@@ -445,7 +445,8 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
             continue;
         }
         auto depInfo = getInstructionDependencies(I);
-        if (depInfo.isInputDep()) {
+        // TODO: what can go wrong for argument dep case?
+        if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
             item->second = depInfo;
             //item->second.mergeDependencies(pos->second);
         } else {

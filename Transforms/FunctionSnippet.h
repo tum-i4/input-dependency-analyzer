@@ -138,6 +138,7 @@ private:
     iterator m_begin;
     iterator m_end;
     InstructionsSnippet m_start;
+    std::unordered_set<llvm::BasicBlock*> m_blocks;
 };
 
 } // namespace oh

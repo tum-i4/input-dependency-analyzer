@@ -1,6 +1,30 @@
 #include "Utils.h"
 
+#include "llvm/IR/CFG.h"
+
 namespace oh {
+
+namespace {
+
+void blocks_in_range(llvm::BasicBlock* block,
+                     llvm::BasicBlock* stop_block,
+                     std::unordered_set<llvm::BasicBlock*>& blocks)
+{
+    if (block == stop_block) {
+        return;
+    }
+    auto res = blocks.insert(block);
+    if (!res.second) {
+        return; // block is added, hence successors are also processed
+    }
+    auto it = succ_begin(block);
+    while (it != succ_end(block)) {
+        blocks_in_range(*it, stop_block, blocks);
+        ++it;
+    }
+}
+
+}
 
 llvm::BasicBlock::iterator Utils::get_instruction_pos(llvm::Instruction* I)
 {
@@ -30,6 +54,14 @@ unsigned Utils::get_instruction_index(llvm::Instruction* I)
         ++idx;
     }
     return idx;
+}
+
+std::unordered_set<llvm::BasicBlock*> Utils::get_blocks_in_range(llvm::Function::iterator begin,
+                                                                 llvm::Function::iterator end)
+{
+    std::unordered_set<llvm::BasicBlock*> blocks;
+    blocks_in_range(&*begin, &*end, blocks);
+    return blocks;
 }
 
 }

@@ -286,26 +286,11 @@ void SnippetsCreator::update_processed_blocks(const llvm::BasicBlock* block,
     }
 }
 
-}
-
-void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
+void run_on_function(llvm::Function& F,
+                     llvm::PostDominatorTree* PDom,
+                     SnippetsCreator::InputDependencyAnalysisInfo* input_dep_info,
+                     std::unordered_set<llvm::Function*>& extracted_functions)
 {
-    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
-    AU.addRequired<input_dependency::InputDependencyAnalysis>();
-    AU.setPreservesAll();
-}
-
-bool FunctionExtractionPass::runOnFunction(llvm::Function& F)
-{
-    bool modified = false;
-    auto input_dep_info = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
-    if (input_dep_info == nullptr) {
-        // extracted function
-        return false;
-    }
-    assert(input_dep_info != nullptr);
-    llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>().getPostDomTree();
-
     llvm::dbgs() << "Snippets for function " << F.getName() << "\n";
     // map from block to snippets?
     SnippetsCreator creator(F);
@@ -319,7 +304,41 @@ bool FunctionExtractionPass::runOnFunction(llvm::Function& F)
     }
     for (auto& snippet : snippets) {
         //snippet->dump();
-        snippet->to_function();
+        auto extracted_function = snippet->to_function();
+        extracted_functions.insert(extracted_function);
+    }
+}
+}
+
+void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
+{
+    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+    AU.addRequired<input_dependency::InputDependencyAnalysis>();
+    AU.setPreservesAll();
+}
+
+bool FunctionExtractionPass::runOnModule(llvm::Module& M)
+{
+    bool modified = false;
+    auto& input_dep = getAnalysis<input_dependency::InputDependencyAnalysis>();
+
+    for (auto& F : M) {
+        if (F.isDeclaration()) {
+            continue;
+        }
+        llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
+        auto input_dep_info = input_dep.getAnalysisInfo(&F);
+        if (input_dep_info == nullptr) {
+            llvm::dbgs() << "No input dep info for function " << F.getName() << ". Skip\n";
+            continue;
+        }
+
+        run_on_function(F, PDom, input_dep_info, m_extracted_functions);
+        modified = true;
+    }
+    llvm::dbgs() << "Extracted functions are \n";
+    for (const auto& f : m_extracted_functions) {
+        llvm::dbgs() << f->getName() << "\n";
     }
     return modified;
 }

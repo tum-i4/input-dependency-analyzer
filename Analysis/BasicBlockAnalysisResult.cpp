@@ -51,7 +51,7 @@ void BasicBlockAnalysisResult::dumpResults() const
 void BasicBlockAnalysisResult::analize()
 {
     for (auto& I : *m_BB) {
-        //llvm::dbgs() << "Instruction " << I << "\n";
+//        llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
@@ -69,6 +69,8 @@ void BasicBlockAnalysisResult::analize()
             processInvokeInst(invokeInst);
         } else if (auto* phi = llvm::dyn_cast<llvm::PHINode>(&I)) {
             processPhiNode(phi);
+        } else if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(&I)) {
+            processBitCast(bitcast);
         } else {
             processInstruction(&I);
         }

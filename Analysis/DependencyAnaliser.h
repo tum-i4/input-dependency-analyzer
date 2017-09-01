@@ -55,6 +55,7 @@ public:
 protected:
     virtual void processInstruction(llvm::Instruction* inst);
     virtual void processPhiNode(llvm::PHINode* phi);
+    virtual void processBitCast(llvm::BitCastInst* bitcast);
     virtual void processReturnInstr(llvm::ReturnInst* retInst);
     virtual void processBranchInst(llvm::BranchInst* branchInst);
     virtual void processStoreInst(llvm::StoreInst* storeInst);

@@ -457,17 +457,18 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         }
         // predecessor is in loop
         // We assume loops are not inifinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
+        //TODO: this is not necessarily the case for goto-s
         if (m_LI.getLoopFor(pb) != nullptr) {
             ++pred;
             continue;
         }
         // if all terminating instructions leading to this block are unconditional, this block will be executed not depending on input.
-        if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
-            if (branchInstr->isUnconditional()) {
-                ++pred;
-                continue;
-            }
-        }
+        //if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
+        //    if (branchInstr->isUnconditional()) {
+        //        ++pred;
+        //        continue;
+        //    }
+        //}
 
         auto pos = m_BBAnalysisResults.find(pb);
         if (pos == m_BBAnalysisResults.end()) {
@@ -477,14 +478,15 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             continue;
         }
         assert(pos != m_BBAnalysisResults.end());
-        if (pos != m_BBAnalysisResults.end()) {
-            dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
-        }
+        dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
         auto pred_node = m_postDomTree[*pred];
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
     }
     // if block postdominates all its predecessors, it will be reached independent of predecessors.
+    llvm::BasicBlock* entry = &m_F->getEntryBlock();
+    auto entry_node = m_postDomTree[entry];
+    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, entry_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }

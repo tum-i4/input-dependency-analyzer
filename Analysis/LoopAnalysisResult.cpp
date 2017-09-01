@@ -297,6 +297,7 @@ void LoopAnalysisResult::gatherResults()
                 updateValueDependencies(B);
             }
         }
+        m_is_inputDep = true;
     } else {
         reflect();
     }
@@ -318,6 +319,19 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
+    auto& loop_dependencies = m_loopDependencies.getValueDependencies();
+    if (!loop_dependencies.empty()) {
+        for (auto& loopDep : loop_dependencies) {
+            auto dep = m_valueDependencies.find(loopDep);
+            if (dep != m_valueDependencies.end()) {
+                m_loopDependencies.mergeDependencies(dep->second);
+            }
+        }
+    }
+    loop_dependencies.clear();
+    if (m_loopDependencies.isValueDep()) {
+        m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
+    }
     if (m_loopDependencies.isInputDep()) {
         m_is_inputDep = true;
     } else if (m_loopDependencies.isInputArgumentDep()
@@ -578,7 +592,7 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
                 continue;
             }
             if (pred_loop == nullptr) {
-                llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
+                //llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
                 ++pred;
                 continue;
             }
@@ -928,6 +942,9 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
     }
+    llvm::BasicBlock* header = m_L.getHeader();
+    auto header_node = m_postDomTree[header];
+    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
@@ -940,14 +957,17 @@ DepInfo LoopAnalysisResult::getBlockTerminatingDependencies(llvm::BasicBlock* B)
     if (termInstr == nullptr) {
         return DepInfo(DepInfo::INPUT_DEP);
     }
-    if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
-        if (branchInstr->isUnconditional()) {
-            return DepInfo();
-        }
-    }
+    //if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
+    //    if (branchInstr->isUnconditional()) {
+    //        return DepInfo();
+    //    }
+    //}
     auto pos = m_BBAnalisers.find(B);
     if (pos == m_BBAnalisers.end()) {
         ValueSet values = Utils::dissolveInstruction(termInstr);
+        if (values.empty()) {
+            return DepInfo(DepInfo::INPUT_INDEP);
+        }
         return DepInfo(DepInfo::VALUE_DEP, values);
     }
     return pos->second->getInstructionDependencies(termInstr);

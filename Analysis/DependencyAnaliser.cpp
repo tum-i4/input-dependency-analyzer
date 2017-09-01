@@ -46,12 +46,9 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
         }
         assert(pos != globalDeps.end());
         assert(pos->second.isDefined());
-        assert(!pos->second.isValueDep() || pos->second.isOnlyGlobalValueDependent());
-        if (pos->second.isValueDep()) {
-            continue;
-        }
-        //assert(!pos->second.isValueDep());
-        newInfo.mergeDependencies(pos->second);
+        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
+        newInfo.mergeDependencies(pos->second.getArgumentDependencies());
+        newInfo.mergeDependency(pos->second.getDependency());
     }
     return newInfo;
 }
@@ -221,6 +218,29 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
         info.mergeDependencies(DepInfo(DepInfo::INPUT_DEP));
     }
     updateInstructionDependencies(phi, info);
+}
+
+void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
+{
+    auto castedValue = bitcast->getOperand(0);
+    assert(castedValue != nullptr);
+    DepInfo depInfo;
+    auto args = isInput(castedValue);
+    if (!args.empty()) {
+        depInfo = DepInfo(DepInfo::INPUT_ARGDEP, args);
+    }
+    auto valueDeps = getValueDependencies(castedValue);
+    depInfo.mergeDependencies(valueDeps);
+    if (!depInfo.isDefined()) {
+        if (auto instr = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
+            auto valueDeps = getInstructionDependencies(instr);
+            depInfo.mergeDependencies(valueDeps);
+        }
+    }
+
+    assert(depInfo.isDefined());
+    updateValueDependencies(bitcast, depInfo);
+    updateInstructionDependencies(bitcast, depInfo);
 }
 
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)

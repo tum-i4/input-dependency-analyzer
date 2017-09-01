@@ -39,6 +39,10 @@ protected:
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     virtual DepInfo getValueDependencies(llvm::Value* value) override;
+
+    void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
+    void updateReturnValueDependencies(const DepInfo& info) override;
     /// \}
 };
 

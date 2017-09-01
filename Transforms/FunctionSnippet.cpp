@@ -154,7 +154,9 @@ void create_value_to_value_map(const ValueToValueMap& value_ptr_map,
     }
 }
 
+// TODO: see if begin and end are realy required
 void clone_blocks_snippet_to_function(llvm::Function* new_F,
+                                      const std::unordered_set<llvm::BasicBlock*>& blocks_to_clone,
                                       BasicBlocksSnippet::iterator begin,
                                       BasicBlocksSnippet::iterator end,
                                       bool clone_begin,
@@ -162,18 +164,17 @@ void clone_blocks_snippet_to_function(llvm::Function* new_F,
 {
     // will clone begin, however it might be replaced later by new entry block, created for start snippet
     llvm::SmallVector<llvm::BasicBlock*, 10> blocks;
-    auto block_it = end;
-    do {
-        if (block_it == begin && !clone_begin) {
-            break;
+    for (const auto& block : blocks_to_clone) {
+        if (block == &*begin && !clone_begin) {
+            continue;
         }
-        auto block = llvm::CloneBasicBlock(&*block_it, value_to_value_map, "", new_F);
-        value_to_value_map.insert(std::make_pair(&*block_it, llvm::WeakVH(block)));
-        blocks.push_back(block);
-        if (block_it == begin) {
-            break;
-        }
-    } while (block_it-- != begin);
+        auto clone = llvm::CloneBasicBlock(block, value_to_value_map, "", new_F);
+        value_to_value_map.insert(std::make_pair(block, llvm::WeakVH(clone)));
+        blocks.push_back(clone);
+    }
+    auto exit_clone = llvm::CloneBasicBlock(&*end, value_to_value_map, "", new_F);
+    value_to_value_map.insert(std::make_pair(&*end, llvm::WeakVH(exit_clone)));
+    blocks.push_back(exit_clone);
     llvm::remapInstructionsInBlocks(blocks, value_to_value_map);
 }
 
@@ -302,21 +303,20 @@ void erase_snippet(llvm::Function* function,
                    const std::unordered_set<llvm::BasicBlock*>& blocks)
 {
     assert(BasicBlocksSnippet::is_valid_snippet(begin, end, function));
-    if (!erase_begin) {
-        ++begin;
-    }
     // change all predecessors from self blocks to link dummy_block
     llvm::BasicBlock* dummy_block = llvm::BasicBlock::Create(function->getParent()->getContext(), "dummy", function);
     std::vector<llvm::BasicBlock*> blocks_to_erase;
-    std::vector<llvm::Instruction*> terminators_to_remap;
+    std::unordered_set<llvm::Instruction*> terminators_to_remap;
     bool erase_blocks = true;
 
     llvm::ValueToValueMapTy block_map;
-    while (begin != end) {
-        auto block = &*begin;
-        block_map.insert(std::make_pair(block, llvm::WeakVH(dummy_block)));
+    for (const auto& block : blocks) {
+        if (block == &*begin && !erase_begin) {
+            continue;
+        } else if (block == &*end) {
+            continue;
+        }
         blocks_to_erase.push_back(block);
-        ++begin;
         if (pred_empty(block)) {
             continue;
         }
@@ -331,8 +331,11 @@ void erase_snippet(llvm::Function* function,
                 break;
             }
             auto pred_term = pred_block->getTerminator();
+            //llvm::dbgs() << "block: " << block->getName()
+            //             << ", pred " << pred_block->getName()
+            //             << ", term " << *pred_term << "\n";
             assert(pred_term != nullptr);
-            terminators_to_remap.push_back(pred_term);
+            terminators_to_remap.insert(pred_term);
             ++pred_it;
         }
         if (!erase_blocks) {
@@ -346,7 +349,7 @@ void erase_snippet(llvm::Function* function,
         llvm::Instruction* term = *term_it;
         for (llvm::Use& op : term->operands()) {
             llvm::Value* val = &*op;
-            block_map.insert(std::make_pair(val, llvm::WeakVH(val)));
+            block_map.insert(std::make_pair(val, llvm::WeakVH(dummy_block)));
         }
         llvm::ValueMapper mapper(block_map);
         ++term_it;
@@ -673,6 +676,7 @@ BasicBlocksSnippet::BasicBlocksSnippet(llvm::Function* function,
     , m_end(end)
     , m_start(start)
 {
+    m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
 }
 
 bool BasicBlocksSnippet::is_valid_snippet() const
@@ -707,10 +711,11 @@ void BasicBlocksSnippet::collect_used_values()
     m_start.collect_used_values();
     auto used_in_start = m_start.get_used_values();
     m_used_values.insert(used_in_start.begin(), used_in_start.end());
-    auto block_it = m_begin;
-    while (block_it != m_end) {
-        collect_values(block_it->begin(), block_it->end(), m_used_values);
-        ++block_it;
+    for (const auto& block : m_blocks) {
+        collect_values(block->begin(), block->end(), m_used_values);
+    }
+    if (m_blocks.find(&*m_begin) == m_blocks.end()) {
+        collect_values(m_begin->begin(), m_begin->end(), m_used_values);
     }
 }
 
@@ -736,13 +741,14 @@ void BasicBlocksSnippet::merge(const Snippet& snippet)
 // TODO: extract the common code with instruction snippet
 llvm::Function* BasicBlocksSnippet::to_function()
 {
+
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
     collect_used_values();
     llvm::LLVMContext& Ctx = m_function->getParent()->getContext();
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, arg_index_to_value);
-    llvm::dbgs() << "Function type " << *type << "\n";
+    //llvm::dbgs() << "Function type " << *type << "\n";
     std::string f_name = unique_name_generator::get().get_unique(m_begin->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
                                                    llvm::GlobalValue::LinkageTypes::ExternalLinkage,
@@ -758,7 +764,8 @@ llvm::Function* BasicBlocksSnippet::to_function()
     create_value_to_value_map(value_ptr_map, value_to_value_map);
 
     // this function will also create new exit block
-    clone_blocks_snippet_to_function(new_F, m_begin, m_end, !has_start_snippet, value_to_value_map);
+    clone_blocks_snippet_to_function(new_F, m_blocks, m_begin, m_end, !has_start_snippet, value_to_value_map);
+
     unsigned setup_size = entry_block->size();
     if (has_start_snippet) {
         // begining will go to entry block
@@ -781,10 +788,6 @@ llvm::Function* BasicBlocksSnippet::to_function()
     assert(exit_block);
     create_new_exit_block(new_F, exit_block);
     create_return_stores(&new_F->back(), value_map);
-
-    //for (auto& b : *new_F) {
-    //    llvm::dbgs() << b << "\n";
-    //}
 
     if (has_start_snippet) {
         auto insert_before = m_start.get_begin();
@@ -812,6 +815,16 @@ llvm::Function* BasicBlocksSnippet::to_function()
         }
     }
     erase_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks);
+//
+//    llvm::dbgs() << "Extracted function\n";
+//    for (const auto& b : *new_F) {
+//        llvm::dbgs() << b << "\n";
+//    }
+//
+//    llvm::dbgs() << "\n\nold function\n";
+//    for (const auto& b : *m_function) {
+//        llvm::dbgs() << b << "\n";
+//    }
     return new_F;
 }
 
@@ -836,13 +849,11 @@ void BasicBlocksSnippet::dump() const
     if (m_start.is_valid_snippet()) {
         m_start.dump();
     }
-    auto it = m_begin;
-    while (it != m_end) {
-        llvm::dbgs() << it->getName() << "\n";
-        ++it;
+    for (const auto& b : m_blocks) {
+        llvm::dbgs() << b->getName() << "\n";
     }
     if (m_end != m_begin->getParent()->end()) {
-        llvm::dbgs() << it->getName() << "\n";
+        llvm::dbgs() << m_end->getName() << "\n";
     }
     llvm::dbgs() << "*********\n";
 }

@@ -123,7 +123,6 @@ void SnippetsCreator::expand_snippets()
     for (auto& snippet : m_snippets) {
         //snippet->dump();
         snippet->expand();
-        //snippet->dump();
     }
     if (m_snippets.size() == 1) {
         if ((*m_snippets.begin())->is_single_instr_snippet()) {
@@ -254,6 +253,7 @@ llvm::BasicBlock* SnippetsCreator::find_block_postdominator(llvm::BasicBlock* bl
     const auto& b_node = (*m_pdom)[block];
     auto F = block->getParent();
     auto block_to_process = block;
+    std::unordered_set<llvm::BasicBlock*> seen_blocks;
     while (block_to_process != nullptr) {
         if (block_to_process != block) {
             auto pr_node = (*m_pdom)[block_to_process];
@@ -265,9 +265,14 @@ llvm::BasicBlock* SnippetsCreator::find_block_postdominator(llvm::BasicBlock* bl
         if (succ == succ_end(block_to_process)) {
             // block_to_process is the exit block
             block_to_process = nullptr;
-        } else {
-            block_to_process = *succ;
+            break;
         }
+
+        llvm::BasicBlock* tmp_block;
+        do {
+            tmp_block = *succ;
+        } while (!seen_blocks.insert(block).second && ++succ != succ_end(block_to_process));
+        block_to_process = tmp_block;
     }
     assert(block_to_process != nullptr);
     return block_to_process;
@@ -304,7 +309,7 @@ void run_on_function(llvm::Function& F,
     const auto& snippets = creator.get_snippets();
 
     for (auto& snippet : snippets) {
-        //snippet->dump();
+        snippet->dump();
         auto extracted_function = snippet->to_function();
         extracted_functions.insert(extracted_function);
     }

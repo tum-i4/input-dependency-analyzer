@@ -985,17 +985,29 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         }
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
-        if (val == nullptr) {
-            continue;
-        }
+        auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
+
+        //if (val == nullptr) {
+        //    continue;
+        //}
         if (FA->isOutArgInputIndependent(&arg)) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+            if (val) {
+                updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+            }
+            if (instr) {
+                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_INDEP));
+            }
             continue;
         }
         const auto& argDeps = FA->getOutArgDependencies(&arg);
         // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
         if (argDeps.isInputDep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            if (val) {
+                updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            }
+            if (instr) {
+                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
+            }
             continue;
         }
         DepInfo argDependencies;
@@ -1003,7 +1015,12 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
             argDependencies = getArgumentActualValueDependencies(argDeps.getValueDependencies());
         }
         argDependencies.mergeDependencies(getArgumentActualDependencies(argDeps.getArgumentDependencies(), callArgDeps));
-        updateValueDependencies(val, argDependencies);
+        if (val) {
+            updateValueDependencies(val, argDependencies);
+        }
+        if (instr) {
+            updateRefAliasesDependencies(instr, argDependencies);
+        }
     }
 }
 

@@ -121,7 +121,9 @@ void SnippetsCreator::collect_snippets(bool expand)
 void SnippetsCreator::expand_snippets()
 {
     for (auto& snippet : m_snippets) {
+        //snippet->dump();
         snippet->expand();
+        //snippet->dump();
     }
     if (m_snippets.size() == 1) {
         if ((*m_snippets.begin())->is_single_instr_snippet()) {
@@ -169,6 +171,7 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
     auto it = block->begin();
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
+        //llvm::dbgs() << "instr " << *I << "\n";
         bool is_input_dep = m_input_dep_info->isInputDependent(I);
         if (!is_input_dep) {
             // TODO: what other instructions might be intresting?
@@ -232,10 +235,11 @@ bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
         return false;
     }
     auto branch = llvm::dyn_cast<llvm::BranchInst>(terminator);
-    if (!branch || !branch->isConditional()) {
-        return false;
+    if (branch) {
+        return branch->isConditional();
     }
-    return true;
+    auto switch_inst = llvm::dyn_cast<llvm::SwitchInst>(terminator);
+    return (switch_inst != nullptr);
 }
 
 SnippetsCreator::BasicBlockRange SnippetsCreator::get_blocks_snippet(llvm::Function::iterator begin_block_pos)
@@ -301,13 +305,11 @@ void run_on_function(llvm::Function& F,
 
     for (auto& snippet : snippets) {
         //snippet->dump();
-    }
-    for (auto& snippet : snippets) {
-        //snippet->dump();
         auto extracted_function = snippet->to_function();
         extracted_functions.insert(extracted_function);
     }
 }
+
 }
 
 void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const

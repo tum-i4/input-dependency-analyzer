@@ -56,14 +56,24 @@ void collect_values(InstructionsSnippet::iterator begin,
     while (it != end) {
         auto instr = &*it;
         ++it;
+        // TODO: is collecting only allocas correct?
         if (auto load = llvm::dyn_cast<llvm::LoadInst>(instr)) {
-            values.insert(load->getPointerOperand());
+            auto loaded_ptr = load->getPointerOperand();
+            if (llvm::dyn_cast<llvm::AllocaInst>(loaded_ptr)) {
+                values.insert(loaded_ptr);
+            }
         } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(instr)) {
-            values.insert(store->getPointerOperand());
+            auto store_ptr = store->getPointerOperand();
+            if (llvm::dyn_cast<llvm::AllocaInst>(store_ptr)) {
+                values.insert(store_ptr);
+            }
             // ValueOperand is either a constant or an instruction that should have been processed before this store
         } else if (auto phi = llvm::dyn_cast<llvm::PHINode>(instr)) {
             for (unsigned i = 0; i < phi->getNumIncomingValues(); ++i) {
-                values.insert(phi->getIncomingValue(i));
+                auto phi_val = phi->getIncomingValue(i);
+                if (llvm::dyn_cast<llvm::AllocaInst>(phi_val)) {
+                    values.insert(phi_val);
+                }
             }
         }
     }
@@ -195,6 +205,10 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
 {
     auto& new_function_instructions = block->getInstList();
 
+    //for (const auto& map_entry : value_to_value_map) {
+    //    llvm::dbgs() << *map_entry.first << " mapped to " << *map_entry.second << "\n";
+    //}
+
     llvm::ValueMapper mapper(value_to_value_map);
     //std::vector<llvm::Instruction*> not_mapped_instrs;
     unsigned skip = 0;
@@ -236,6 +250,7 @@ llvm::CallInst* create_call_to_snippet_function(llvm::Function* F,
         builder.SetInsertPoint(insertion_point->getParent(), ++builder.GetInsertPoint());
     }
     for (auto& arg_entry : arg_index_to_value) {
+        //llvm::dbgs() << "arg entry " << *arg_entry.second << "\n";
         auto val_type = arg_entry.second->getType();
         if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(arg_entry.second)) {
             val_type = alloca->getAllocatedType();
@@ -248,6 +263,10 @@ llvm::CallInst* create_call_to_snippet_function(llvm::Function* F,
         }
     }
     llvm::ArrayRef<llvm::Value*> args_array(arguments);
+    //llvm::dbgs() << *F->getFunctionType() << "\n";
+    for (const auto& arg : args_array) {
+        //llvm::dbgs() << "Arg: " << *arg << "\n";
+    }
     llvm::CallInst* callInst = builder.CreateCall(F, args_array);
     return callInst;
 }
@@ -352,6 +371,7 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
     std::vector<llvm::Type*> arg_types;
     int i = 0;
     for (auto& val : used_values) {
+        //llvm::dbgs() << "Used value " << *val << "\n";
         arg_values[i] = val;
         ++i;
         auto type = val->getType();
@@ -417,6 +437,7 @@ void InstructionsSnippet::expand()
             break;
         }
     } while (it-- != m_begin);
+
 }
 
 void InstructionsSnippet::collect_used_values()
@@ -441,6 +462,8 @@ void InstructionsSnippet::merge(const Snippet& snippet)
             m_end = instr_snippet->get_end();
             m_end_idx = instr_snippet->get_end_index();
         }
+        const auto& used_values = instr_snippet->get_used_values();
+        m_used_values.insert(used_values.begin(), used_values.end());
         return;
     }
     assert(false);
@@ -588,10 +611,13 @@ void InstructionsSnippet::snippet_instructions(InstructionSet& instrs) const
 void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
                                                  InstructionSet& instructions)
 {
+    //llvm::dbgs() << "expand for instr " << *instr << "\n";
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(instr)) {
         assert(instructions.find(instr) != instructions.end());
         if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(load->getPointerOperand())) {
             m_used_values.insert(alloca);
+        } else if (auto loaded_inst = llvm::dyn_cast<llvm::Instruction>(load->getPointerOperand())) {
+            expand_for_instruction_operand(loaded_inst, instructions);
         }
         return;
     }
@@ -619,6 +645,10 @@ void InstructionsSnippet::expand_for_instruction_operand(llvm::Value* val,
 {
     auto instr = llvm::dyn_cast<llvm::Instruction>(val);
     if (!instr) {
+        return;
+    }
+    if (llvm::dyn_cast<llvm::AllocaInst>(val)) {
+        m_used_values.insert(val);
         return;
     }
     auto res = instructions.insert(instr);
@@ -712,6 +742,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, arg_index_to_value);
+    llvm::dbgs() << "Function type " << *type << "\n";
     std::string f_name = unique_name_generator::get().get_unique(m_begin->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
                                                    llvm::GlobalValue::LinkageTypes::ExternalLinkage,
@@ -802,7 +833,9 @@ BasicBlocksSnippet* BasicBlocksSnippet::to_blockSnippet()
 void BasicBlocksSnippet::dump() const
 {
     llvm::dbgs() << "****Block snippet*****\n";
-    m_start.dump();
+    if (m_start.is_valid_snippet()) {
+        m_start.dump();
+    }
     auto it = m_begin;
     while (it != m_end) {
         llvm::dbgs() << it->getName() << "\n";

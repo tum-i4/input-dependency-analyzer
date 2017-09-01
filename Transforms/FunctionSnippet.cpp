@@ -48,6 +48,25 @@ using ValueToValueMap = std::unordered_map<llvm::Value*, llvm::Value*>;
 using ArgIdxToValueMap = std::unordered_map<int, llvm::Value*>;
 using ArgToValueMap = std::unordered_map<llvm::Argument*, llvm::Value*>;
 
+void collect_values(llvm::Value* val,
+                    Snippet::ValueSet& values)
+{
+    if (!val) {
+        return;
+    }
+    auto instr = llvm::dyn_cast<llvm::Instruction>(val);
+    if (!instr) {
+        return;
+    }
+    if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
+        values.insert(instr);
+        return;
+    }
+    for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
+        collect_values(instr->getOperand(i), values);
+    }
+}
+
 void collect_values(InstructionsSnippet::iterator begin,
                     InstructionsSnippet::iterator end,
                     Snippet::ValueSet& values)
@@ -56,26 +75,8 @@ void collect_values(InstructionsSnippet::iterator begin,
     while (it != end) {
         auto instr = &*it;
         ++it;
-        // TODO: is collecting only allocas correct?
-        if (auto load = llvm::dyn_cast<llvm::LoadInst>(instr)) {
-            auto loaded_ptr = load->getPointerOperand();
-            if (llvm::dyn_cast<llvm::AllocaInst>(loaded_ptr)) {
-                values.insert(loaded_ptr);
-            }
-        } else if (auto store = llvm::dyn_cast<llvm::StoreInst>(instr)) {
-            auto store_ptr = store->getPointerOperand();
-            if (llvm::dyn_cast<llvm::AllocaInst>(store_ptr)) {
-                values.insert(store_ptr);
-            }
-            // ValueOperand is either a constant or an instruction that should have been processed before this store
-        } else if (auto phi = llvm::dyn_cast<llvm::PHINode>(instr)) {
-            for (unsigned i = 0; i < phi->getNumIncomingValues(); ++i) {
-                auto phi_val = phi->getIncomingValue(i);
-                if (llvm::dyn_cast<llvm::AllocaInst>(phi_val)) {
-                    values.insert(phi_val);
-                }
-            }
-        }
+        collect_values(instr, values);
+        continue;
     }
 }
 
@@ -135,14 +136,17 @@ void clone_snippet_to_function(llvm::BasicBlock* block,
 {
     auto& new_function_instructions = block->getInstList();
     auto inst_it = begin;
-    end++;
+    if (end != begin->getParent()->end()) {
+        end++;
+    }
     while (inst_it != end) {
         llvm::Instruction* I = &*inst_it;
+        ++inst_it;
+        //llvm::dbgs() << "Clone " << *I << "\n";
         llvm::Instruction* new_I = I->clone();
         //llvm::dbgs() << "Clonned: " << *new_I << "\n";
         new_function_instructions.push_back(new_I);
         value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
-        ++inst_it;
     }
 }
 
@@ -277,6 +281,9 @@ void erase_snippet(llvm::BasicBlock* block,
                    llvm::BasicBlock::iterator end)
 {
     assert(InstructionsSnippet::is_valid_snippet(begin, end, block));
+    if (end == begin->getParent()->end()) {
+        --end;
+    }
     while (end != begin) {
         auto inst = &*end;
         --end;
@@ -296,6 +303,7 @@ void erase_snippet(llvm::BasicBlock* block,
     }
 }
 
+// TODO: cleanup this mess
 void erase_snippet(llvm::Function* function,
                    bool erase_begin,
                    llvm::Function::iterator begin,
@@ -306,7 +314,7 @@ void erase_snippet(llvm::Function* function,
     // change all predecessors from self blocks to link dummy_block
     llvm::BasicBlock* dummy_block = llvm::BasicBlock::Create(function->getParent()->getContext(), "dummy", function);
     std::vector<llvm::BasicBlock*> blocks_to_erase;
-    std::unordered_set<llvm::Instruction*> terminators_to_remap;
+    std::unordered_set<llvm::Instruction*> users_to_remap;
     bool erase_blocks = true;
 
     llvm::ValueToValueMapTy block_map;
@@ -316,7 +324,16 @@ void erase_snippet(llvm::Function* function,
         } else if (block == &*end) {
             continue;
         }
+        block_map.insert(std::make_pair(block, llvm::WeakVH(dummy_block)));
         blocks_to_erase.push_back(block);
+        // add all phi nodes, as those are not reported as use :[[
+        // note this is not necessarely solving the problem with other uses
+        auto non_phi = block->getFirstNonPHI();
+        if (non_phi) {
+            auto non_phi_pos = non_phi->getIterator();
+            std::for_each(block->begin(), non_phi_pos,
+                          [&users_to_remap] (llvm::Instruction& instr) { users_to_remap.insert(&instr);});
+        }
         if (pred_empty(block)) {
             continue;
         }
@@ -335,24 +352,42 @@ void erase_snippet(llvm::Function* function,
             //             << ", pred " << pred_block->getName()
             //             << ", term " << *pred_term << "\n";
             assert(pred_term != nullptr);
-            terminators_to_remap.insert(pred_term);
+            users_to_remap.insert(pred_term);
             ++pred_it;
         }
+        // now find other uses, e.g. phi nodes. 
+        // TODO: what about handling predecessors here
+        for (auto user : block->users()) {
+            if (auto instr = llvm::dyn_cast<llvm::Instruction>(user)) {
+                if (users_to_remap.find(instr) != users_to_remap.end()) {
+                    continue;
+                }
+                llvm::dbgs() << "use of block " << block->getName()
+                             << "   " << *instr << "\n";
+                auto user_parent = instr->getParent();
+                if (blocks.find(user_parent) == blocks.end()) {
+                    llvm::dbgs() << "Basic block has predecessors: do not erase " << block->getName() << "\n"; 
+                    erase_blocks = false;
+                    break;
+                }
+                users_to_remap.insert(instr);
+            }
+        }
         if (!erase_blocks) {
-            terminators_to_remap.clear();
+            users_to_remap.clear();
             break;
         }
     }
     block_map.insert(std::make_pair(&*end, llvm::WeakVH(dummy_block)));
-    auto term_it = terminators_to_remap.begin();
-    while (term_it != terminators_to_remap.end()) {
+    auto term_it = users_to_remap.begin();
+    while (term_it != users_to_remap.end()) {
         llvm::Instruction* term = *term_it;
+        ++term_it;
         for (llvm::Use& op : term->operands()) {
             llvm::Value* val = &*op;
             block_map.insert(std::make_pair(val, llvm::WeakVH(dummy_block)));
         }
         llvm::ValueMapper mapper(block_map);
-        ++term_it;
         mapper.remapInstruction(*term);
     }
     auto it = blocks_to_erase.begin();
@@ -744,6 +779,10 @@ llvm::Function* BasicBlocksSnippet::to_function()
 
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
     collect_used_values();
+
+    //    for (const auto& v : m_used_values) {
+    //        llvm::dbgs() << *v << "\n";
+    //    }
     llvm::LLVMContext& Ctx = m_function->getParent()->getContext();
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
@@ -792,9 +831,10 @@ llvm::Function* BasicBlocksSnippet::to_function()
     if (has_start_snippet) {
         auto insert_before = m_start.get_begin();
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
+        erase_snippet(m_start.get_block(), m_start.get_begin(), m_start.get_end());
         auto branch_inst = llvm::BranchInst::Create(&*m_end);
         m_start.get_block()->getInstList().push_back(branch_inst);
-        erase_snippet(m_start.get_block(), m_start.get_begin(), m_start.get_end());
+
     }  else {
         // insert at the end of each predecessor
         // Is it safe to assume there is only one predecessor?
@@ -821,10 +861,10 @@ llvm::Function* BasicBlocksSnippet::to_function()
 //        llvm::dbgs() << b << "\n";
 //    }
 //
-//    llvm::dbgs() << "\n\nold function\n";
-//    for (const auto& b : *m_function) {
-//        llvm::dbgs() << b << "\n";
-//    }
+    //llvm::dbgs() << "\n\nold function\n";
+    //for (const auto& b : *m_function) {
+    //    llvm::dbgs() << b << "\n";
+    //}
     return new_F;
 }
 

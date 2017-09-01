@@ -15,7 +15,8 @@
 
 #include "FunctionSnippet.h"
 #include "Utils.h"
-#include "Analysis/InputDependencyStatistics.h"
+#include "Analysis/InputDependencyAnalysis.h"
+#include "Analysis/InputDependentFunctions.h"
 
 #include <vector>
 #include <memory>
@@ -291,7 +292,6 @@ void run_on_function(llvm::Function& F,
                      SnippetsCreator::InputDependencyAnalysisInfo* input_dep_info,
                      std::unordered_set<llvm::Function*>& extracted_functions)
 {
-    llvm::dbgs() << "Snippets for function " << F.getName() << "\n";
     // map from block to snippets?
     SnippetsCreator creator(F);
     creator.set_input_dep_info(input_dep_info);
@@ -314,6 +314,7 @@ void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
     AU.addRequired<input_dependency::InputDependencyAnalysis>();
+    AU.addRequired<input_dependency::InputDependentFunctionsPass>();
     AU.setPreservesAll();
 }
 
@@ -321,22 +322,30 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
 {
     bool modified = false;
     auto& input_dep = getAnalysis<input_dependency::InputDependencyAnalysis>();
+    const auto& function_calls = getAnalysis<input_dependency::InputDependentFunctionsPass>();
 
     for (auto& F : M) {
+        llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
         if (F.isDeclaration()) {
+            llvm::dbgs() << "Skip: Declaration function " << F.getName() << "\n";
+            continue;
+        }
+        auto input_dep_info = input_dep.getAnalysisInfo(&F);
+        if (input_dep_info == nullptr) {
+            llvm::dbgs() << "Skip: No input dep info for function " << F.getName() << "\n";
+            continue;
+        }
+        if (!function_calls.is_function_input_independent(&F)) {
+            llvm::dbgs() << "Skip: Input dependent function " << F.getName() << "\n";
             continue;
         }
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
-        auto input_dep_info = input_dep.getAnalysisInfo(&F);
-        if (input_dep_info == nullptr) {
-            llvm::dbgs() << "No input dep info for function " << F.getName() << ". Skip\n";
-            continue;
-        }
-
         run_on_function(F, PDom, input_dep_info, m_extracted_functions);
         modified = true;
+        llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";
     }
-    llvm::dbgs() << "Extracted functions are \n";
+
+    llvm::dbgs() << "\nExtracted functions are \n";
     for (const auto& f : m_extracted_functions) {
         llvm::dbgs() << f->getName() << "\n";
     }

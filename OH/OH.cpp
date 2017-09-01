@@ -17,7 +17,12 @@ using namespace llvm;
 namespace {
 	struct OHPass : public FunctionPass {
 		static char ID;
-		OHPass() : FunctionPass(ID) {}
+
+                unsigned count;
+		OHPass()
+                    : FunctionPass(ID)
+                    , count(0)
+                {}
 		virtual bool runOnFunction(Function &F){
 			bool didModify = false;
 			for (auto& B : F) {
@@ -50,7 +55,8 @@ namespace {
 					//}
 				}
 			}
-                        printHash(&F.back());
+                        printHash(&F.back(), count);
+                        ++count;
 			return didModify;
 		}
 
@@ -97,9 +103,20 @@ namespace {
 				Value *value, bool insertBeforeInstruction){
 			LLVMContext& Ctx = BB->getParent()->getContext();
 			// get BB parent -> Function -> get parent -> Module	
-			Constant* hashFunc = BB->getParent()->getParent()->getOrInsertFunction(
-					"hashMe", Type::getVoidTy(Ctx), Type::getInt32Ty(Ctx), NULL
-					);
+			Constant* hashFunc;
+                        if (value->getType()->isIntegerTy(32)) {
+                            llvm::dbgs() << "hash me for integer\n";
+                            hashFunc = BB->getParent()->getParent()->getOrInsertFunction(
+                                    "hashMeInt", Type::getVoidTy(Ctx), Type::getInt32Ty(Ctx), NULL);
+                        } else if (value->getType()->isIntegerTy(64)) {
+                            llvm::dbgs() << "hash me for long integer\n";
+                            hashFunc = BB->getParent()->getParent()->getOrInsertFunction(
+                                    "hashMeLong", Type::getVoidTy(Ctx), Type::getInt64Ty(Ctx), NULL);
+                        } else {
+                            llvm::dbgs() << "skip hashing for type " << *value->getType();
+                            return;
+                        }
+
 			IRBuilder <> builder(I);
 			auto insertPoint = ++builder.GetInsertPoint();
 			if(insertBeforeInstruction){
@@ -108,7 +125,7 @@ namespace {
 			}
 			Value *args = {value};
 			builder.SetInsertPoint(BB, insertPoint);
-			printArg(BB, &builder, value->getName());
+			//printArg(BB, &builder, value->getName());
 			builder.CreateCall(hashFunc, args);
 		}
 		void printArg(BasicBlock *BB, IRBuilder<> *builder, std::string valueName){
@@ -127,15 +144,21 @@ namespace {
 			values.push_back(argument);
 			builder->CreateCall(printfFunc, values);
 		}
-		void printHash(BasicBlock *BB) {
+		void printHash(BasicBlock *BB, unsigned count) {
 			LLVMContext& Ctx = BB->getParent()->getContext();
 			// get BB parent -> Function -> get parent -> Module 
+                        llvm::ArrayRef<llvm::Type*> params{llvm::Type::getInt32Ty(Ctx)};
+                        llvm::FunctionType* function_type = llvm::FunctionType::get(llvm::Type::getVoidTy(Ctx), params, false);
 			Constant* logHashFunc = BB->getParent()->getParent()->getOrInsertFunction(
-					"logHash", Type::getVoidTy(Ctx),NULL);
+					                    "logHash", function_type);
 			IRBuilder <> builder(BB);
                         builder.SetInsertPoint(BB, --builder.GetInsertPoint());
 			dbgs() << "FuncName: "<<BB->getParent()->getName()<<"\n";
-			builder.CreateCall(logHashFunc);	
+
+                        std::vector<llvm::Value*> arg_values;
+                        arg_values.push_back(llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), count));
+                        llvm::ArrayRef<llvm::Value*> args(arg_values);
+			builder.CreateCall(logHashFunc, args);	
 		}
 	};
 }

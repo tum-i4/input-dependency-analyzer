@@ -359,6 +359,11 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     return modified;
 }
 
+const std::unordered_set<llvm::Function*>& FunctionExtractionPass::get_extracted_functions() const
+{
+    return m_extracted_functions;
+}
+
 char FunctionExtractionPass::ID = 0;
 static llvm::RegisterPass<FunctionExtractionPass> X(
                                 "extract-functions",

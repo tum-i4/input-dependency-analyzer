@@ -26,6 +26,8 @@ public:
     void getAnalysisUsage(llvm::AnalysisUsage& AU) const override;
     bool runOnModule(llvm::Module& M) override;
 
+    const std::unordered_set<llvm::Function*>& get_extracted_functions() const;
+
 private:
     std::unordered_set<llvm::Function*> m_extracted_functions;
 };

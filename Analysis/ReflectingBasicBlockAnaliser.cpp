@@ -122,6 +122,7 @@ void resolveCompundNodeDeps(value_dependence_graph::nodeT& node,
             val_pos->second = dep_info;
         }
         for (auto& dep_node : node->get_dependent_values()) {
+            dep_node->remove_depends_on(node);
             if (dep_node->is_root()) {
                 continue;
             }

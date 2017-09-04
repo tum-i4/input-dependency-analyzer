@@ -109,6 +109,7 @@ private:
 class BasicBlocksSnippet : public Snippet
 {
 public:
+    using BlockSet = std::unordered_set<llvm::BasicBlock*>;
     using iterator = llvm::Function::iterator;
 
 public:
@@ -138,7 +139,7 @@ private:
     iterator m_begin;
     iterator m_end;
     InstructionsSnippet m_start;
-    std::unordered_set<llvm::BasicBlock*> m_blocks;
+    BlockSet m_blocks;
 };
 
 } // namespace oh

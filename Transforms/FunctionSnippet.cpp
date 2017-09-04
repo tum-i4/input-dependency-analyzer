@@ -47,6 +47,20 @@ private:
 using ValueToValueMap = std::unordered_map<llvm::Value*, llvm::Value*>;
 using ArgIdxToValueMap = std::unordered_map<int, llvm::Value*>;
 using ArgToValueMap = std::unordered_map<llvm::Argument*, llvm::Value*>;
+using InstructionSet = std::unordered_set<llvm::Instruction*>;
+using BlockSet = BasicBlocksSnippet::BlockSet;
+
+/*
+ * Returns allocated type for the value
+ */
+llvm::Type* get_value_type(llvm::Value* val)
+{
+    auto val_type = val->getType();
+    if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
+        val_type = alloca->getAllocatedType();
+    }
+    return val_type;
+}
 
 void collect_values(llvm::Value* val,
                     Snippet::ValueSet& values)
@@ -76,75 +90,58 @@ void collect_values(InstructionsSnippet::iterator begin,
         auto instr = &*it;
         ++it;
         collect_values(instr, values);
-        continue;
     }
 }
 
+/*
+ * Creates value and argument maps necessary for function extraction,
+ * argument adjustment and instructions remapping in extracted function.
+ * This function not only collects maps, but also creates all necessary instructions for handling arguments in extracted function.
+ *
+ * arg_index_to_value defines the order of arguments for the function to be extracted,
+ * as well as corresponding values to be passes at call site. e.g. 0 -> n, means value n will be the first argument of a call.
+ * value_ptr_map defines a mapping of a value in original function, to corresponding value in extracted function.
+ * e.g. for argument n, a value n.el will be created in extracted function. value_ptr_map will contain entry n -> n.el.
+ * n.el is an intermediate value in extracted function. All uses of n in extracted instructions will be remapped to use n.el instead.
+ * value_map defines mapping from n.ptr to n.el. n.ptr is a pointer value, that captures argument n. (all arguments are pointers).
+ * This map is used at the end of extracted function, to store n.el values back to corresponding n.ptr pointers (i.e. to return from function).
+ */
 void setup_function_mappings(llvm::Function* new_F,
                              ArgIdxToValueMap& arg_index_to_value,
                              ValueToValueMap& value_ptr_map,
                              ValueToValueMap& value_map)
 {
-    // value_ptr_map maps value in original function to value in extracted function
-    // value_map maps intermediate value in extracted function to pointer value corresponding to argument in extracted function
-
     // Create block for new function
     llvm::BasicBlock* entry_block = llvm::BasicBlock::Create(new_F->getParent()->getContext(), "entry", new_F);
     llvm::IRBuilder<> builder(entry_block);
 
     // create mapping from used values to function arguments
-
     builder.SetInsertPoint(entry_block, ++builder.GetInsertPoint());
     auto arg_it = new_F->arg_begin();
     unsigned i = 0;
     while (arg_it != new_F->arg_end()) {
         const std::string arg_name = "arg" + std::to_string(i);
         arg_it->setName(arg_name);
-        llvm::Value* val = arg_index_to_value[i];
-
         auto ptr_type = llvm::dyn_cast<llvm::PointerType>(arg_it->getType());
-        auto val_type = val->getType();
-        if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-            val_type = alloca->getAllocatedType();
-        }
         assert(ptr_type != nullptr);
-        //llvm::dbgs() << "Pointer " << *ptr_type << "\n";
+        llvm::Value* val = arg_index_to_value[i];
+        auto val_type = get_value_type(val);
 
         auto new_ptr_val = builder.CreateAlloca(ptr_type, nullptr,  arg_name + ".ptr");
         builder.CreateStore(&*arg_it, new_ptr_val);
-        if (!val_type->isPointerTy()) {
-            // otherwise do not create intermediate value
+        if (val_type->isPointerTy()) {
+            // the original value is pointer, no intermediate value needs to be created
+            value_ptr_map[val] = new_ptr_val;
+        } else {
             auto new_val = builder.CreateAlloca(ptr_type->getElementType(), nullptr, arg_name + ".el");
-
             auto ptr_load = builder.CreateLoad(new_ptr_val);
             auto load = builder.CreateLoad(ptr_load);
             builder.CreateStore(load, new_val);
             value_map[new_ptr_val] = new_val;
             value_ptr_map[val] = new_val;
-        } else {
-            value_ptr_map[val] = new_ptr_val;
         }
         ++arg_it;
         ++i;
-    }
-}
-
-void clone_snippet_to_function(llvm::BasicBlock* block,
-                               InstructionsSnippet::iterator begin,
-                               InstructionsSnippet::iterator end,
-                               llvm::ValueToValueMapTy& value_to_value_map)
-{
-    auto& new_function_instructions = block->getInstList();
-    auto inst_it = begin;
-    if (end != begin->getParent()->end()) {
-        end++;
-    }
-    while (inst_it != end) {
-        llvm::Instruction* I = &*inst_it;
-        ++inst_it;
-        llvm::Instruction* new_I = I->clone();
-        new_function_instructions.push_back(new_I);
-        value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
     }
 }
 
@@ -157,9 +154,42 @@ void create_value_to_value_map(const ValueToValueMap& value_ptr_map,
     }
 }
 
-// TODO: see if begin and end are realy required
+void remap_value_in_instruction(llvm::Instruction* instr, llvm::Value* old_value, llvm::Value* new_value)
+{
+    for (llvm::Use& op : instr->operands()) {
+        llvm::Value* val = &*op;
+        if (val == old_value) {
+            op = new_value;
+        }
+    }
+}
+
+/*
+ * Clone instructions of the given snippet into new block.
+ * Creates mapping from old instructions to new clones
+ */
+void clone_snippet_to_function(llvm::BasicBlock* block,
+                               InstructionsSnippet::iterator begin,
+                               InstructionsSnippet::iterator end,
+                               llvm::ValueToValueMapTy& value_to_value_map)
+{
+    auto& new_function_instructions = block->getInstList();
+    auto inst_it = begin;
+    // to include end
+    if (end != begin->getParent()->end()) {
+        end++;
+    }
+    while (inst_it != end) {
+        llvm::Instruction* I = &*inst_it;
+        ++inst_it;
+        llvm::Instruction* new_I = I->clone();
+        new_function_instructions.push_back(new_I);
+        value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
+    }
+}
+
 void clone_blocks_snippet_to_function(llvm::Function* new_F,
-                                      const std::unordered_set<llvm::BasicBlock*>& blocks_to_clone,
+                                      const BlockSet& blocks_to_clone,
                                       BasicBlocksSnippet::iterator begin,
                                       BasicBlocksSnippet::iterator end,
                                       bool clone_begin,
@@ -183,7 +213,8 @@ void clone_blocks_snippet_to_function(llvm::Function* new_F,
 
 void create_new_exit_block(llvm::Function* new_F, llvm::BasicBlock* old_exit_block)
 {
-    llvm::BasicBlock* new_exit = llvm::BasicBlock::Create(new_F->getParent()->getContext(), "ret", new_F);
+    std::string block_name = unique_name_generator::get().get_unique("exit");
+    llvm::BasicBlock* new_exit = llvm::BasicBlock::Create(new_F->getParent()->getContext(), block_name, new_F);
     auto retInst = llvm::ReturnInst::Create(new_F->getParent()->getContext());
     new_exit->getInstList().push_back(retInst);
     auto pred = pred_begin(old_exit_block);
@@ -191,14 +222,7 @@ void create_new_exit_block(llvm::Function* new_F, llvm::BasicBlock* old_exit_blo
         llvm::BasicBlock* pred_block = *pred;
         ++pred; // keep this here
         auto term = pred_block->getTerminator();
-        for (llvm::Use& op : term->operands()) {
-            llvm::Value* val = &*op;
-            if (auto block = llvm::dyn_cast<llvm::BasicBlock>(val)) {
-                if (block == old_exit_block) {
-                    op = new_exit;
-                }
-            }
-        }
+        remap_value_in_instruction(term, old_exit_block, new_exit);
     }
     old_exit_block->eraseFromParent();
 }
@@ -207,12 +231,10 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
                                         unsigned skip_instr_count,
                                         llvm::ValueToValueMapTy& value_to_value_map)
 {
-    auto& new_function_instructions = block->getInstList();
-
     llvm::ValueMapper mapper(value_to_value_map);
     //std::vector<llvm::Instruction*> not_mapped_instrs;
     unsigned skip = 0;
-    for (auto& instr : new_function_instructions) {
+    for (auto& instr : *block) {
         if (skip++ < skip_instr_count) {
             continue;
         }
@@ -250,10 +272,7 @@ llvm::CallInst* create_call_to_snippet_function(llvm::Function* F,
     }
     for (auto& arg_entry : arg_index_to_value) {
         //llvm::dbgs() << "arg entry " << *arg_entry.second << "\n";
-        auto val_type = arg_entry.second->getType();
-        if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(arg_entry.second)) {
-            val_type = alloca->getAllocatedType();
-        }
+        auto val_type = get_value_type(arg_entry.second);
         if (val_type->isPointerTy()) {
             auto load = builder.CreateLoad(arg_entry.second);
             arguments[arg_entry.first] = load;
@@ -263,9 +282,6 @@ llvm::CallInst* create_call_to_snippet_function(llvm::Function* F,
     }
     llvm::ArrayRef<llvm::Value*> args_array(arguments);
     //llvm::dbgs() << *F->getFunctionType() << "\n";
-    for (const auto& arg : args_array) {
-        //llvm::dbgs() << "Arg: " << *arg << "\n";
-    }
     llvm::CallInst* callInst = builder.CreateCall(F, args_array);
     return callInst;
 }
@@ -282,11 +298,6 @@ void erase_snippet(llvm::BasicBlock* block,
         auto inst = &*end;
         --end;
         if (!inst->user_empty()) {
-            //for (auto user : inst->users()) {
-            //    if (auto instr = llvm::dyn_cast<llvm::Instruction>(inst)) {
-            //        llvm::dbgs() << "User : " << *instr << "\n";
-            //    }
-            //}
             llvm::dbgs() << "Instruction has uses: do not erase " << *inst << "\n";
             continue;
         }
@@ -298,83 +309,83 @@ void erase_snippet(llvm::BasicBlock* block,
 }
 
 // TODO: cleanup this mess
+/*
+ * Snippet won't be erased if any of the blocks in a snippet, except begin block, has a predecessor outside of the snippet.
+ */
+void get_block_phi_nodes(llvm::BasicBlock* block, InstructionSet& phi_nodes)
+{
+    auto non_phi = block->getFirstNonPHI();
+    if (non_phi) {
+        auto non_phi_pos = non_phi->getIterator();
+        std::for_each(block->begin(), non_phi_pos,
+                [&phi_nodes] (llvm::Instruction& instr) { phi_nodes.insert(&instr);});
+    }
+}
+
+bool get_block_users(llvm::BasicBlock* block,
+                     const BlockSet& blocks,
+                     InstructionSet& users)
+{
+    for (auto user : block->users()) {
+        if (auto instr = llvm::dyn_cast<llvm::Instruction>(user)) {
+            if (users.find(instr) != users.end()) {
+                continue;
+            }
+            auto user_parent = instr->getParent();
+            if (blocks.find(user_parent) == blocks.end()) {
+                return false;
+            }
+            users.insert(instr);
+        }
+    }
+    return true;
+}
+
 void erase_snippet(llvm::Function* function,
                    bool erase_begin,
                    llvm::Function::iterator begin,
                    llvm::Function::iterator end,
-                   const std::unordered_set<llvm::BasicBlock*>& blocks)
+                   const BasicBlocksSnippet::BlockSet& blocks)
 {
     assert(BasicBlocksSnippet::is_valid_snippet(begin, end, function));
+
     // change all predecessors from self blocks to link dummy_block
     llvm::BasicBlock* dummy_block = llvm::BasicBlock::Create(function->getParent()->getContext(), "dummy", function);
     std::vector<llvm::BasicBlock*> blocks_to_erase;
-    std::unordered_set<llvm::Instruction*> users_to_remap;
+    InstructionSet users_to_remap;
     bool erase_blocks = true;
 
     llvm::ValueToValueMapTy block_map;
     for (const auto& block : blocks) {
-        if (block == &*begin && !erase_begin) {
-            continue;
-        } else if (block == &*end) {
+        if ((block == &*begin && !erase_begin) ||  block == &*end) {
             continue;
         }
         block_map.insert(std::make_pair(block, llvm::WeakVH(dummy_block)));
         blocks_to_erase.push_back(block);
+
         // add all phi nodes, as those are not reported as use :[[
-        // note this is not necessarely solving the problem with other uses
-        auto non_phi = block->getFirstNonPHI();
-        if (non_phi) {
-            auto non_phi_pos = non_phi->getIterator();
-            std::for_each(block->begin(), non_phi_pos,
-                          [&users_to_remap] (llvm::Instruction& instr) { users_to_remap.insert(&instr);});
-        }
-        if (pred_empty(block)) {
+        // note this is not necessarily solving the problem with other uses
+        get_block_phi_nodes(block, users_to_remap);
+        if (pred_empty(block) && block->user_empty()) {
             continue;
         }
-        auto pred_it = pred_begin(block);
-        while (pred_it != pred_end(block)) {
-            llvm::BasicBlock* pred_block = *pred_it;
-            // predecessor outside of snippet. is this even possible?
-            // don't remove any block of snippet, if one blocks stays
-            if (blocks.find(pred_block) == blocks.end()) {
-                llvm::dbgs() << "Basic block has predecessors: do not erase " << block->getName() << "\n"; 
-                erase_blocks = false;
-                break;
-            }
-            auto pred_term = pred_block->getTerminator();
-            //llvm::dbgs() << "block: " << block->getName()
-            //             << ", pred " << pred_block->getName()
-            //             << ", term " << *pred_term << "\n";
-            assert(pred_term != nullptr);
-            users_to_remap.insert(pred_term);
-            ++pred_it;
-        }
-        // now find other uses, e.g. phi nodes. 
-        // TODO: what about handling predecessors here
-        for (auto user : block->users()) {
-            if (auto instr = llvm::dyn_cast<llvm::Instruction>(user)) {
-                if (users_to_remap.find(instr) != users_to_remap.end()) {
-                    continue;
-                }
-                auto user_parent = instr->getParent();
-                if (blocks.find(user_parent) == blocks.end()) {
-                    llvm::dbgs() << "Basic block has predecessors: do not erase " << block->getName() << "\n"; 
-                    erase_blocks = false;
-                    break;
-                }
-                users_to_remap.insert(instr);
-            }
-        }
-        if (!erase_blocks) {
-            users_to_remap.clear();
+        if (!get_block_users(block, blocks, users_to_remap)) {
+            erase_blocks = false;
             break;
         }
     }
+    if (!erase_blocks) {
+        llvm::dbgs() << "Basic blocks have uses: do not erase snippet\n";
+        users_to_remap.clear();
+        return;
+    }
+
     block_map.insert(std::make_pair(&*end, llvm::WeakVH(dummy_block)));
-    auto term_it = users_to_remap.begin();
-    while (term_it != users_to_remap.end()) {
-        llvm::Instruction* term = *term_it;
-        ++term_it;
+
+    auto user_it = users_to_remap.begin();
+    while (user_it != users_to_remap.end()) {
+        llvm::Instruction* term = *user_it;
+        ++user_it;
         for (llvm::Use& op : term->operands()) {
             llvm::Value* val = &*op;
             block_map.insert(std::make_pair(val, llvm::WeakVH(dummy_block)));
@@ -382,6 +393,7 @@ void erase_snippet(llvm::Function* function,
         llvm::ValueMapper mapper(block_map);
         mapper.remapInstruction(*term);
     }
+
     auto it = blocks_to_erase.begin();
     while (it != blocks_to_erase.end()) {
         llvm::BasicBlock* block = *it;
@@ -404,10 +416,7 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
         //llvm::dbgs() << "Used value " << *val << "\n";
         arg_values[i] = val;
         ++i;
-        auto type = val->getType();
-        if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(val)) {
-            type = alloca->getAllocatedType();
-        }
+        auto type = get_value_type(val);
         if (type->isPointerTy()) {
             arg_types.push_back(type);
         } else {
@@ -418,7 +427,6 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
     llvm::FunctionType* f_type = llvm::FunctionType::get(llvm::Type::getVoidTy(Ctx), params, false);
     return f_type;
 }
-
 
 }
 

@@ -142,9 +142,7 @@ void clone_snippet_to_function(llvm::BasicBlock* block,
     while (inst_it != end) {
         llvm::Instruction* I = &*inst_it;
         ++inst_it;
-        //llvm::dbgs() << "Clone " << *I << "\n";
         llvm::Instruction* new_I = I->clone();
-        //llvm::dbgs() << "Clonned: " << *new_I << "\n";
         new_function_instructions.push_back(new_I);
         value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
     }
@@ -154,6 +152,7 @@ void create_value_to_value_map(const ValueToValueMap& value_ptr_map,
                                llvm::ValueToValueMapTy& value_to_value_map)
 {
     for (auto& entry : value_ptr_map) {
+        //llvm::dbgs() << "add to value-to-value map " << *entry.first << "\n";
         value_to_value_map.insert(std::make_pair(entry.first, llvm::WeakVH(entry.second)));
     }
 }
@@ -210,10 +209,6 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
 {
     auto& new_function_instructions = block->getInstList();
 
-    //for (const auto& map_entry : value_to_value_map) {
-    //    llvm::dbgs() << *map_entry.first << " mapped to " << *map_entry.second << "\n";
-    //}
-
     llvm::ValueMapper mapper(value_to_value_map);
     //std::vector<llvm::Instruction*> not_mapped_instrs;
     unsigned skip = 0;
@@ -221,7 +216,6 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
         if (skip++ < skip_instr_count) {
             continue;
         }
-        //llvm::dbgs() << "Remap instr: " << instr << "\n";
         mapper.remapInstruction(instr);
         //llvm::dbgs() << "Remaped instr: " << instr << "\n";
     }
@@ -362,8 +356,6 @@ void erase_snippet(llvm::Function* function,
                 if (users_to_remap.find(instr) != users_to_remap.end()) {
                     continue;
                 }
-                llvm::dbgs() << "use of block " << block->getName()
-                             << "   " << *instr << "\n";
                 auto user_parent = instr->getParent();
                 if (blocks.find(user_parent) == blocks.end()) {
                     llvm::dbgs() << "Basic block has predecessors: do not erase " << block->getName() << "\n"; 
@@ -670,6 +662,8 @@ void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
         // e.g. for pointer loadInst will be pointer operand, but it should not be used as value
         if (llvm::dyn_cast<llvm::AllocaInst>(storeTo)) {
             m_used_values.insert(storeTo);
+        } else {
+            expand_for_instruction_operand(storeTo, instructions);
         }
     } else {
         for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
@@ -780,9 +774,6 @@ llvm::Function* BasicBlocksSnippet::to_function()
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
     collect_used_values();
 
-    //    for (const auto& v : m_used_values) {
-    //        llvm::dbgs() << *v << "\n";
-    //    }
     llvm::LLVMContext& Ctx = m_function->getParent()->getContext();
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
@@ -834,37 +825,35 @@ llvm::Function* BasicBlocksSnippet::to_function()
         erase_snippet(m_start.get_block(), m_start.get_begin(), m_start.get_end());
         auto branch_inst = llvm::BranchInst::Create(&*m_end);
         m_start.get_block()->getInstList().push_back(branch_inst);
-
-    }  else {
+    } else {
         // insert at the end of each predecessor
         // Is it safe to assume there is only one predecessor?
+        std::string block_name = unique_name_generator::get().get_unique("call_block");
+        llvm::BasicBlock* call_block = llvm::BasicBlock::Create(m_function->getParent()->getContext(), block_name, m_function);
         auto pred_it = pred_begin(&*m_begin);
         while (pred_it != pred_end(&*m_begin)) {
             auto pred = *pred_it;
+            ++pred_it;
             if (m_blocks.find(pred) != m_blocks.end()) {
-                ++pred_it;
                 continue;
             }
-            auto insert_before = pred->end();
-            --insert_before;
-            create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
             auto pred_term = pred->getTerminator();
-            auto new_term = llvm::BranchInst::Create(&*m_end);
-            llvm::ReplaceInstWithInst(pred_term, new_term);
-            ++pred_it;
+            for (llvm::Use& op : pred_term->operands()) {
+                llvm::Value* val = &*op;
+                if (auto b = llvm::dyn_cast<llvm::BasicBlock>(val)) {
+                    if (b == &*m_begin) {
+                        op = call_block;
+                    }
+                }
+            }
         }
+        auto call_term = llvm::BranchInst::Create(&*m_end);
+        call_block->getInstList().push_back(call_term);
+        auto insert_before = call_block->end();
+        --insert_before;
+        create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
     }
     erase_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks);
-//
-//    llvm::dbgs() << "Extracted function\n";
-//    for (const auto& b : *new_F) {
-//        llvm::dbgs() << b << "\n";
-//    }
-//
-    //llvm::dbgs() << "\n\nold function\n";
-    //for (const auto& b : *m_function) {
-    //    llvm::dbgs() << b << "\n";
-    //}
     return new_F;
 }
 

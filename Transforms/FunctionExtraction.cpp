@@ -274,6 +274,9 @@ llvm::BasicBlock* SnippetsCreator::find_block_postdominator(llvm::BasicBlock* bl
         } while (!seen_blocks.insert(tmp_block).second && ++succ != succ_end(block_to_process));
         block_to_process = tmp_block;
     }
+    if (block_to_process == nullptr) {
+        block_to_process = &block->getParent()->back();
+    }
     assert(block_to_process != nullptr);
     return block_to_process;
 }

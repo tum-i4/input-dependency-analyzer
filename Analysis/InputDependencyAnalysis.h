@@ -1,9 +1,11 @@
 #pragma once
 
-#include "FunctionAnaliser.h"
+#include "DependencyAnaliser.h"
+#include "InputDependencyResult.h"
 
 #include "llvm/Pass.h"
 
+#include <memory>
 #include <unordered_map>
 
 namespace llvm {
@@ -19,7 +21,8 @@ namespace input_dependency {
 class InputDependencyAnalysis : public llvm::ModulePass
 {
 public:
-    using InputDependencyAnalysisInfo = std::unordered_map<llvm::Function*, FunctionAnaliser>;
+    using InputDepResType = std::shared_ptr<InputDependencyResult>;
+    using InputDependencyAnalysisInfo = std::unordered_map<llvm::Function*, InputDepResType>;
 
 public:
     static char ID;
@@ -51,13 +54,14 @@ public:
         return m_functionAnalisers;
     }
 
-    FunctionAnaliser* getAnalysisInfo(llvm::Function* F);
-    const FunctionAnaliser* getAnalysisInfo(llvm::Function* F) const;
+    InputDepResType getAnalysisInfo(llvm::Function* F);
+    const InputDepResType getAnalysisInfo(llvm::Function* F) const;
 
+    bool insertAnalysisInfo(llvm::Function* F, InputDepResType analysis_info);
 
 private:
-    void finalizeForArguments(llvm::Function* F, FunctionAnaliser& FA);
-    void finalizeForGlobals(llvm::Function* F, FunctionAnaliser& FA);
+    void finalizeForArguments(llvm::Function* F, InputDepResType& FA);
+    void finalizeForGlobals(llvm::Function* F, InputDepResType& FA);
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, DependencyAnaliser::ArgumentDependenciesMap>;
     void mergeCallSitesData(llvm::Function* caller, const FunctionSet& calledFunctions);
     DependencyAnaliser::ArgumentDependenciesMap getFunctionCallInfo(llvm::Function* F);
@@ -73,7 +77,6 @@ private:
     InputDependencyAnalysisInfo m_functionAnalisers;
     FunctionArgumentsDependencies m_functionsCallInfo;
     CalleeCallersMap m_calleeCallersInfo;
-    // TODO: try to find out how iterate trough cfg in reverse order
     std::vector<llvm::Function*> m_moduleFunctions;
 };
 

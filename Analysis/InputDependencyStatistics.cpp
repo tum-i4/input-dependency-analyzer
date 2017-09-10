@@ -42,24 +42,9 @@ void InputDependencyStatistics::report(llvm::Module& M, const InputDependencyAna
             continue;
         }
         const auto& FA = FA_pos->second;
-        unsigned dep_count = FA.get_input_dep_count();
-        unsigned indep_count = FA.get_input_indep_count();
-        unsigned unknown_count = FA.get_input_unknowns_count();
-        //for (const auto& B : F) {
-        //    for (const auto& I : B) {
-        //        if (FA.isInputDependent(&I)) {
-        //            ++dep_count;
-        //        } else if (FA.isInputIndependent(&I)) {
-        //            ++indep_count;
-        //        } else {
-        //            llvm::dbgs() << "Unknown: " << I << "\n";
-        //            ++unknown_count;
-        //        }
-        //    }
-        //}
-        //assert(dep_count == FA.get_input_dep_count());
-        //assert(indep_count == FA.get_input_indep_count());
-        //assert(unknown_count == FA.get_input_unknowns_count());
+        unsigned dep_count = FA->get_input_dep_count();
+        unsigned indep_count = FA->get_input_indep_count();
+        unsigned unknown_count = FA->get_input_unknowns_count();
         print_stats(F.getName(), dep_count, indep_count, unknown_count);
         module_dep_count += dep_count;
         module_indep_count += indep_count;

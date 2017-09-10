@@ -1,6 +1,7 @@
 #include "FunctionClonePass.h"
 
 #include "Analysis/InputDependencyStatistics.h"
+#include "Analysis/FunctionAnaliser.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -45,20 +46,24 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             auto pos = to_process.begin();
             auto& currentF = *pos;
             processed.insert(currentF);
-            input_dependency::FunctionAnaliser* analysisInfo;
+            input_dependency::InputDependencyAnalysis::InputDepResType analysisInfo;
             auto analysispos = m_duplicatedAnalysisInfo.find(currentF);
             if (analysispos != m_duplicatedAnalysisInfo.end()) {
-                analysisInfo = &analysispos->second;
+                analysisInfo = analysispos->second;
             } else {
                 analysisInfo = IDA->getAnalysisInfo(currentF);
             }
             assert(analysisInfo != nullptr);
-            const auto& callSites = analysisInfo->getCallSitesData();
+            auto f_analysisInfo = analysisInfo->toFunctionAnalysisResult();
+            if (f_analysisInfo == nullptr) {
+                continue;
+            }
+            const auto& callSites = f_analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
                     continue;
                 }
-                const auto& clonedFunctions = doClone(analysisInfo, callSite);
+                const auto& clonedFunctions = doClone(f_analysisInfo, callSite);
                 to_process.insert(clonedFunctions.begin(), clonedFunctions.end());
             }
             to_process.erase(currentF);
@@ -81,12 +86,16 @@ std::unordered_set<llvm::Function*> FunctionClonePass::doClone(const input_depen
         FunctionClone clone(calledF);
         m_functionCloneInfo.emplace(calledF, std::move(clone));
     }
-    input_dependency::FunctionAnaliser* calledFunctionAnaliser;
+    input_dependency::InputDependencyAnalysis::InputDepResType analysisRes;
     auto pos = m_duplicatedAnalysisInfo.find(calledF);
     if (pos != m_duplicatedAnalysisInfo.end()) {
-        calledFunctionAnaliser = &pos->second;
+        analysisRes = pos->second;
     } else {
-        calledFunctionAnaliser = IDA->getAnalysisInfo(calledF);
+        analysisRes = IDA->getAnalysisInfo(calledF);
+    }
+    auto calledFunctionAnaliser = analysisRes->toFunctionAnalysisResult();
+    if (!calledFunctionAnaliser) {
+        return clonedFunctions;
     }
 
     auto& clone = m_functionCloneInfo.find(calledF)->second;
@@ -124,9 +133,11 @@ void FunctionClonePass::cloneFunctionAnalysisInfo(const input_dependency::Functi
                                                   llvm::Function* Fclone,
                                                   const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argumentDeps)
 {
-    input_dependency::FunctionAnaliser clonedAnaliser(*analiser);
-    clonedAnaliser.setFunction(Fclone);
-    clonedAnaliser.finalizeArguments(argumentDeps);
+    input_dependency::InputDependencyAnalysis::InputDepResType clonedAnaliser(new input_dependency::FunctionAnaliser(*analiser));
+    auto f_clonedAnaliser = clonedAnaliser->toFunctionAnalysisResult();
+    assert(f_clonedAnaliser);
+    f_clonedAnaliser->setFunction(Fclone);
+    f_clonedAnaliser->finalizeArguments(argumentDeps);
     m_duplicatedAnalysisInfo.emplace(Fclone, std::move(clonedAnaliser));
 }
 

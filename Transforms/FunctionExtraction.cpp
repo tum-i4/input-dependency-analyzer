@@ -15,6 +15,8 @@
 
 #include "FunctionSnippet.h"
 #include "Utils.h"
+#include "Analysis/FunctionAnaliser.h"
+#include "Analysis/InputDependentFunctionAnalysisResult.h"
 #include "Analysis/InputDependencyAnalysis.h"
 #include "Analysis/InputDependentFunctions.h"
 
@@ -345,12 +347,16 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             llvm::dbgs() << "Skip: No input dep info for function " << F.getName() << "\n";
             continue;
         }
+        auto f_input_dep_info = input_dep_info->toFunctionAnalysisResult();
+        if (!f_input_dep_info) {
+            continue;
+        }
         if (!function_calls.is_function_input_independent(&F)) {
             llvm::dbgs() << "Skip: Input dependent function " << F.getName() << "\n";
             continue;
         }
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
-        run_on_function(F, PDom, input_dep_info, m_extracted_functions);
+        run_on_function(F, PDom, f_input_dep_info, m_extracted_functions);
         modified = true;
         llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";
     }
@@ -358,6 +364,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     llvm::dbgs() << "\nExtracted functions are \n";
     for (const auto& f : m_extracted_functions) {
         llvm::dbgs() << f->getName() << "\n";
+        input_dep.insertAnalysisInfo(
+                f, input_dependency::InputDependencyAnalysis::InputDepResType(new input_dependency::InputDependentFunctionAnalysisResult(f)));
     }
     return modified;
 }

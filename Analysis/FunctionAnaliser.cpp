@@ -61,6 +61,8 @@ private:
 public:
     bool isInputDependent(llvm::Instruction* instr) const;
     bool isInputIndependent(llvm::Instruction* instr) const;
+    bool isInputDependent(llvm::Value* value) const;
+    bool isInputIndependent(llvm::Value* value) const;
     bool isInputDependentBlock(llvm::BasicBlock* block) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
@@ -160,6 +162,24 @@ bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
 {
     const auto& analysisRes = getAnalysisResult(instr->getParent());
     return analysisRes->isInputIndependent(instr);
+}
+
+bool FunctionAnaliser::Impl::isInputDependent(llvm::Value* val) const
+{
+    auto pos = m_valueDependencies.find(val);
+    if (pos == m_valueDependencies.end()) {
+        return true; // ??
+    }
+    return pos->second.isInputDep();
+}
+
+bool FunctionAnaliser::Impl::isInputIndependent(llvm::Value* val) const
+{
+    auto pos = m_valueDependencies.find(val);
+    if (pos == m_valueDependencies.end()) {
+        return false; // ??
+    }
+    return pos->second.isInputIndep();
 }
 
 bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) const
@@ -794,6 +814,16 @@ bool FunctionAnaliser::isInputIndependent(llvm::Instruction* instr) const
 bool FunctionAnaliser::isInputIndependent(const llvm::Instruction* instr) const
 {
     return m_analiser->isInputIndependent(const_cast<llvm::Instruction*>(instr));
+}
+
+bool FunctionAnaliser::isInputDependent(llvm::Value* val) const
+{
+    return m_analiser->isInputDependent(val);
+}
+
+bool FunctionAnaliser::isInputIndependent(llvm::Value* val) const
+{
+    return m_analiser->isInputIndependent(val);
 }
 
 bool FunctionAnaliser::isInputDependentBlock(llvm::BasicBlock* block) const

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "InputDependencyResult.h"
 #include "DependencyAnaliser.h"
 #include "definitions.h"
 
@@ -16,7 +17,7 @@ namespace input_dependency {
 class IndirectCallSitesAnalysisResult;
 class VirtualCallSiteAnalysisResult;
 
-class FunctionAnaliser
+class FunctionAnaliser : public InputDependencyResult
 {
 public:
     FunctionAnaliser(llvm::Function* F,
@@ -29,56 +30,65 @@ public:
 
 public:
     void setFunction(llvm::Function* F);
+    llvm::Function* getFunction();
+    const llvm::Function* getFunction() const;
 
+    /// \name InputDependencyResult interface
+    /// \{
+public:
+    bool isInputDependent(llvm::Instruction* instr) const override;
+    bool isInputDependent(const llvm::Instruction* instr) const override;
+    bool isInputIndependent(llvm::Instruction* instr) const override;
+    bool isInputIndependent(const llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::Value* val) const override;
+    bool isInputIndependent(llvm::Value* val) const override;
+    bool isInputDependentBlock(llvm::BasicBlock* block) const override;
+
+    // for debug only
+    long unsigned get_input_dep_count() const override;
+    long unsigned get_input_indep_count() const override;
+    long unsigned get_input_unknowns_count() const override;
+
+    FunctionAnaliser* toFunctionAnalysisResult() override
+    {
+        return this;
+    }
+    /// \}
+
+    /// \name Analysis interface
+    /// \{
 public:
     /**
      * \brief Preliminary analyses input dependency of instructions in the function.
-     * Results of this function is primary information about instructions input dependency, output arguments input dependency, and function call sites dependency info.
-     * \note This information is not complete as it is based on assumption, that function input arguments are also program inputs.
-     *       - Information about function calls from this function, whith additional information about called function arguments being input dependent or not.
-     *
-     * \note The call site information can be obtained with \link getCallSitesData function.
-     * \note To make analysis results final call \link finalizeArguments and \link finalizeGlobals after calling this function.
+     * Performs context insensitive, flow sensitive input dependency analysis
+     * Collects function call site dependency info.
+     * \note Assumes that function arguments are user inputs.
      */
     void analize();
 
     /**
-     * \brief Finalizes input dependency analysis by refining \link analize results with given set of input dependent arguments.
+     * \brief Refines results of the \link analize by performing context-sensitive analysis given set of input dep arguments.
      * \param[in] inputDepArgs Arguments which are actually input dependent.
      * 
-     * \note Instruction can be marked as input dependent in \a analize however if it does not depend on arguments
-     *        from \a inputDepArgs, it will be unmarked.
      * \note \link analize function should be called before calling this function.
      */
     void finalizeArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
-    void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps);
-
-    /// Get call site info collected by \link analize function.
-    FunctionSet getCallSitesData() const;
-
-    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
-
-    // can't return with reference. Get with r-value if possible, to avoid copy
-    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
-    DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
 
     /**
-     * \brief Checks if instruction is input dependent.
-     * \param[in] instr Instruction to check
-     *
-     * \note If called after after \a analize but before \a finalize, the result may be incomplete.
-     *
-     * \see \link analize
-     * \see \link finalize
-     * \see \link isInputDependent
+     * \brief Refines results of analysis given set of input dependent globals.
+     * \param[in] globalsDeps global variables that are input dependent.
+     * \note \link analize function should be called before calling this function.
      */
-    bool isInputDependent(llvm::Instruction* instr) const;
-    bool isInputDependent(const llvm::Instruction* instr) const;
-    bool isInputIndependent(llvm::Instruction* instr) const;
-    bool isInputIndependent(const llvm::Instruction* instr) const;
+    void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps);
 
-    bool isInputDependentBlock(llvm::BasicBlock* block) const;
+    /// \}
 
+    /// \name Intermediate input dep results interface
+    /// \{
+    FunctionSet getCallSitesData() const;
+    const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
+    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
+    DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -86,18 +96,14 @@ public:
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
-
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
+    /// \}
 
-    llvm::Function* getFunction();
-    const llvm::Function* getFunction() const;
-
-    // for debug only
-    long unsigned get_input_dep_count() const;
-    long unsigned get_input_indep_count() const;
-    long unsigned get_input_unknowns_count() const;
+    /// \name debug interface
+    /// \{
     void dump() const;
+    /// \}
 
 private:
     class Impl;

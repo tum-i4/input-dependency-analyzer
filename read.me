@@ -10,6 +10,18 @@ cd build
 clang -Xclang -load -Xclang OH/libOHPass.so ../example.c
 
 
+clang flags for input dependency
+clang++ -flto -fvisibility=hidden -fsanitize=cfi -fwhole-program-vtables
+
+input dependency related passes:
+print-dot
+input-dep
+inputdep-dbginfo
+inputdep-statistics
+lib-func-report
+mod-size
+
+
 Print dot files:
 to be added!
 

@@ -1,5 +1,7 @@
 #include "FunctionDOTGraphPrinter.h"
 
+#include "FunctionAnaliser.h"
+
 #include "Utils.h"
 
 #include "llvm/IR/Function.h"
@@ -155,9 +157,13 @@ bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
     }
     auto& Analysis = getAnalysis<InputDependencyAnalysis>();
 
-    const FunctionAnaliser* Graph = Analysis.getAnalysisInfo(&F);
-    if (Graph == nullptr) {
+    const auto& analysis_res = Analysis.getAnalysisInfo(&F);
+    if (analysis_res == nullptr) {
         llvm::errs() << "Can't find analysis info for function\n";
+        return false;
+    }
+    const FunctionAnaliser* Graph = analysis_res->toFunctionAnalysisResult();
+    if (!Graph) {
         return false;
     }
     std::string Filename = "cfg." + F.getName().str() + ".dot";

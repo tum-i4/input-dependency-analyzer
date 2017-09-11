@@ -2,6 +2,7 @@
 
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepInstructionsRecorder.h"
+#include "FunctionAnaliser.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -45,7 +46,8 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         if (pos == m_functionAnalisers.end()) {
             return nullptr;
         }
-        return &pos->second;
+        FunctionAnaliser* f_analiser = pos->second->toFunctionAnalysisResult();
+        return f_analiser;
     };
 
     const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
@@ -70,12 +72,12 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
             const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
-            FunctionAnaliser analiser(F, AAR, LI, PDom, virtualCallsInfo, indirectCallsInfo, FAGetter);
+            InputDepResType analiser(new FunctionAnaliser(F, AAR, LI, PDom, virtualCallsInfo, indirectCallsInfo, FAGetter));
             auto res = m_functionAnalisers.insert(std::make_pair(F, analiser));
             assert(res.second);
-            auto& analizer = res.first->second;
-            analizer.analize();
-            const auto& calledFunctions = analizer.getCallSitesData();
+            auto analizer = res.first->second->toFunctionAnalysisResult();
+            analizer->analize();
+            const auto& calledFunctions = analizer->getCallSitesData();
             mergeCallSitesData(F, calledFunctions);
         }
         ++CGI;
@@ -104,7 +106,7 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruct
         return false;
         // or even exception
     }
-    return pos->second.isInputDependent(instr);
+    return pos->second->isInputDependent(instr);
 }
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Instruction* instr) const
@@ -121,27 +123,35 @@ bool InputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) const
     if (pos == m_functionAnalisers.end()) {
         return false;
     }
-    return pos->second.isInputDependentBlock(block);
+    return pos->second->isInputDependentBlock(block);
 }
 
-FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)
+InputDependencyAnalysis::InputDepResType InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)
 {
     auto pos = m_functionAnalisers.find(F);
     if (pos == m_functionAnalisers.end()) {
         return nullptr;
     }
-    return &pos->second;
+    return pos->second;
 }
 
-const FunctionAnaliser* InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F) const
+const InputDependencyAnalysis::InputDepResType InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F) const
 {
     auto pos = m_functionAnalisers.find(F);
     if (pos == m_functionAnalisers.end()) {
         return nullptr;
     }
-    return &pos->second;
+    return pos->second;
 }
 
+bool InputDependencyAnalysis::insertAnalysisInfo(llvm::Function* F, InputDepResType analysis_info)
+{
+    auto pos = m_functionAnalisers.find(F);
+    if (pos != m_functionAnalisers.end()) {
+        return false;
+    }
+    m_functionAnalisers.insert(std::make_pair(F, analysis_info));
+}
 
 // doFinalize is called once
 bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
@@ -156,35 +166,37 @@ bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
         finalizeForGlobals(F, pos->second);
         finalizeForArguments(F, pos->second);
     }
-
-    //for (const auto& F : m_moduleFunctions) {
-    //    auto pos = m_functionAnalisers.find(F);
-    //    if (pos != m_functionAnalisers.end()) {
-    //        pos->second.dump();
-    //    }
-    //}
     return true;
 }
 
-void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, FunctionAnaliser& FA)
+void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepResType& FA)
 {
+    auto f_analiser = FA->toFunctionAnalysisResult();
+    if (!f_analiser) {
+        return;
+    }
+
     if (m_calleeCallersInfo.find(F) == m_calleeCallersInfo.end()) {
         auto& arguments = F->getArgumentList();
         DependencyAnaliser::ArgumentDependenciesMap arg_deps;
         for (auto& arg : arguments) {
             arg_deps.insert(std::make_pair(&arg, DepInfo(DepInfo::INPUT_DEP)));
         }
-        FA.finalizeArguments(arg_deps);
+        f_analiser->finalizeArguments(arg_deps);
         return;
     }
     const auto& callInfo = getFunctionCallInfo(F);
-    FA.finalizeArguments(callInfo);
+    f_analiser->finalizeArguments(callInfo);
 }
 
-void InputDependencyAnalysis::finalizeForGlobals(llvm::Function* F, FunctionAnaliser& FA)
+void InputDependencyAnalysis::finalizeForGlobals(llvm::Function* F, InputDepResType& FA)
 {
+    auto f_analiser = FA->toFunctionAnalysisResult();
+    if (!f_analiser) {
+        return;
+    }
     const auto& globalsInfo = getFunctionCallGlobalsInfo(F);
-    FA.finalizeGlobals(globalsInfo);
+    f_analiser->finalizeGlobals(globalsInfo);
 }
 
 void InputDependencyAnalysis::mergeCallSitesData(llvm::Function* caller, const FunctionSet& calledFunctions)
@@ -203,7 +215,12 @@ DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunction
     for (const auto& caller : callers) {
         auto fpos = m_functionAnalisers.find(caller);
         assert(fpos != m_functionAnalisers.end());
-        const auto& callInfo = fpos->second.getCallArgumentInfo(F);
+        auto f_analiser = fpos->second->toFunctionAnalysisResult();
+        if (!f_analiser) {
+            // assert?
+            continue;
+        }
+        const auto& callInfo = f_analiser->getCallArgumentInfo(F);
         mergeDependencyMaps(argDeps, callInfo);
     }
     return argDeps;
@@ -223,7 +240,11 @@ DependencyAnaliser::GlobalVariableDependencyMap InputDependencyAnalysis::getFunc
     for (const auto& caller : callers) {
         auto fpos = m_functionAnalisers.find(caller);
         assert(fpos != m_functionAnalisers.end());
-        const auto& globalsInfo = fpos->second.getCallGlobalsInfo(F);
+        auto f_analiser = fpos->second->toFunctionAnalysisResult();
+        if (!f_analiser) {
+            continue;
+        }
+        const auto& globalsInfo = f_analiser->getCallGlobalsInfo(F);
         mergeDependencyMaps(globalDeps, globalsInfo);
     }
     addMissingGlobalsInfo(F, globalDeps);
@@ -257,14 +278,19 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
 
     auto pos = m_functionAnalisers.find(F);
     assert(pos != m_functionAnalisers.end());
-    const auto& referencedGlobals = pos->second.getReferencedGlobals();
+    auto f_analiser = pos->second->toFunctionAnalysisResult();
+    if (!f_analiser) {
+        return;
+    }
+    const auto& referencedGlobals = f_analiser->getReferencedGlobals();
     for (const auto& global : referencedGlobals) {
         if (globalDeps.find(global) != globalDeps.end()) {
             continue;
         }
         if (initFpos != m_functionAnalisers.end()) {
-            if (initFpos->second.hasGlobalVariableDepInfo(global)) {
-                globalDeps[global] = initFpos->second.getGlobalVariableDependencies(global);
+            auto initF_analiser = initFpos->second->toFunctionAnalysisResult();
+            if (initF_analiser->hasGlobalVariableDepInfo(global)) {
+                globalDeps[global] = initF_analiser->getGlobalVariableDependencies(global);
                 continue;
             }
         }

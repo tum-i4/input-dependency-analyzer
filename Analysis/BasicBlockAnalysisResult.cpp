@@ -51,7 +51,7 @@ void BasicBlockAnalysisResult::dumpResults() const
 void BasicBlockAnalysisResult::analize()
 {
     for (auto& I : *m_BB) {
-//        llvm::dbgs() << "Instruction " << I << "\n";
+        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with unknown state
@@ -76,6 +76,13 @@ void BasicBlockAnalysisResult::analize()
         }
         processInstrForOutputArgs(&I);
     }
+    //for (auto val_dep : m_initialDependencies) {
+    //    // won't insert if already exists
+    //    // consider bb chain A -> B -> C, where B is the current bb.
+    //    // if variable v changes its dep info in A,
+    //    // and B does not change that value, C will get incorrect info for v (not the one from A)
+    //    m_valueDependencies.insert(val_dep);
+    //}
 }
 
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)
@@ -162,6 +169,7 @@ DepInfo BasicBlockAnalysisResult::getDependenciesFromAliases(llvm::Value* val)
 DepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
 {
     DepInfo info;
+    //llvm::dbgs() << *loadInst << "\n";
     const auto& DL = loadInst->getModule()->getDataLayout();
     for (const auto& dep : m_valueDependencies) {
         auto modRef = m_AAR.getModRefInfo(loadInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
@@ -193,6 +201,22 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
     }
 }
 
+void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info)
+{
+    const auto& DL = instr->getModule()->getDataLayout();
+    for (auto& dep : m_valueDependencies) {
+        auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
+        if (modRef == llvm::ModRefInfo::MRI_Ref) {
+            updateValueDependencies(dep.first, info);
+        }
+        auto alias = m_AAR.alias(instr, dep.first);
+        if (alias == llvm::AliasResult::NoAlias) {
+            continue;
+        } else {
+            updateValueDependencies(dep.first, info);
+        }
+    }
+}
 void BasicBlockAnalysisResult::setInitialValueDependencies(
                     const DependencyAnaliser::ValueDependencies& valueDependencies)
 {

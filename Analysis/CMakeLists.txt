@@ -23,6 +23,8 @@ add_library(InputDependency MODULE
     LoggingUtils.cpp
     Utils.cpp
     InputDepInstructionsRecorder.cpp
+    DotPrinter.cpp
+    value_dependence_graph.cpp
     InputDependentFunctions.cpp
     FunctionDominanceTree.cpp
 )

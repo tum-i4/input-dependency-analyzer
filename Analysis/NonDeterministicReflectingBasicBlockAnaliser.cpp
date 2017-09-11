@@ -87,12 +87,12 @@ void NonDeterministicReflectingBasicBlockAnaliser::setInitialValueDependencies(
                                                                     const DependencyAnaliser::ValueDependencies& valueDependencies)
 {
     ReflectingBasicBlockAnaliser::setInitialValueDependencies(valueDependencies);
-    for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
-        auto pos = valueDependencies.find(dep);
-        if (pos != valueDependencies.end()) {
-            m_valueDependencies[dep] = pos->second;
-        }
-    }
+    //for (auto& dep : m_nonDeterministicDeps.getValueDependencies()) {
+    //    auto pos = valueDependencies.find(dep);
+    //    if (pos != valueDependencies.end()) {
+    //        m_valueDependencies[dep] = pos->second;
+    //    }
+    //}
 }
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)

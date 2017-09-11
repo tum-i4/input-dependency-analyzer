@@ -40,6 +40,10 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
         }
         assert(global != nullptr);
         auto pos = globalDeps.find(global);
+        // ??????????
+        if (pos == globalDeps.end()) {
+            continue;
+        }
         assert(pos != globalDeps.end());
         assert(pos->second.isDefined());
         assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
@@ -353,6 +357,7 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         updateLibFunctionCallInstructionDependencies(callInst, argDepMap);
     } else {
         updateFunctionCallSiteInfo(callInst, F);
+        // cyclic call
         // analysis result of callee is not available. e.g cyclic calls, recursive calls
         if (m_FAG(F) == nullptr) {
             updateCallInputDependentOutArgDependencies(callInst);
@@ -419,6 +424,7 @@ void DependencyAnaliser::processCallSiteWithMultipleTargets(llvm::CallInst* call
             InputDepInstructionsRecorder::get().record(callInst);
             // update globals??? May result to inaccuracies 
         } else {
+            //llvm::dbgs() << "Analysis results available for indirect call target: " << F->getName() << "\n";
             updateCallSiteOutArgDependencies(callInst, F);
             updateCallInstructionDependencies(callInst, F);
             updateGlobalsAfterFunctionCall(callInst, F);
@@ -459,7 +465,8 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
             continue;
         }
         auto depInfo = getInstructionDependencies(I);
-        if (depInfo.isInputDep()) {
+        // TODO: what can go wrong for argument dep case?
+        if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
             item->second = depInfo;
             //item->second.mergeDependencies(pos->second);
         } else {
@@ -822,6 +829,12 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
     DepInfo info(DepInfo::INPUT_INDEP);
     ValueSet globals;
     for (const auto& val : valueDeps) {
+        // Can be non global if the current block is in a loop.
+        //assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
+        if (!llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+            // TODO:
+            continue;
+        }
         // what if from loop?
         assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
         auto depInfo = getValueDependencies(val);
@@ -972,17 +985,29 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         }
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
-        if (val == nullptr) {
-            continue;
-        }
+        auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
+
+        //if (val == nullptr) {
+        //    continue;
+        //}
         if (FA->isOutArgInputIndependent(&arg)) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+            if (val) {
+                updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+            }
+            if (instr) {
+                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_INDEP));
+            }
             continue;
         }
         const auto& argDeps = FA->getOutArgDependencies(&arg);
         // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
         if (argDeps.isInputDep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            if (val) {
+                updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            }
+            if (instr) {
+                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
+            }
             continue;
         }
         DepInfo argDependencies;
@@ -990,7 +1015,12 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
             argDependencies = getArgumentActualValueDependencies(argDeps.getValueDependencies());
         }
         argDependencies.mergeDependencies(getArgumentActualDependencies(argDeps.getArgumentDependencies(), callArgDeps));
-        updateValueDependencies(val, argDependencies);
+        if (val) {
+            updateValueDependencies(val, argDependencies);
+        }
+        if (instr) {
+            updateRefAliasesDependencies(instr, argDependencies);
+        }
     }
 }
 

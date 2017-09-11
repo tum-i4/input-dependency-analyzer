@@ -17,14 +17,58 @@ DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepI
     DepInfo resultInfo;
     for (auto& dep : valueDeps) {
         auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
+        // ??????????????
+        if (global == nullptr) {
+            continue;
+        }
         assert(global != nullptr);
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {
             continue;
         }
         assert(pos->second.isDefined());
-        assert(!pos->second.isValueDep());
-        resultInfo.mergeDependencies(pos->second);
+        DepInfo global_depInfo = pos->second;
+        ValueSet& globalDependencies = global_depInfo.getValueDependencies();
+        if (global_depInfo.getDependency() == DepInfo::VALUE_DEP && !globalDependencies.empty()) {
+            ValueSet seen;
+            // assert(pos->second.isOnlyGlobalValueDependent());
+            auto it = globalDependencies.begin();
+            while (it != globalDependencies.end()) {
+                auto d = *it;
+                if (d == dep || seen.find(d) != seen.end()) {
+                    ++it;
+                    continue;
+                }
+                seen.insert(d);
+                auto global = llvm::dyn_cast<llvm::GlobalVariable>(d);
+                if (global == nullptr) {
+                    ++it;
+                    continue;
+                }
+                auto deps = actualDeps.find(global);
+                if (deps != actualDeps.end()) {
+                    global_depInfo.mergeDependencies(deps->second);
+                }
+                ++it;
+            }
+            for (auto s : seen) {
+                if (globalDependencies.empty()) {
+                    break;
+                }
+                globalDependencies.erase(s);
+            }
+            if (globalDependencies.empty() && global_depInfo.getDependency() == DepInfo::VALUE_DEP) {
+                global_depInfo.setDependency(DepInfo::INPUT_INDEP);
+            }
+        } else {
+            global_depInfo.getValueDependencies().clear();
+            if (global_depInfo.isValueDep()) {
+                global_depInfo.setDependency(DepInfo::INPUT_INDEP);
+            }
+        }
+        //assert(!pos->second.isValueDep());
+        //assert(!global_depInfo.isValueDep());
+        resultInfo.mergeDependencies(global_depInfo);
     }
     return resultInfo;
 }
@@ -55,7 +99,7 @@ void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap&
             continue;
         }
         const auto& finalDeps = getFinalizedDepInfo(actualDeps, item.second.getValueDependencies());
-        assert(!finalDeps.isValueDep());
+        //assert(!finalDeps.isValueDep());
         if (item.second.getDependency() == DepInfo::VALUE_DEP) {
             item.second.setDependency(finalDeps.getDependency());
         }
@@ -229,6 +273,9 @@ void FunctionCallDepInfo::markAllInputDependent()
 void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps)
 {
     auto res = m_callsArgumentsDeps.insert(std::make_pair(instr, argDeps));
+    if (!res.second) {
+        llvm::dbgs() << *instr << "\n";
+    }
     assert(res.second);
 }
 

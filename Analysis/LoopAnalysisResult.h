@@ -110,6 +110,7 @@ private:
     void updateReturnValueDependencies();
     void updateOutArgumentDependencies();
     void updateValueDependencies();
+    void updateValueDependencies(llvm::BasicBlock* B);
     void updateGlobals();
     void updateReferencedGlobals();
     void updateModifiedGlobals();

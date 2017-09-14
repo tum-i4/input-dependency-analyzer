@@ -64,6 +64,10 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
                     continue;
                 }
+                if (callSite->getArgumentList().empty()) {
+                    // don't clone function with no argument
+                    continue;
+                }
                 const auto& clonedFunctions = doClone(f_analysisInfo, callSite);
                 to_process.insert(clonedFunctions.begin(), clonedFunctions.end());
             }
@@ -119,7 +123,6 @@ FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& cal
             //llvm::dbgs() << "   Change call site to call cloned function\n";
             caller_analiser->changeFunctionCall(argDepItem.first, cloned_calledF, F);
         }
-        llvm::dbgs() << "\n";
     }
     //llvm::dbgs() << "\n";
     return clonedFunctions;

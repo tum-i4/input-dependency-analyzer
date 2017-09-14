@@ -52,6 +52,7 @@ void BasicBlockAnalysisResult::dumpResults() const
 
 void BasicBlockAnalysisResult::analize()
 {
+    //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {
         //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
@@ -190,12 +191,30 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
             valDep.second = info;
         }
     }
+    for (auto& valDep : m_initialDependencies) {
+        if (m_valueDependencies.find(valDep.first) != m_valueDependencies.end()) {
+            continue;
+        }
+        auto alias = m_AAR.alias(val, valDep.first);
+        if (alias != llvm::AliasResult::NoAlias) {
+            m_valueDependencies[valDep.first] = info;
+        }
+    }
 }
 
 void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info)
 {
     const auto& DL = storeInst->getModule()->getDataLayout();
     for (auto& dep : m_valueDependencies) {
+        auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
+        if (modRef == llvm::ModRefInfo::MRI_Mod) {
+            updateValueDependencies(dep.first, info);
+        }
+    }
+    for (auto& dep : m_initialDependencies) {
+        if (m_valueDependencies.find(dep.first) != m_valueDependencies.end()) {
+            continue;
+        }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Mod) {
             updateValueDependencies(dep.first, info);
@@ -491,8 +510,13 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
     DepInfo deps(DepInfo::INPUT_INDEP);
     for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
         if (auto* opInst = llvm::dyn_cast<llvm::Instruction>(op)) {
-            const auto& c_deps = getInstructionDependencies(opInst);
-            deps.mergeDependencies(c_deps);
+            auto value_dep = getValueDependencies(opInst);
+            if (value_dep.isDefined()) {
+                deps.mergeDependencies(value_dep);
+            } else {
+                const auto& c_deps = getInstructionDependencies(opInst);
+                deps.mergeDependencies(c_deps);
+            }
         } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {
             if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(opVal)) {
                 m_referencedGlobals.insert(global);

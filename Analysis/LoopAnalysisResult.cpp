@@ -291,7 +291,7 @@ void LoopAnalysisResult::gatherResults()
                 Bpos->second->markAllInputDependent();
             } else {
                 m_BBAnalisers[B] = createInputDependentAnaliser(B);
-                //analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
+                m_BBAnalisers[B]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
                 //analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
                 m_BBAnalisers[B]->gatherResults();
                 updateValueDependencies(B);
@@ -789,9 +789,6 @@ void LoopAnalysisResult::updateModifiedGlobals()
 void LoopAnalysisResult::reflect()
 {
     DependencyAnaliser::ValueDependencies valueDependencies;
-    //for (const auto& bb : m_BBAnalisers) {
-    //    llvm::dbgs() << "   " << bb.first->getName() << "\n";
-    //}
     for (const auto& latch : m_latches) {
         auto pos = m_BBAnalisers.find(latch);
         if (pos == m_BBAnalisers.end()) {

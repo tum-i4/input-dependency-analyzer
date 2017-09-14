@@ -236,6 +236,12 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
     return m_is_inputDep;
 }
 
+bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block,
+                                                const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    return isInputDependent(block);
+}
+
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 {
     assert(instr->getParent() == m_BB);

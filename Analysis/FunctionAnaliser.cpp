@@ -511,7 +511,7 @@ InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const Dependenc
     std::unordered_map<llvm::Instruction*, llvm::Instruction*> local_instr_map;
     for (auto& B : *m_F) {
         auto& analysisRes = getAnalysisResult(&B);
-        if (analysisRes->isInputDependent(&B)) {
+        if (analysisRes->isInputDependent(&B, inputDepArgs)) {
             llvm::Value* block_val = get_mapped_value(&B, VMap);
             if (!block_val) {
                 continue;

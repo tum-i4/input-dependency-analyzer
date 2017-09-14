@@ -65,6 +65,7 @@ public:
     void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
     // make sure call this after finalization
     bool isInputDependent(llvm::BasicBlock* block) const override;
+    bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
@@ -125,6 +126,7 @@ private:
     DepInfo getBasicBlockDeps(llvm::BasicBlock* B) const;
     DepInfo getBlockTerminatingDependencies(llvm::BasicBlock* B) const;
     void collectLoopBlocks(llvm::Loop* block_loop);
+    void finalizeLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs);
 
 private:
     llvm::Function* m_F;

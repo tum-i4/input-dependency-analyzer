@@ -73,6 +73,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
     llvm::dbgs() << "Finished function clonning transofrmation\n\n";
     dump();
+
     //dumpStatistics(M);
     return isChanged;
 }

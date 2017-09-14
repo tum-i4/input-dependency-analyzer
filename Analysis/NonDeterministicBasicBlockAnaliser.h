@@ -26,6 +26,7 @@ public:
 
 public:
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+    bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{

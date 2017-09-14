@@ -71,6 +71,7 @@ public:
     void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
 
     bool isInputDependent(llvm::BasicBlock* block) const override;
+    bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;

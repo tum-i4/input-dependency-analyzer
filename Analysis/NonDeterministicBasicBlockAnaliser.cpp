@@ -43,6 +43,16 @@ void NonDeterministicBasicBlockAnaliser::finalizeResults(const ArgumentDependenc
     } 
 }
 
+bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* block,
+                                                          const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    assert(block == m_BB);
+    if (m_nonDetDeps.isInputDep()) {
+        return true;
+    }
+    return Utils::isInputDependentForArguments(m_nonDetDeps, depArgs);
+}
+
 DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto depInfo = BasicBlockAnalysisResult::getInstructionDependencies(instr);

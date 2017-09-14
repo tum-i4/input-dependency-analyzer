@@ -319,25 +319,7 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
-    auto& loop_dependencies = m_loopDependencies.getValueDependencies();
-    if (!loop_dependencies.empty()) {
-        for (auto& loopDep : loop_dependencies) {
-            auto dep = m_valueDependencies.find(loopDep);
-            if (dep != m_valueDependencies.end()) {
-                m_loopDependencies.mergeDependencies(dep->second);
-            }
-        }
-    }
-    loop_dependencies.clear();
-    if (m_loopDependencies.isValueDep()) {
-        m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
-    }
-    if (m_loopDependencies.isInputDep()) {
-        m_is_inputDep = true;
-    } else if (m_loopDependencies.isInputArgumentDep()
-            && Utils::haveIntersection(dependentArgs, m_loopDependencies.getArgumentDependencies())) {
-        m_is_inputDep = true;
-    }
+    finalizeLoopDependencies(dependentArgs);
 }
 
 void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
@@ -380,6 +362,20 @@ bool LoopAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
     assert(is_in_loop);
     const auto& analysisRes = getAnalysisResult(block);
     return analysisRes->isInputDependent(block);
+}
+
+bool LoopAnalysisResult::isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    if (m_loopDependencies.isInputDep()) {
+        return true;
+    }
+    if (Utils::isInputDependentForArguments(m_loopDependencies, depArgs)) {
+        return true;
+    }
+    bool is_in_loop = (m_BBAnalisers.find(block) != m_BBAnalisers.end()) || (m_loopBlocks.find(block) != m_loopBlocks.end());
+    assert(is_in_loop);
+    const auto& analysisRes = getAnalysisResult(block);
+    return analysisRes->isInputDependent(block, depArgs);
 }
 
 bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
@@ -892,6 +888,29 @@ void LoopAnalysisResult::collectLoopBlocks(llvm::Loop* block_loop)
     auto header = block_loop->getHeader();
     for (auto& block : blocks) {
         m_loopBlocks[block] = header;
+    }
+}
+
+void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
+{
+    auto& loop_dependencies = m_loopDependencies.getValueDependencies();
+    if (!loop_dependencies.empty()) {
+        for (auto& loopDep : loop_dependencies) {
+            auto dep = m_valueDependencies.find(loopDep);
+            if (dep != m_valueDependencies.end()) {
+                m_loopDependencies.mergeDependencies(dep->second);
+            }
+        }
+    }
+    loop_dependencies.clear();
+    if (m_loopDependencies.isValueDep()) {
+        m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
+    }
+    if (m_loopDependencies.isInputDep()) {
+        m_is_inputDep = true;
+    } else if (m_loopDependencies.isInputArgumentDep()
+            && Utils::haveIntersection(dependentArgs, m_loopDependencies.getArgumentDependencies())) {
+        m_is_inputDep = true;
     }
 }
 

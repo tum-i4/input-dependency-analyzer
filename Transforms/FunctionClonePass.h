@@ -33,18 +33,25 @@ public:
     bool runOnModule(llvm::Module& M) override;
 
 private:
-    std::unordered_set<llvm::Function*> doClone(const input_dependency::FunctionAnaliser* analiser, llvm::Function* calledF);
-    void changeFunctionCall(const llvm::Instruction* instr, llvm::Function* F);
-    void cloneFunctionAnalysisInfo(const input_dependency::FunctionAnaliser* analiser,
-                                   llvm::Function* Fclone,
-                                   const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argumentDeps);
+    using FunctionSet = std::unordered_set<llvm::Function*>;
+    using InputDepRes = input_dependency::InputDependencyAnalysis::InputDepResType;
+    FunctionSet doClone(const InputDepRes& analiser,
+                        llvm::Function* calledF);
+    InputDepRes getFunctionInputDepInfo(llvm::Function* F) const;
+    std::pair<llvm::Function*, bool> doCloneForArguments(
+                                            llvm::Function* calledF,
+                                            InputDepRes original_analiser,
+                                            FunctionClone& clone,
+                                            const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps);
+
+    void dump() const;
     void dumpStatistics(llvm::Module& M);
 
 private:
     input_dependency::InputDependencyAnalysis* IDA;
     using FunctionCloneInfo = std::unordered_map<llvm::Function*, FunctionClone>;
     FunctionCloneInfo m_functionCloneInfo;
-    input_dependency::InputDependencyAnalysis::InputDependencyAnalysisInfo m_duplicatedAnalysisInfo;
+    std::unordered_map<llvm::Function*, llvm::Function*> m_clone_to_original;
 };
 
 }

@@ -22,14 +22,22 @@ public:
     using CallSiteGloblasDependenciesMap = std::unordered_map<const llvm::Instruction*, GlobalVariableDependencyMap>;
 
 public:
+    FunctionCallDepInfo() = default;
     FunctionCallDepInfo(const llvm::Function& F);
 
 public:
+    bool empty() const;
+
     void addCall(const llvm::CallInst* callInst, const ArgumentDependenciesMap& deps);
     void addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps);
     void addCall(const llvm::CallInst* callInst, const GlobalVariableDependencyMap& deps);
     void addInvoke(const llvm::InvokeInst* invokeInst, const GlobalVariableDependencyMap& deps);
+
+    void addCall(const llvm::Instruction* instr, const ArgumentDependenciesMap& deps);
+    void addCall(const llvm::Instruction* instr, const GlobalVariableDependencyMap& deps);
     void addDepInfo(const FunctionCallDepInfo& depInfo);
+
+    void removeCall(const llvm::Instruction* callInst);
 
     const CallSiteArgumentsDependenciesMap& getCallsArgumentDependencies() const;
     const CallSiteGloblasDependenciesMap& getCallsGlobalsDependencies() const;
@@ -38,6 +46,8 @@ public:
     const ArgumentDependenciesMap& getArgumentDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const;
     const GlobalVariableDependencyMap& getGlobalsDependenciesForCall(const llvm::CallInst* callInst) const;
     const GlobalVariableDependencyMap& getGlobalsDependenciesForInvoke(const llvm::InvokeInst* invokeInst) const;
+    ArgumentDependenciesMap& getArgumentsDependencies(const llvm::Instruction* instr);
+    GlobalVariableDependencyMap& getGlobalsDependencies(const llvm::Instruction* instr);
 
     // Used in reflection algorithm.
     ArgumentDependenciesMap& getArgumentDependenciesForCall(const llvm::CallInst* callInst);
@@ -59,17 +69,15 @@ public:
     void markAllInputDependent();
 
 private:
+    bool isValidInstruction(const llvm::Instruction* instr) const;
     void addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps);
     void addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps);
-
-    ArgumentDependenciesMap& getArgumentsDependencies(const llvm::Instruction* instr);
-    GlobalVariableDependencyMap& getGlobalsDependencies(const llvm::Instruction* instr);
 
     template <class Key>
     void markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps);
 
 private:
-    const llvm::Function& m_F;
+    const llvm::Function* m_F;
     CallSiteArgumentsDependenciesMap m_callsArgumentsDeps;
     CallSiteGloblasDependenciesMap m_callsGlobalsDeps;
 };

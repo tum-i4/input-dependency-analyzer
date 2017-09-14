@@ -389,11 +389,26 @@ bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr) const
     return analysisRes->isInputDependent(instr);
 }
 
+bool LoopAnalysisResult::isInputDependent(llvm::Instruction* instr,
+                                          const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    auto parentBB = instr->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isInputDependent(instr, depArgs);
+}
+
 bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();
     const auto& analysisRes = getAnalysisResult(parentBB);
     return analysisRes->isInputIndependent(instr);
+}
+
+bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    auto parentBB = instr->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isInputIndependent(instr, depArgs);
 }
 
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
@@ -471,6 +486,31 @@ const FunctionCallDepInfo& LoopAnalysisResult::getFunctionCallInfo(llvm::Functio
     }
     pos = m_functionCallInfo.find(F);
     return pos->second;
+}
+
+bool LoopAnalysisResult::changeFunctionCall(llvm::Instruction* instr, llvm::Function* oldF, llvm::Function* newCallee)
+{
+    llvm::BasicBlock* parent_block = instr->getParent();
+    auto& analysisRes = getAnalysisResult(parent_block);
+    const auto called_functions = analysisRes->getCallSitesData();
+    if (!analysisRes->changeFunctionCall(instr, oldF, newCallee)) {
+        return false;
+    }
+    assert(analysisRes->hasFunctionCallInfo(newCallee));
+    // update called functions
+    for (const auto& called_f : called_functions) {
+        m_calledFunctions.erase(called_f);
+    }
+    const auto& new_calls = analysisRes->getCallSitesData();
+    m_calledFunctions.insert(new_calls.begin(), new_calls.end());
+
+    // update call site argument deps
+    auto callInfo = analysisRes->getFunctionCallInfo(newCallee);
+    auto res = m_functionCallInfo.insert(std::make_pair(newCallee, callInfo));
+    if (!res.second) {
+        res.first->second.addDepInfo(callInfo);
+    }
+    return true;
 }
 
 bool LoopAnalysisResult::hasFunctionCallInfo(llvm::Function* F) const
@@ -761,7 +801,7 @@ void LoopAnalysisResult::reflect()
         if (pos == m_BBAnalisers.end()) {
             auto latch_loop = m_LI.getLoopFor(latch);
             if (latch_loop == &m_L) {
-                llvm::dbgs() << "yah " << latch->getName() << "\n";
+                llvm::dbgs() << "Can't find loop for latch " << latch->getName() << "\n";
             }
         }
         assert(pos != m_BBAnalisers.end());

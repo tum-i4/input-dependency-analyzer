@@ -15,6 +15,16 @@ public:
     }
 
 public:
+    llvm::Function* getFunction() override
+    {
+        return m_F;
+    }
+
+    const llvm::Function* getFunction() const override
+    {
+        return m_F;
+    }
+
     bool isInputDependent(llvm::Instruction* instr) const override
     {
         return true;
@@ -35,20 +45,19 @@ public:
         return false;
     }
 
-    bool isInputDependent(llvm::Value* val) const override
-    {
-        return true;
-    }
-
-    bool isInputIndependent(llvm::Value* val) const override
-    {
-        return false;
-    }
-
     bool isInputDependentBlock(llvm::BasicBlock* block) const override
     {
         // TODO: what about entry and exit blocks?
         return true;
+    }
+
+    FunctionSet getCallSitesData() const override
+    {
+        return FunctionSet();    
+    }
+
+    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override
+    {
     }
 
     // for debug only

@@ -1,5 +1,7 @@
 #include "BasicBlockAnalysisResult.h"
 
+#include "Utils.h"
+
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
@@ -243,10 +245,41 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
     return m_inputDependentInstrs.find(instr) != m_inputDependentInstrs.end();
 }
 
+bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr,
+                                                const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    auto pos = m_inputDependentInstrs.find(instr);
+    if (pos == m_inputDependentInstrs.end()) {
+        // if is not in non-final input dep instructions set, means is input independent
+        return false;
+    }
+    const auto& deps = pos->second;
+    if (deps.isInputDep()) {
+        // is input dep
+        return true;
+    }
+    return (deps.isInputArgumentDep() && Utils::haveIntersection(depArgs, deps.getArgumentDependencies()));
+}
+
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     assert(instr->getParent()->getParent() == m_F);
     return m_inputIndependentInstrs.find(instr) != m_inputIndependentInstrs.end();
+}
+
+bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
+                                                  const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+{
+    auto pos = m_inputDependentInstrs.find(instr);
+    if (pos == m_inputDependentInstrs.end()) {
+        return true;
+    }
+    const auto& deps = pos->second;
+    if (deps.isInputDep()) {
+        return false;
+    }
+    return deps.isInputIndep()
+        || (deps.isInputArgumentDep() && !Utils::haveIntersection(depArgs, deps.getArgumentDependencies()));
 }
 
 bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
@@ -308,6 +341,44 @@ const FunctionCallDepInfo& BasicBlockAnalysisResult::getFunctionCallInfo(llvm::F
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
     return pos->second;
+}
+
+bool BasicBlockAnalysisResult::changeFunctionCall(llvm::Instruction* instr, llvm::Function* oldF, llvm::Function* newCallee)
+{
+    //llvm::dbgs() << "   Change called fuction in instruction " << *instr << " to " << newCallee->getName() << "\n";
+
+    if (auto call = llvm::dyn_cast<llvm::CallInst>(instr)) {
+        call->setCalledFunction(newCallee);
+    } else if (auto invoke = llvm::dyn_cast<llvm::InvokeInst>(instr)) {
+        invoke->setCalledFunction(newCallee);
+    } else {
+        assert(false);
+    }
+    auto callDepInfo_pos = m_functionCallInfo.find(oldF);
+    if (callDepInfo_pos == m_functionCallInfo.end()) {
+        //llvm::dbgs() << "No call of function " << oldF->getName() << " in block " << m_BB->getName() << "\n";
+        return false;
+    }
+    auto& callDepInfo = callDepInfo_pos->second;
+    const FunctionCallDepInfo::ArgumentDependenciesMap&  calledArgDepMap = callDepInfo.getArgumentsDependencies(instr);
+    const FunctionCallDepInfo::GlobalVariableDependencyMap& globalsDeps = callDepInfo.getGlobalsDependencies(instr);
+    FunctionCallDepInfo newCallDepInfo(*newCallee);
+    newCallDepInfo.addCall(instr, calledArgDepMap);
+    newCallDepInfo.addCall(instr, globalsDeps);
+    auto insert_res = m_functionCallInfo.insert(std::make_pair(newCallee, newCallDepInfo));
+    if (!insert_res.second) {
+        insert_res.first->second.addDepInfo(newCallDepInfo);
+    }
+    callDepInfo.removeCall(instr);
+    if (callDepInfo.empty()) {
+        m_functionCallInfo.erase(callDepInfo_pos);
+    }
+    m_calledFunctions.insert(newCallee);
+    if (!hasFunctionCallInfo(oldF)) {
+        m_calledFunctions.erase(oldF);
+    }
+    //llvm::dbgs() << "   Result of called function change " << *instr << "\n";
+    return true;
 }
 
 bool BasicBlockAnalysisResult::hasFunctionCallInfo(llvm::Function* F) const

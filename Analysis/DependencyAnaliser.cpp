@@ -901,7 +901,7 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCa
     for (unsigned i = 0; i < callInst->getNumArgOperands(); ++i) {
         llvm::Value* argVal = callInst->getArgOperand(i);
         const auto& deps = getArgumentValueDependecnies(argVal);
-        if (!deps.isDefined() || deps.isInputIndep()) {
+        if (!deps.isDefined()) {
             continue;
         }
         auto arg = getFunctionArgument(F, i);

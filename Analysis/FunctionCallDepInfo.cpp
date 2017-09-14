@@ -78,8 +78,10 @@ void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualD
                      DepMapType& toFinalize)
 {
     auto it = toFinalize.begin();
+    // TODO: what about don't erase, set to input indep?
     while (it != toFinalize.end()) {
-        if (it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies())) {
+        if (it->second.isInputIndep() ||(
+            it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies()))) {
             auto old = it;
             ++it;
             toFinalize.erase(old);
@@ -110,15 +112,20 @@ void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap&
 }
 
 FunctionCallDepInfo::FunctionCallDepInfo(const llvm::Function& F)
-                                : m_F(F)
+                                : m_F(&F)
 {
+}
+
+bool FunctionCallDepInfo::empty() const
+{
+    return m_callsArgumentsDeps.empty() && m_callsGlobalsDeps.empty();
 }
 
 void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const ArgumentDependenciesMap& deps)
 {
     if (auto F = callInst->getCalledFunction()) {
         // if callInst is virtual call, then CalledFunction is going to be null
-        assert(F == &m_F);
+        assert(F == m_F);
     }
     addCallSiteArguments(callInst, deps);
 }
@@ -126,7 +133,7 @@ void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const Argument
 void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps)
 {
     if (auto F = invokeInst->getCalledFunction()) {
-        assert(F == &m_F);
+        assert(F == m_F);
     }
     addCallSiteArguments(invokeInst, deps);
 }
@@ -135,7 +142,7 @@ void FunctionCallDepInfo::addCall(const llvm::CallInst* callInst, const GlobalVa
 {
     if (auto F = callInst->getCalledFunction()) {
         // if callInst is virtual call, then CalledFunction is going to be null
-        assert(F == &m_F);
+        assert(F == m_F);
     }
     addCallSiteGlobals(callInst, deps);
 }
@@ -144,9 +151,21 @@ void FunctionCallDepInfo::addInvoke(const llvm::InvokeInst* invokeInst, const Gl
 {
     if (auto F = invokeInst->getCalledFunction()) {
         // if callInst is virtual call, then CalledFunction is going to be null
-        assert(F == &m_F);
+        assert(F == m_F);
     }
     addCallSiteGlobals(invokeInst, deps);
+}
+
+void FunctionCallDepInfo::addCall(const llvm::Instruction* instr, const ArgumentDependenciesMap& deps)
+{
+    assert(isValidInstruction(instr));
+    addCallSiteArguments(instr, deps);
+}
+
+void FunctionCallDepInfo::addCall(const llvm::Instruction* instr, const GlobalVariableDependencyMap& deps)
+{
+    assert(isValidInstruction(instr));
+    addCallSiteGlobals(instr, deps);
 }
 
 void FunctionCallDepInfo::addDepInfo(const FunctionCallDepInfo& callsInfo)
@@ -157,6 +176,12 @@ void FunctionCallDepInfo::addDepInfo(const FunctionCallDepInfo& callsInfo)
     for (const auto& callItem : callsInfo.getCallsGlobalsDependencies()) {
         addCallSiteGlobals(callItem.first, callItem.second);
     }
+}
+
+void FunctionCallDepInfo::removeCall(const llvm::Instruction* callInst)
+{
+    m_callsArgumentsDeps.erase(callInst);
+    m_callsGlobalsDeps.erase(callInst);
 }
 
 const FunctionCallDepInfo::CallSiteArgumentsDependenciesMap& FunctionCallDepInfo::getCallsArgumentDependencies() const
@@ -270,19 +295,33 @@ void FunctionCallDepInfo::markAllInputDependent()
     }
 }
 
+bool FunctionCallDepInfo::isValidInstruction(const llvm::Instruction* instr) const
+{
+    llvm::Function* calledF;
+    if (const auto call = llvm::dyn_cast<llvm::CallInst>(instr)) {
+        calledF = call->getCalledFunction();
+    } else if (const auto invoke = llvm::dyn_cast<llvm::InvokeInst>(instr)){
+        calledF = invoke->getCalledFunction();
+    } else {
+        return false;
+    }
+    return !calledF || (calledF == m_F);
+}
+
 void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps)
 {
     auto res = m_callsArgumentsDeps.insert(std::make_pair(instr, argDeps));
     if (!res.second) {
-        llvm::dbgs() << *instr << "\n";
+        //llvm::dbgs() << "FunctionCallDepInfo: arguments information for call site " << *instr << " is already collected\n";
     }
-    assert(res.second);
 }
 
 void FunctionCallDepInfo::addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps)
 {
     auto res = m_callsGlobalsDeps.insert(std::make_pair(instr, globalDeps));
-    assert(res.second);
+    if (!res.second) {
+        //llvm::dbgs() << "FunctionCallDepInfo: globals information for call site " << *instr << " is already collected\n";
+    }
 }
 
 FunctionCallDepInfo::ArgumentDependenciesMap& FunctionCallDepInfo::getArgumentsDependencies(const llvm::Instruction* instr)

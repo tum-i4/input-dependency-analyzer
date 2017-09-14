@@ -16,6 +16,16 @@
 
 namespace oh {
 
+namespace {
+
+bool skip_function(llvm::Function* F, const std::unordered_set<llvm::Function*>& skip_set)
+{
+    return F->isDeclaration() || F->isIntrinsic() || (skip_set.find(F) != skip_set.end());
+}
+
+}
+
+
 char FunctionClonePass::ID = 0;
 
 void FunctionClonePass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
@@ -26,35 +36,26 @@ void FunctionClonePass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 
 bool FunctionClonePass::runOnModule(llvm::Module& M)
 {
+    llvm::dbgs() << "Running function clonning transofrmation pass\n";
     bool isChanged = true;
     IDA = &getAnalysis<input_dependency::InputDependencyAnalysis>();
     auto it = M.begin();
-    std::unordered_set<llvm::Function*> to_process;
-    std::unordered_set<llvm::Function*> processed;
+    FunctionSet to_process;
+    FunctionSet processed;
     while (it != M.end()) {
         auto F = &*it;
-        if (F->isDeclaration() || F->isIntrinsic()) {
-            ++it;
-            continue;
-        }
-        if (processed.find(F) != processed.end()) {
-            ++it;
+        ++it;
+        if (skip_function(F, processed)) {
             continue;
         }
         to_process.insert(F);
         while (!to_process.empty()) {
             auto pos = to_process.begin();
             auto& currentF = *pos;
+            llvm::dbgs() << "Cloning functions called in " << currentF->getName() << "\n";
             processed.insert(currentF);
-            input_dependency::InputDependencyAnalysis::InputDepResType analysisInfo;
-            auto analysispos = m_duplicatedAnalysisInfo.find(currentF);
-            if (analysispos != m_duplicatedAnalysisInfo.end()) {
-                analysisInfo = analysispos->second;
-            } else {
-                analysisInfo = IDA->getAnalysisInfo(currentF);
-            }
-            assert(analysisInfo != nullptr);
-            auto f_analysisInfo = analysisInfo->toFunctionAnalysisResult();
+
+            auto f_analysisInfo = getFunctionInputDepInfo(currentF);
             if (f_analysisInfo == nullptr) {
                 continue;
             }
@@ -68,83 +69,114 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             }
             to_process.erase(currentF);
         }
-        ++it;
     }
 
-    dumpStatistics(M);
-
+    llvm::dbgs() << "Finished function clonning transofrmation\n\n";
+    dump();
+    //dumpStatistics(M);
     return isChanged;
 }
 
-std::unordered_set<llvm::Function*> FunctionClonePass::doClone(const input_dependency::FunctionAnaliser* analiser,
-                                                               llvm::Function* calledF)
+// Do clonning for the given called functions.
+// Will clone for all sets of input dependent arguments.
+// Returns set of clonned functions.
+FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& caller_analiser,
+                                                          llvm::Function* calledF)
 {
-    llvm::dbgs() << "   doClone " << calledF->getName() << "\n";
+    llvm::dbgs() << "   Clone " << calledF->getName() << "\n";
+    llvm::dbgs() << "---------------------------\n";
+    FunctionSet clonedFunctions;
 
-    std::unordered_set<llvm::Function*> clonedFunctions;
-    if (m_functionCloneInfo.find(calledF) == m_functionCloneInfo.end()) {
-        FunctionClone clone(calledF);
-        m_functionCloneInfo.emplace(calledF, std::move(clone));
+    // keep the value of actual calledF
+    llvm::Function* cloned_calledF = calledF;
+    // if calledF is a clone itself, get its original function information
+    auto pos = m_clone_to_original.find(calledF);
+    if (pos != m_clone_to_original.end()) {
+        calledF = pos->second;
     }
-    input_dependency::InputDependencyAnalysis::InputDepResType analysisRes;
-    auto pos = m_duplicatedAnalysisInfo.find(calledF);
-    if (pos != m_duplicatedAnalysisInfo.end()) {
-        analysisRes = pos->second;
-    } else {
-        analysisRes = IDA->getAnalysisInfo(calledF);
-    }
-    auto calledFunctionAnaliser = analysisRes->toFunctionAnalysisResult();
+    auto calledFunctionAnaliser = getFunctionInputDepInfo(calledF);
     if (!calledFunctionAnaliser) {
         return clonedFunctions;
     }
+    auto emplace_res = m_functionCloneInfo.emplace(calledF, FunctionClone(calledF));
+    auto& clone = emplace_res.first->second;
 
-    auto& clone = m_functionCloneInfo.find(calledF)->second;
-    auto functionCallDepInfo = analiser->getFunctionCallDepInfo(calledF);
+    auto functionCallDepInfo = caller_analiser->getFunctionCallDepInfo(cloned_calledF);
     auto& callArgDeps = functionCallDepInfo.getCallsArgumentDependencies();
+
     for (auto& argDepItem : callArgDeps) {
-        const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDepItem.second,
-                                                                           calledF->getArgumentList().size(),
-                                                                           calledF->isVarArg());
-        llvm::Function* F = nullptr;
-        if (clone.hasCloneForMask(mask)) {
-            F = clone.getClonedFunction(mask);
-        } else {
-            F = clone.doCloneForMask(mask);
+        //llvm::dbgs() << "   Clone for call site " << *argDepItem.first << "\n";
+        auto clone_res = doCloneForArguments(calledF, calledFunctionAnaliser, clone, argDepItem.second);
+        auto F = clone_res.first;
+        if (clone_res.second) {
+            auto new_clone = m_clone_to_original.insert(std::make_pair(F, calledF));
+            assert(new_clone.second);
             clonedFunctions.insert(F);
-            cloneFunctionAnalysisInfo(calledFunctionAnaliser, F, argDepItem.second);
+            // add to analysis info
         }
-        changeFunctionCall(argDepItem.first, F);
+        if (cloned_calledF != F) {
+            //llvm::dbgs() << "   Change call site to call cloned function\n";
+            caller_analiser->changeFunctionCall(argDepItem.first, cloned_calledF, F);
+        }
+        llvm::dbgs() << "\n";
     }
+    //llvm::dbgs() << "\n";
     return clonedFunctions;
 }
 
-void FunctionClonePass::changeFunctionCall(const llvm::Instruction* instr, llvm::Function* F)
+input_dependency::InputDependencyAnalysis::InputDepResType FunctionClonePass::getFunctionInputDepInfo(llvm::Function* F) const
 {
-    if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(instr)) {
-        (const_cast<llvm::CallInst*>(callInst))->setCalledFunction(F);
-    } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(instr)) {
-        (const_cast<llvm::InvokeInst*>(invokeInst))->setCalledFunction(F);
-    } else {
-        assert(false);
+    input_dependency::InputDependencyAnalysis::InputDepResType analysisInfo = IDA->getAnalysisInfo(F);
+    if (!analysisInfo) {
+        //llvm::dbgs() << "No input dep info for " << F->getName() << "\n";
+        return nullptr;
     }
+    return analysisInfo;
 }
 
-void FunctionClonePass::cloneFunctionAnalysisInfo(const input_dependency::FunctionAnaliser* analiser,
-                                                  llvm::Function* Fclone,
-                                                  const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argumentDeps)
+std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
+                                                       llvm::Function* calledF,
+                                                       InputDepRes original_analiser,
+                                                       FunctionClone& clone,
+                                                       const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps)
 {
-    input_dependency::InputDependencyAnalysis::InputDepResType clonedAnaliser(new input_dependency::FunctionAnaliser(*analiser));
-    auto f_clonedAnaliser = clonedAnaliser->toFunctionAnalysisResult();
-    assert(f_clonedAnaliser);
-    f_clonedAnaliser->setFunction(Fclone);
-    f_clonedAnaliser->finalizeArguments(argumentDeps);
-    m_duplicatedAnalysisInfo.emplace(Fclone, std::move(clonedAnaliser));
+    const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDeps,
+                                                                       calledF->getArgumentList().size(),
+                                                                       calledF->isVarArg());
+    //llvm::dbgs() << "   Argument dependency mask is: " << FunctionClone::mask_to_string(mask) << "\n";
+    llvm::Function* F = nullptr;
+    if (clone.hasCloneForMask(mask)) {
+        F = clone.getClonedFunction(mask);
+        //llvm::dbgs() << "   Has clone for mask " << F->getName() << ". reuse..\n";
+        return std::make_pair(F, false);
+    }
+    auto original_f_analiser = original_analiser->toFunctionAnalysisResult();
+    if (!original_f_analiser) {
+        // is it possible to clone clonned function?
+        // assert(false);
+        return std::make_pair(nullptr, false);
+    }
+    InputDepRes cloned_analiser(original_f_analiser->cloneForArguments(argDeps));
+    F = cloned_analiser->getFunction();
+    //llvm::dbgs() << "   New clone is " << F->getName() << "\n";
+    clone.addClone(mask, F);
+    bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);
+    return std::make_pair(F, true);
+}
+
+void FunctionClonePass::dump() const
+{
+    llvm::dbgs() << "Clonning transformation results\n";
+    for (const auto& clone : m_functionCloneInfo) {
+        clone.second.dump();
+    }
 }
 
 void FunctionClonePass::dumpStatistics(llvm::Module& M)
 {
+    llvm::dbgs() << "Input Dependency statistics after clonning\n";
     input_dependency::InputDependencyStatistics statistics;
-    statistics.report(M, m_duplicatedAnalysisInfo);
+    statistics.report(M, IDA->getAnalysisInfo());
 }
 
 static llvm::RegisterPass<FunctionClonePass> X(

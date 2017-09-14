@@ -21,7 +21,7 @@ llvm::Function* FunctionClone::getClonedFunction(const mask& m) const
 {
     auto pos = m_clones.find(m);
     assert(pos != m_clones.end());
-    return pos->second;
+    return pos->second.first;
 }
 
 llvm::Function* FunctionClone::doCloneForMask(const mask& m)
@@ -29,10 +29,27 @@ llvm::Function* FunctionClone::doCloneForMask(const mask& m)
     if (hasCloneForMask(m)) {
         return getClonedFunction(m);
     }
-    llvm::ValueToValueMapTy VMap;
-    llvm::Function* newF = llvm::CloneFunction(m_originalF, VMap);
-    m_clones[m] = newF;
+    llvm::ValueToValueMapTy* VMap = new llvm::ValueToValueMapTy();
+    llvm::Function* newF = llvm::CloneFunction(m_originalF, *VMap);
+    m_clones.insert(std::make_pair(m, clone_info(newF, VMap)));
+
+    for (const auto& map_entry : *VMap) {
+        llvm::dbgs() << *map_entry.first << " TO " << *map_entry.second << "\n";
+    }
     return newF;
+}
+
+bool FunctionClone::addClone(const mask& m, llvm::Function* F)
+{
+    return m_clones.insert(std::make_pair(m, clone_info(F, new llvm::ValueToValueMapTy()))).second;
+}
+
+void FunctionClone::dump() const
+{
+    llvm::dbgs() << m_originalF->getName() << "\n";
+    for (const auto& clone : m_clones) {
+        llvm::dbgs() << "   mask: " <<  mask_to_string(clone.first) << " clone: " << clone.second.first->getName() << "\n";
+    }
 }
 
 FunctionClone::mask FunctionClone::createMaskForCall(const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps,
@@ -61,6 +78,15 @@ FunctionClone::mask FunctionClone::createMaskForCall(const input_dependency::Fun
         }
     }
     return callSiteMask;
+}
+
+std::string FunctionClone::mask_to_string(const FunctionClone::mask& m)
+{
+    std::string mask_str;
+    for (const auto& b : m) {
+        mask_str += std::to_string(b);
+    }
+    return mask_str;
 }
 
 }

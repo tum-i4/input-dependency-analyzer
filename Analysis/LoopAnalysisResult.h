@@ -66,7 +66,9 @@ public:
     // make sure call this after finalization
     bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
+    bool isInputIndependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
     const DepInfo& getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
@@ -75,6 +77,7 @@ public:
     const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FCallsArgDeps& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
+    bool changeFunctionCall(llvm::Instruction* instr, llvm::Function* oldF, llvm::Function* newCallee) override;
     bool hasFunctionCallInfo(llvm::Function* F) const override;
     const FunctionSet& getCallSitesData() const override;
     const GlobalsSet& getReferencedGlobals() const override;

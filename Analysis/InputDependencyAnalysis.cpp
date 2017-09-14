@@ -31,6 +31,7 @@ char InputDependencyAnalysis::ID = 0;
 bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 {
     // Disable later
+    llvm::dbgs() << "Running input dependency analysis pass\n";
     InputDepInstructionsRecorder::get().set_record();
 
     m_module = &M;
@@ -83,6 +84,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         ++CGI;
     }
     doFinalization(CG);
+    llvm::dbgs() << "Finished input dependency analysis\n\n";
     return false;
 }
 
@@ -151,6 +153,7 @@ bool InputDependencyAnalysis::insertAnalysisInfo(llvm::Function* F, InputDepResT
         return false;
     }
     m_functionAnalisers.insert(std::make_pair(F, analysis_info));
+    return true;
 }
 
 // doFinalize is called once

@@ -30,19 +30,22 @@ public:
 
 public:
     void setFunction(llvm::Function* F);
-    llvm::Function* getFunction();
-    const llvm::Function* getFunction() const;
 
     /// \name InputDependencyResult interface
     /// \{
 public:
+    llvm::Function* getFunction() override;
+    const llvm::Function* getFunction() const override;
+
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(const llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(const llvm::Instruction* instr) const override;
-    bool isInputDependent(llvm::Value* val) const override;
-    bool isInputIndependent(llvm::Value* val) const override;
     bool isInputDependentBlock(llvm::BasicBlock* block) const override;
+
+    FunctionSet getCallSitesData() const override;
+    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
+    bool changeFunctionCall(const llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF) override;
 
     // for debug only
     long unsigned get_input_dep_count() const override;
@@ -85,9 +88,7 @@ public:
 
     /// \name Intermediate input dep results interface
     /// \{
-    FunctionSet getCallSitesData() const;
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
-    FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
     DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
@@ -100,6 +101,7 @@ public:
     const GlobalsSet& getModifiedGlobals() const;
     /// \}
 
+    InputDependencyResult* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     /// \name debug interface
     /// \{
     void dump() const;

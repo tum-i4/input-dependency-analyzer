@@ -13,6 +13,17 @@
 
 namespace input_dependency {
 
+bool Utils::isInputDependentForArguments(const DepInfo& depInfo, const DependencyAnaliser::ArgumentDependenciesMap& arg_deps)
+{
+    if (depInfo.isInputArgumentDep() || !depInfo.getArgumentDependencies().empty()) {
+        return haveIntersection(arg_deps, depInfo.getArgumentDependencies());
+    }
+    if (depInfo.isInputIndep()) {
+        return false;
+    }
+    return true;
+}
+
 bool Utils::haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& inputNums,
                              const ArgumentSet& selfNums)
 {

@@ -12,6 +12,7 @@ namespace input_dependency {
 class Utils {
 
 public:
+    static bool isInputDependentForArguments(const DepInfo& depInfo, const DependencyAnaliser::ArgumentDependenciesMap& arg_deps);
     static bool haveIntersection(const DependencyAnaliser::ArgumentDependenciesMap& inputNums,
                                  const ArgumentSet& selfNums);
 

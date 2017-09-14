@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Analysis/FunctionCallDepInfo.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <vector>
 
@@ -30,15 +31,21 @@ public:
     static mask createMaskForCall(const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps,
                                   unsigned size,
                                   bool is_variadic);
+    static std::string mask_to_string(const mask& m);
 
 public:
     bool hasCloneForMask(const mask& m) const;
     llvm::Function* getClonedFunction(const mask& m) const;
     llvm::Function* doCloneForMask(const mask& m);
+
+    bool addClone(const mask& m, llvm::Function* F);
+
+    void dump() const;
     
 private:
     llvm::Function* m_originalF;
-    std::unordered_map<mask, llvm::Function*> m_clones;
+    using clone_info = std::pair<llvm::Function*, llvm::ValueToValueMapTy*>;
+    std::unordered_map<mask, clone_info> m_clones;
 };
 
 }

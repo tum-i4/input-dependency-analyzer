@@ -3,6 +3,7 @@ add_library(InputDependency MODULE
     CLibraryInfo.cpp
     DependencyAnaliser.cpp
     FunctionAnaliser.cpp
+    ClonedFunctionAnalysisResult.cpp
     FunctionCallDepInfo.cpp
     FunctionDOTGraphPrinter.cpp
     IndirectCallSitesAnalysis.cpp

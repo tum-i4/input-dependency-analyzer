@@ -8,6 +8,7 @@
 #include "NonDeterministicBasicBlockAnaliser.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
+#include "ClonedFunctionAnalysisResult.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -20,10 +21,70 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
+
 
 #include <chrono>
 
 namespace input_dependency {
+
+namespace {
+
+llvm::Value* get_mapped_value(llvm::Value* val, llvm::ValueToValueMapTy& VMap)
+{
+    auto map_pos = VMap.find(val);
+    if (map_pos == VMap.end()) {
+        llvm::dbgs() << "No mapping for Value " << *val << ". Skip.\n";
+        return nullptr;
+    }
+    return map_pos->second;
+}
+
+llvm::Instruction* get_mapped_instruction(llvm::Instruction* I,
+                                          std::unordered_map<llvm::Instruction*, llvm::Instruction*>& instr_map,
+                                          llvm::ValueToValueMapTy& VMap)
+{
+    auto local_map_pos = instr_map.find(I);
+    if (local_map_pos != instr_map.end()) {
+        return local_map_pos->second;
+    }
+    llvm::Value* mapped_value = get_mapped_value(I, VMap);
+    if (!mapped_value) {
+        return nullptr;
+    }
+    llvm::Instruction* mapped_instr = llvm::dyn_cast<llvm::Instruction>(mapped_value);
+    if (!mapped_instr) {
+        llvm::dbgs() << "Invalid mapping for instruction " << *I << ". Mapped to value " << *mapped_value << ". Skip.\n";
+        return nullptr;
+    }
+    instr_map[I] = mapped_instr;
+    return mapped_instr;
+}
+
+llvm::Argument* get_mapped_argument(llvm::Argument* arg,
+                                    std::unordered_map<llvm::Argument*, llvm::Argument*>& argument_mapping,
+                                    llvm::ValueToValueMapTy& VMap)
+{
+    auto local_map_pos = argument_mapping.find(arg);
+    if (local_map_pos != argument_mapping.end()) {
+        return local_map_pos->second;
+    }
+    llvm::Value* mapped_value = get_mapped_value(arg, VMap);
+    if (!mapped_value) {
+        return nullptr;
+    }
+    llvm::Argument* mapped_arg = llvm::dyn_cast<llvm::Argument>(mapped_value);
+    if (!arg) {
+        llvm::dbgs() << "Invalid mapping for argument " << *arg
+            << ". Mapped to value " << *mapped_value << ". Skip.\n";
+        return nullptr;
+    }
+    argument_mapping[arg] = mapped_arg;
+    return mapped_arg;
+}
+
+}
 
 class FunctionAnaliser::Impl
 {
@@ -74,6 +135,7 @@ public:
     // Returns collected data for function calls in this function
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
+    bool changeFunctionCall(llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF);
     const DependencyAnaliser::GlobalVariableDependencyMap& getCallGlobalsInfo(llvm::Function* F) const;
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
@@ -84,6 +146,7 @@ public:
     long unsigned get_input_dep_count() const;
     long unsigned get_input_indep_count() const;
     long unsigned get_input_unknowns_count() const;
+    InputDependencyResult* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     void dump() const;
 
     FunctionSet getCallSitesData() const
@@ -114,7 +177,7 @@ private:
     void updateFunctionCallGlobalsInfo(llvm::BasicBlock* B, llvm::Function* F);
 
     void updateValueDependencies(llvm::BasicBlock* B);
-    void updateCalledFunctionsList(llvm::BasicBlock* B);
+    void updateCalledFunctionsList(const DependencyAnalysisResultT& BAR);
     void updateReturnValueDependencies(llvm::BasicBlock* B);
     void updateOutArgumentDependencies(llvm::BasicBlock* B);
     void updateGlobals();
@@ -162,15 +225,6 @@ bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
 {
     const auto& analysisRes = getAnalysisResult(instr->getParent());
     return analysisRes->isInputIndependent(instr);
-}
-
-bool FunctionAnaliser::Impl::isInputDependent(llvm::Value* val) const
-{
-    auto pos = m_valueDependencies.find(val);
-    if (pos == m_valueDependencies.end()) {
-        return true; // ??
-    }
-    return pos->second.isInputDep();
 }
 
 bool FunctionAnaliser::Impl::isInputIndependent(llvm::Value* val) const
@@ -280,6 +334,25 @@ FunctionCallDepInfo FunctionAnaliser::Impl::getFunctionCallDepInfo(llvm::Functio
     return callDepInfo;
 }
 
+bool FunctionAnaliser::Impl::changeFunctionCall(llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF)
+{
+    llvm::BasicBlock* block = callInstr->getParent();
+    auto& analysisRes = getAnalysisResult(block);
+    if (!analysisRes) {
+        //llvm::dbgs() << "Did not find parent block of call " << *callInstr << "\n";
+        return false;
+    }
+    const auto called_functions = analysisRes->getCallSitesData();
+    bool res = analysisRes->changeFunctionCall(callInstr, oldF, newF);
+    if (res) {
+        for (const auto& called_f : called_functions) {
+            m_calledFunctions.erase(called_f);
+        }
+        updateCalledFunctionsList(analysisRes);
+    }
+    return res;
+}
+
 const DependencyAnaliser::GlobalVariableDependencyMap&
 FunctionAnaliser::Impl::getCallGlobalsInfo(llvm::Function* F) const
 {
@@ -362,7 +435,7 @@ void FunctionAnaliser::Impl::analize()
         m_BBAnalysisResults[bb]->gatherResults();
 
         updateValueDependencies(bb);
-        updateCalledFunctionsList(bb);
+        updateCalledFunctionsList(m_BBAnalysisResults[bb]);
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
     }
@@ -421,6 +494,88 @@ long unsigned FunctionAnaliser::Impl::get_input_unknowns_count() const
         count += analiser.second->get_input_unknowns_count();
     }
     return count;
+}
+
+InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
+{
+    llvm::ValueToValueMapTy VMap;
+    llvm::Function* newF = llvm::CloneFunction(m_F, VMap);
+
+    ClonedFunctionAnalysisResult* clonedResults = new ClonedFunctionAnalysisResult(newF);
+    clonedResults->setCalledFunctions(m_calledFunctions);
+
+    // get clonned finalized info
+    InstrSet inputDeps;
+    InstrSet inputIndeps;
+    std::unordered_set<llvm::BasicBlock*> inputDepBlocks;
+    std::unordered_map<llvm::Instruction*, llvm::Instruction*> local_instr_map;
+    for (auto& B : *m_F) {
+        auto& analysisRes = getAnalysisResult(&B);
+        if (analysisRes->isInputDependent(&B)) {
+            llvm::Value* block_val = get_mapped_value(&B, VMap);
+            if (!block_val) {
+                continue;
+            }
+            llvm::BasicBlock* mapped_block = llvm::dyn_cast<llvm::BasicBlock>(block_val);
+            if (!mapped_block) {
+                llvm::dbgs() << "Invalid mapping for block " << B.getName()
+                             << ". Mapped to value " << *block_val << ". Skip entire block.\n";
+                continue;
+            }
+            inputDepBlocks.insert(mapped_block);
+        }
+        for (auto& I : B) {
+            llvm::Instruction* mapped_instr = get_mapped_instruction(&I, local_instr_map, VMap);
+            if (!mapped_instr) {
+                continue;
+            }
+            if (analysisRes->isInputDependent(&I, inputDepArgs)) {
+                inputDeps.insert(mapped_instr);
+            } else if (analysisRes->isInputIndependent(&I, inputDepArgs)) {
+                inputIndeps.insert(mapped_instr);
+            } else {
+                llvm::dbgs() << "No information for instruction " << I << "\n";
+            }
+        }
+    }
+    clonedResults->setInputDependentBasicBlocks(std::move(inputDepBlocks));
+    clonedResults->setInputDepInstrs(std::move(inputDeps));
+    clonedResults->setInputIndepInstrs(std::move(inputIndeps));
+
+    // clone call site information
+    std::unordered_map<llvm::Function*, FunctionCallDepInfo> clonned_call_dep_info;
+    for (auto& F : m_calledFunctions) {
+        auto callDepInfo = getFunctionCallDepInfo(F);
+        FunctionCallDepInfo cloned_depInfo(*F);
+        const auto& callSiteArgDeps = callDepInfo.getCallsArgumentDependencies();
+        for (const auto& callsite_entry : callSiteArgDeps) {
+            // first - call instruction
+            // second - arg deps
+            llvm::Instruction* mapped_instr = get_mapped_instruction(const_cast<llvm::Instruction*>(callsite_entry.first),
+                                                                     local_instr_map, VMap);
+            if (!mapped_instr) {
+                continue;
+            }
+            ArgumentDependenciesMap clonedArgDeps;
+            std::unordered_map<llvm::Argument*, llvm::Argument*> argument_mapping;
+            for (auto& argdep_entry : callsite_entry.second) {
+                DepInfo depInfo = argdep_entry.second;
+                if (Utils::isInputDependentForArguments(argdep_entry.second, inputDepArgs)) {
+                    depInfo.setDependency(DepInfo::INPUT_DEP);
+                } else {
+                    depInfo.setDependency(DepInfo::INPUT_INDEP);
+                    // clear argument deps
+                    depInfo.setArgumentDependencies(ArgumentSet());
+                }
+                clonedArgDeps.insert(std::make_pair(argdep_entry.first, depInfo));
+            }
+            cloned_depInfo.addCall(mapped_instr, clonedArgDeps);
+            cloned_depInfo.addCall(mapped_instr, FunctionCallDepInfo::GlobalVariableDependencyMap());
+        }
+        clonned_call_dep_info.insert(std::make_pair(F, cloned_depInfo));
+    }
+    clonedResults->setFunctionCallDepInfo(std::move(clonned_call_dep_info));
+    return clonedResults;
 }
 
 void FunctionAnaliser::Impl::dump() const
@@ -534,6 +689,10 @@ void FunctionAnaliser::Impl::updateFunctionCallsInfo(llvm::BasicBlock* B)
         auto argDeps = item.second.getMergedArgumentDependencies();
         auto res = m_calledFunctionsInfo.insert(std::make_pair(item.first, argDeps));
         if (!res.second) {
+            if (res.first->second.empty()) {
+                res.first->second = argDeps;
+                continue;
+            }
             for (auto& deps : res.first->second) {
                 deps.second.mergeDependencies(argDeps[deps.first]);
             }
@@ -607,9 +766,9 @@ void FunctionAnaliser::Impl::updateValueDependencies(llvm::BasicBlock* B)
     }
 }
 
-void FunctionAnaliser::Impl::updateCalledFunctionsList(llvm::BasicBlock* B)
+void FunctionAnaliser::Impl::updateCalledFunctionsList(const DependencyAnalysisResultT& BAR)
 {
-    const auto& calledFunctions = m_BBAnalysisResults[B]->getCallSitesData();
+    const auto& calledFunctions = BAR->getCallSitesData();
     m_calledFunctions.insert(calledFunctions.begin(), calledFunctions.end());
 }
 
@@ -737,7 +896,7 @@ const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl:
     }
     pos = m_BBAnalysisResults.find(bb);
     if (pos == m_BBAnalysisResults.end()) {
-        llvm::dbgs() << m_F->getName() << "   " << bb->getName() << "\n";
+        llvm::dbgs() << "No analysis result for BB in function: " << m_F->getName() << "   " << bb->getName() << "\n";
     }
     assert(pos != m_BBAnalysisResults.end());
     return pos->second;
@@ -790,6 +949,11 @@ FunctionCallDepInfo FunctionAnaliser::getFunctionCallDepInfo(llvm::Function* F) 
     return m_analiser->getFunctionCallDepInfo(F);
 }
 
+bool FunctionAnaliser::changeFunctionCall(const llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF)
+{
+    m_analiser->changeFunctionCall(const_cast<llvm::Instruction*>(callInstr), oldF, newF);
+}
+
 DependencyAnaliser::GlobalVariableDependencyMap
 FunctionAnaliser::getCallGlobalsInfo(llvm::Function* F) const
 {
@@ -814,16 +978,6 @@ bool FunctionAnaliser::isInputIndependent(llvm::Instruction* instr) const
 bool FunctionAnaliser::isInputIndependent(const llvm::Instruction* instr) const
 {
     return m_analiser->isInputIndependent(const_cast<llvm::Instruction*>(instr));
-}
-
-bool FunctionAnaliser::isInputDependent(llvm::Value* val) const
-{
-    return m_analiser->isInputDependent(val);
-}
-
-bool FunctionAnaliser::isInputIndependent(llvm::Value* val) const
-{
-    return m_analiser->isInputIndependent(val);
 }
 
 bool FunctionAnaliser::isInputDependentBlock(llvm::BasicBlock* block) const
@@ -889,6 +1043,11 @@ long unsigned FunctionAnaliser::get_input_indep_count() const
 long unsigned FunctionAnaliser::get_input_unknowns_count() const
 {
     return m_analiser->get_input_unknowns_count();
+}
+
+InputDependencyResult* FunctionAnaliser::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
+{
+    m_analiser->cloneForArguments(inputDepArgs);
 }
 
 void FunctionAnaliser::dump() const

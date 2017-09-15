@@ -62,7 +62,7 @@ public:
 
 private:
     snippet_list collect_block_snippets(llvm::Function::iterator block_it);
-    bool derive_input_dependency_from_args(llvm::Instruction* I) const;
+    bool derive_input_dependency_from_args(llvm::CallInst* I) const;
     bool can_root_blocks_snippet(llvm::BasicBlock* block) const;
     BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos);
     llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block);
@@ -178,7 +178,7 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
             // TODO: what other instructions might be intresting?
             if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
                 if (callInst->getFunctionType()->getReturnType()->isVoidTy()) {
-                    is_input_dep = derive_input_dependency_from_args(I);
+                    is_input_dep = derive_input_dependency_from_args(callInst);
                 }
             }
         }
@@ -213,17 +213,20 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
     return snippets;
 }
 
-bool SnippetsCreator::derive_input_dependency_from_args(llvm::Instruction* I) const
+bool SnippetsCreator::derive_input_dependency_from_args(llvm::CallInst* I) const
 {
     // return true if all arguments are input dependent
     bool is_input_dep = true;
-    for (unsigned i = 0; i < I->getNumOperands(); ++i) {
-        auto op = I->getOperand(i);
+    for (unsigned i = 0; i < I->getNumArgOperands(); ++i) {
+        auto op = I->getArgOperand(i);
         if (auto op_inst = llvm::dyn_cast<llvm::Instruction>(op)) {
             is_input_dep = m_input_dep_info->isInputDependent(op_inst);
             if (!is_input_dep) {
                 break;
             }
+        } else if (llvm::dyn_cast<llvm::Constant>(op)) {
+            is_input_dep = false;
+            break;
         }
     }
     return is_input_dep;
@@ -313,6 +316,7 @@ void run_on_function(llvm::Function& F,
     creator.collect_snippets(true);
     const auto& snippets = creator.get_snippets();
 
+    llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
     for (auto& snippet : snippets) {
         snippet->dump();
         auto extracted_function = snippet->to_function();

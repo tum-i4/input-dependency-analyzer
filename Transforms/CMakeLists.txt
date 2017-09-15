@@ -4,7 +4,12 @@ add_library(Transforms MODULE
    FunctionExtraction.cpp
    FunctionSnippet.cpp
    Utils.cpp
+#   InputDepTest.cpp
 )
+
+install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency
+        FILES_MATCHING PATTERN "*.h")
+install(TARGETS Transforms LIBRARY DESTINATION /usr/local/lib)
 
 link_directories(analysis)
 

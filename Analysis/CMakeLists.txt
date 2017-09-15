@@ -30,6 +30,10 @@ add_library(InputDependency MODULE
     FunctionDominanceTree.cpp
 )
 
+install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency
+        FILES_MATCHING PATTERN "*.h")
+install(TARGETS InputDependency LIBRARY DESTINATION /usr/local/lib)
+
 # Use C++11 to compile our pass (i.e., supply -std=c++11).
 target_compile_features(InputDependency PRIVATE cxx_range_for cxx_auto_type)
 

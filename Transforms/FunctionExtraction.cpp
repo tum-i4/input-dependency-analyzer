@@ -195,8 +195,6 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
                     ++it;
                     continue;
                 }
-            } else if (auto ret = llvm::dyn_cast<llvm::ReturnInst>(I)) {
-                break;
             }
             if (begin != block->end()) {
                 end = it;

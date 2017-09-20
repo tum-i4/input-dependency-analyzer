@@ -7,6 +7,7 @@
 
 namespace llvm {
 class LLVMContext;
+class ReturnInst;
 }
 
 namespace oh
@@ -26,6 +27,10 @@ public:
     using ValueSet = std::unordered_set<llvm::Value*>;
 
 public:
+    virtual ~Snippet()
+    {
+    }
+
     virtual bool is_valid_snippet() const = 0;
     virtual bool is_single_instr_snippet() const
     {
@@ -100,6 +105,7 @@ private:
 
 private:
     llvm::BasicBlock* m_block;
+    llvm::ReturnInst* m_returnInst;
     iterator m_begin;
     iterator m_end;
     int m_begin_idx;

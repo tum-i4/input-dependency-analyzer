@@ -119,7 +119,11 @@ void InputDependentFunctionsPass::process_call(llvm::Function* parentF,
         functions_called_in_non_det_blocks.insert(targets.begin(), targets.end());
         erase_from_deterministic_functions(targets);
     } else {
-        functions_called_in_det_blocks.insert(targets.begin(), targets.end());
+        for (auto& target : targets) {
+            if (functions_called_in_non_det_blocks.find(target) == functions_called_in_non_det_blocks.end()) {
+                functions_called_in_det_blocks.insert(target);
+            }
+        }
     }
 }
 
@@ -206,14 +210,18 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
         process_function(&F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
     }
-    //for (auto& F : M) {
-    //    if (functions_called_in_non_det_blocks.find(&F) == functions_called_in_non_det_blocks.end()
-    //        && functions_called_in_det_blocks.find(&F) == functions_called_in_det_blocks.end()) {
-    //        llvm::dbgs() << "   " << F.getName() << "\n";
-    //    }
-    //}
+    for (auto& F : M) {
+        if (functions_called_in_non_det_blocks.find(&F) == functions_called_in_non_det_blocks.end()
+            && functions_called_in_det_blocks.find(&F) == functions_called_in_det_blocks.end()) {
+            llvm::dbgs() << "   " << F.getName() << "\n";
+        }
+    }
     //for (const auto& f : functions_called_in_det_blocks) {
     //    llvm::dbgs() << "Function is called from det block " << f->getName() << "\n";
+    //}
+    //llvm::dbgs() << "\n";
+    //for (const auto& f : functions_called_in_non_det_blocks) {
+    //    llvm::dbgs() << "Function is called from NON det block " << f->getName() << "\n";
     //}
     return false;
 }

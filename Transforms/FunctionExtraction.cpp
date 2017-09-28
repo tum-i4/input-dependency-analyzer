@@ -133,6 +133,7 @@ void SnippetsCreator::expand_snippets()
     }
 
     auto it = m_snippets.begin();
+    std::vector<snippet_list::iterator> to_erase;
     while (it != m_snippets.end()) {
         if ((*it)->to_blockSnippet()) {
             // do not merge blocks' snippet. may improve later
@@ -149,17 +150,18 @@ void SnippetsCreator::expand_snippets()
         }
         if ((*it)->intersects(**next_it)) {
             (*next_it)->merge(**it);
-            auto old = it;
+            to_erase.push_back(it);
             ++it;
-            m_snippets.erase(old);
         } else if ((*it)->is_single_instr_snippet()) {
             // e.g. load of input dep pointer, to store input indep value to it
-            auto old = it;
+            to_erase.push_back(it);
             ++it;
-            m_snippets.erase(old);
         } else {
             ++it;
         }
+    }
+    for (auto& elem : to_erase) {
+        m_snippets.erase(elem);
     }
 }
 

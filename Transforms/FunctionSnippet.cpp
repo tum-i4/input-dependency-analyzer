@@ -451,7 +451,11 @@ bool InstructionsSnippet::intersects(const Snippet& snippet) const
         if (m_block != instr_snippet->get_block()) {
             return false;
         }
-        return instr_snippet->get_begin_index() <= m_end_idx && m_begin_idx <= instr_snippet->get_end_index();
+        int self_end_indx = (m_end == m_block->end()) ? m_end_idx : m_end_idx + 1;
+        int snippet_end_indx = (instr_snippet->get_end() == m_block->end()) ? instr_snippet->get_end_index()
+                                                                            : instr_snippet->get_end_index() + 1;
+        bool result = instr_snippet->get_begin_index() <= self_end_indx && m_begin_idx <= snippet_end_indx;
+        return result;
     }
     // redirect to block snippet function
     return snippet.intersects(*this);

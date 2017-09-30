@@ -2,6 +2,7 @@
 
 #include "definitions.h"
 #include "DependencyInfo.h"
+#include "ValueDepInfo.h"
 #include "FunctionCallDepInfo.h"
 
 namespace llvm {
@@ -20,7 +21,7 @@ class IndirectCallSitesAnalysisResult;
 class DependencyAnaliser
 {
 public:
-    using ValueDependencies = std::unordered_map<llvm::Value*, DepInfo>;
+    using ValueDependencies = std::unordered_map<llvm::Value*, ValueDepInfo>;
     using ArgumentDependenciesMap = FunctionCallDepInfo::ArgumentDependenciesMap;
     using GlobalVariableDependencyMap = FunctionCallDepInfo::GlobalVariableDependencyMap;
     using FunctionCallsArgumentDependencies = std::unordered_map<llvm::Function*, FunctionCallDepInfo>;

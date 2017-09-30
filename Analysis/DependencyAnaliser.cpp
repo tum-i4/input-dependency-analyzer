@@ -853,10 +853,17 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
 void DependencyAnaliser::finalizeValues(const GlobalVariableDependencyMap& globalDeps)
 {
     for (auto& valueDep : m_valueDependencies) {
-        if (!valueDep.second.isValueDep()) {
+        auto& info = valueDep.second.getValueDep();
+        if (!info.isValueDep()) {
             continue;
         }
-        finalizeValueDependencies(globalDeps, valueDep.second);
+        finalizeValueDependencies(globalDeps, info);
+        for (auto& el_info : valueDep.second.getCompositeValueDeps()) {
+            if (!el_info.isValueDep()) {
+                continue;
+            }
+            finalizeValueDependencies(globalDeps, el_info);
+        }
     }
 }
 

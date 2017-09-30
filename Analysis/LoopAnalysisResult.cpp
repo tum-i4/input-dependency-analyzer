@@ -416,17 +416,19 @@ bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
+// TODO: consider removing this function as it is the same as in bb analiser, and loop analiser inherits from bb analiser
 const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);
     if (pos != m_valueDependencies.end()) {
-        return pos->second;
+        return pos->second.getValueDep();
     }
     auto initial_val_pos = m_initialDependencies.find(val);
     assert(initial_val_pos != m_initialDependencies.end());
     // add referenced value
-    m_valueDependencies[val] = initial_val_pos->second;
-    return initial_val_pos->second;
+    DepInfo info = initial_val_pos->second.getValueDep();
+    m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val, info)));
+    return info;
 }
 
 DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -642,7 +644,7 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
         for (auto& dep : valueDeps) {
             auto pos = deps.insert(dep);
             if (!pos.second) {
-                pos.first->second.mergeDependencies(dep.second);
+                pos.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
             }
         }
         ++pred;
@@ -750,7 +752,7 @@ void LoopAnalysisResult::updateValueDependencies()
     for (const auto& BB_analiser : m_BBAnalisers) {
         const auto& valuesDeps = BB_analiser.second->getValuesDependencies();
         for (const auto& item : valuesDeps) {
-            m_valueDependencies[item.first].mergeDependencies(item.second);
+            m_valueDependencies[item.first].getValueDep().mergeDependencies(item.second.getValueDep());
         }
     }
 }
@@ -802,7 +804,7 @@ void LoopAnalysisResult::reflect()
         for (const auto& dep : valueDeps) {
             auto res = valueDependencies.insert(dep);
             if (!res.second) {
-                res.first->second.mergeDependencies(dep.second);
+                res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
             }
         }
     }
@@ -895,7 +897,7 @@ void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::Argu
         for (auto& loopDep : loop_dependencies) {
             auto dep = m_valueDependencies.find(loopDep);
             if (dep != m_valueDependencies.end()) {
-                m_loopDependencies.mergeDependencies(dep->second);
+                m_loopDependencies.mergeDependencies(dep->second.getValueDep());
             }
         }
     }
@@ -949,7 +951,7 @@ bool LoopAnalysisResult::checkForLoopDependencies(const DependencyAnaliser::Valu
     for (const auto& loopDep : m_loopDependencies.getValueDependencies()) {
         auto pos = valuesDeps.find(loopDep);
         if (pos != valuesDeps.end()) {
-            if (pos->second.isInputDep()) {
+            if (pos->second.getValueDep().isInputDep()) {
                 return true;
             }
         }

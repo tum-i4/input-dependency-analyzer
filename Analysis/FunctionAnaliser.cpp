@@ -233,7 +233,7 @@ bool FunctionAnaliser::Impl::isInputIndependent(llvm::Value* val) const
     if (pos == m_valueDependencies.end()) {
         return false; // ??
     }
-    return pos->second.isInputIndep();
+    return pos->second.getValueDep().isInputIndep();
 }
 
 bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) const
@@ -835,7 +835,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
         for (auto& dep : valueDeps) {
             auto res = deps.insert(dep);
             if (!res.second) {
-                res.first->second.mergeDependencies(dep.second);
+                res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
             }
         }
         ++pred;

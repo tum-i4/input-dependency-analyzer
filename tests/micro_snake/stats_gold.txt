@@ -1,0 +1,84 @@
+sigsetup
+----------------------
+Input Dependent instructions: 4
+Input Independent instructions: 25
+Unknown instructions: 0
+Input dependent instructions' percent: 13%
+sig_handler
+----------------------
+Input Dependent instructions: 8
+Input Independent instructions: 6
+Unknown instructions: 0
+Input dependent instructions' percent: 57%
+alarm_handler
+----------------------
+Input Dependent instructions: 5
+Input Independent instructions: 8
+Unknown instructions: 0
+Input dependent instructions' percent: 38%
+show_score
+----------------------
+Input Dependent instructions: 25
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 92%
+draw_line
+----------------------
+Input Dependent instructions: 6
+Input Independent instructions: 26
+Unknown instructions: 0
+Input dependent instructions' percent: 18%
+setup_level
+----------------------
+Input Dependent instructions: 188
+Input Independent instructions: 83
+Unknown instructions: 0
+Input dependent instructions' percent: 69%
+move
+----------------------
+Input Dependent instructions: 352
+Input Independent instructions: 10
+Unknown instructions: 0
+Input dependent instructions' percent: 97%
+collide_walls
+----------------------
+Input Dependent instructions: 36
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 92%
+collide_object
+----------------------
+Input Dependent instructions: 35
+Input Independent instructions: 8
+Unknown instructions: 0
+Input dependent instructions' percent: 81%
+collide_self
+----------------------
+Input Dependent instructions: 44
+Input Independent instructions: 13
+Unknown instructions: 0
+Input dependent instructions' percent: 77%
+collision
+----------------------
+Input Dependent instructions: 18
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 90%
+eat_gold
+----------------------
+Input Dependent instructions: 49
+Input Independent instructions: 21
+Unknown instructions: 0
+Input dependent instructions' percent: 70%
+main
+----------------------
+Input Dependent instructions: 89
+Input Independent instructions: 13
+Unknown instructions: 0
+Input dependent instructions' percent: 87%
+snake.bc
+----------------------
+Input Dependent instructions: 859
+Input Independent instructions: 220
+Unknown instructions: 0
+Input dependent instructions' percent: 79%

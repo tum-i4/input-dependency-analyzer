@@ -1,0 +1,42 @@
+_Z3if_i
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 12
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z7if_elseii
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 19
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z10if_else_ifiRi
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 22
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z15if_else_if_elseiRi
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 33
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z7switch_ic
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 26
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+main
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 32
+Unknown instructions: 0
+Input dependent instructions' percent: 5%
+input_independents.bc
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 144
+Unknown instructions: 0
+Input dependent instructions' percent: 1%

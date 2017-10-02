@@ -1,0 +1,36 @@
+_Z3sumi
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 22
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z9evens_sumi
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 26
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z3muli
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 26
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_Z11complex_sumi
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 35
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+main
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 19
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+input_independents.bc
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 128
+Unknown instructions: 0
+Input dependent instructions' percent: 0%

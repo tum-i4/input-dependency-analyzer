@@ -2,6 +2,14 @@ Analysis/.*.swp
 OH/.*.swp
 Transforms/.*.swp
 CutVertice/.*.swp
-build
-test
+build/
+test/
+!test/2048_game
+!test/snake
+!test/snake_c
+!test/tetris
+!test/bubble_sort
+!test/control_flow
+!test/loop_controlflow
+
 

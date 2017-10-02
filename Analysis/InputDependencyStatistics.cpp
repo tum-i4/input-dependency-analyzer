@@ -12,20 +12,21 @@
 #include "llvm/PassRegistry.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include <fstream>
 
 namespace input_dependency {
 
 namespace {
 
-void print_stats(const std::string& function_name, unsigned deps, unsigned indeps, unsigned unknowns)
+void print_stats(std::ofstream& strm, const std::string& function_name, unsigned deps, unsigned indeps, unsigned unknowns)
 {
-    llvm::dbgs() << function_name << "\n";
-    llvm::dbgs() << "----------------------\n";
-    llvm::dbgs() << "Input Dependent instructions: " << deps << "\n";
-    llvm::dbgs() << "Input Independent instructions: " << indeps << "\n";
-    llvm::dbgs() << "Unknown instructions: " << unknowns << "\n";
+    strm << function_name << "\n";
+    strm << "----------------------\n";
+    strm << "Input Dependent instructions: " << deps << "\n";
+    strm << "Input Independent instructions: " << indeps << "\n";
+    strm << "Unknown instructions: " << unknowns << "\n";
     unsigned percent = (deps * 100) / (deps + indeps + unknowns);
-    llvm::dbgs() << "Input dependent instructions' percent: " << percent << "%\n";
+    strm << "Input dependent instructions' percent: " << percent << "%\n";
 }
 
 }
@@ -36,6 +37,7 @@ void InputDependencyStatistics::report(llvm::Module& M, const InputDependencyAna
     unsigned module_indep_count = 0;
     unsigned module_unknown_count = 0;
 
+    std::ofstream stats_strm("stats.txt", std::ofstream::out);
     for (auto& F : M) {
         auto FA_pos = inputDepInfo.find(&F);
         if (FA_pos == inputDepInfo.end()) {
@@ -45,12 +47,12 @@ void InputDependencyStatistics::report(llvm::Module& M, const InputDependencyAna
         unsigned dep_count = FA->get_input_dep_count();
         unsigned indep_count = FA->get_input_indep_count();
         unsigned unknown_count = FA->get_input_unknowns_count();
-        print_stats(F.getName(), dep_count, indep_count, unknown_count);
+        print_stats(stats_strm, F.getName(), dep_count, indep_count, unknown_count);
         module_dep_count += dep_count;
         module_indep_count += indep_count;
         module_unknown_count += unknown_count;
     }
-    print_stats(M.getName(), module_dep_count, module_indep_count, module_unknown_count);
+    print_stats(stats_strm, M.getName(), module_dep_count, module_indep_count, module_unknown_count);
 }
 
 char InputDependencyStatisticsPass::ID = 0;

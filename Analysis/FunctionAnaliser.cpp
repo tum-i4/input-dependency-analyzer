@@ -287,7 +287,7 @@ const DepInfo& FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::Globa
     assert(pos != m_BBAnalysisResults.end());
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
     assert(val != nullptr);
-    return pos->second->getValueDependencyInfo(val);
+    return pos->second->getValueDependencyInfo(val).getValueDep();
 }
 
 DepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const
@@ -300,7 +300,7 @@ DepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val, llv
     }
     const auto& analysisRes = getAnalysisResult(block);
     if (analysisRes->hasValueDependencyInfo(val)) {
-        return analysisRes->getValueDependencyInfo(val);
+        return analysisRes->getValueDependencyInfo(val).getValueDep();
     }
     auto instr = llvm::dyn_cast<llvm::Instruction>(val);
     assert(instr != nullptr);

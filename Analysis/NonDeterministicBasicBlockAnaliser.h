@@ -32,7 +32,7 @@ public:
     /// \{
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
-    DepInfo getValueDependencies(llvm::Value* value) override;
+    ValueDepInfo getValueDependencies(llvm::Value* value) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;

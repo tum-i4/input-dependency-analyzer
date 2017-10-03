@@ -18,7 +18,7 @@ ValueDepInfo::ValueDepInfo(llvm::AllocaInst* alloca)
     : m_value(alloca)
     , m_depInfo(DepInfo::INPUT_INDEP)
 {
-    int el_num = -1;
+    int64_t el_num = -1;
     if (auto struct_type = llvm::dyn_cast<llvm::StructType>(alloca->getAllocatedType())) {
         el_num = struct_type->getNumElements();
     } else if (auto array_type = llvm::dyn_cast<llvm::ArrayType>(alloca->getAllocatedType())) {
@@ -73,7 +73,7 @@ const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr,
     }
     // get element index
     auto idx_op = get_el_instr->getOperand(2);
-    if (llvm::ConstantInt* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
+    if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
             m_elementDeps.resize(idx, DepInfo(DepInfo::INPUT_INDEP));
@@ -83,7 +83,7 @@ const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr,
     // element accessed with non-const index definetily depend on the index itself.
     // TODO: how determine what else this element depends on? do we need to include dependencies of all ementents,
     // as any of them may be referenced with given index?
-    return valueDepRequester(el_instr);
+    return valueDepRequester(el_instr).getValueDep();
 }
 
 void ValueDepInfo::updateValueDep(const DepInfo& depInfo)
@@ -110,7 +110,7 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
     }
     // get element index
     auto idx_op = get_el_instr->getOperand(2);
-    if (llvm::ConstantInt* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
+    if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
             m_elementDeps.resize(idx, DepInfo(DepInfo::INPUT_INDEP));
@@ -118,17 +118,28 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
         m_elementDeps[idx] = depInfo;
         // input dependency of composite type depends on input dep of each element
         m_depInfo.mergeDependencies(depInfo);
+        return;
     }
-    DepInfo indexDepInfo = valueDepRequester(idx_op);
-    if (indexDepInfo.isDefined()) {
-        indexDepInfo.mergeDependencies(depInfo);
-    }
+    const ValueDepInfo& indexDepInfo = valueDepRequester(idx_op);
 
     // TODO: how handle this case? is it correct to update every element of value?
     // While this will be safer approach, it is very pessimistic.
     std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (DepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
     // make composite type dependent on both given depInfo and dep info of the index
-    m_depInfo.mergeDependencies(indexDepInfo);
+    m_depInfo.mergeDependencies(indexDepInfo.getValueDep());
+}
+
+void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
+{
+    assert(m_value == depInfo.getValue());
+    m_depInfo.mergeDependencies(depInfo.getValueDep());
+
+    const ValueDeps& valueDeps = depInfo.getCompositeValueDeps();
+    const auto& el_size = m_elementDeps.size();
+    assert(el_size == valueDeps.size());
+    for (unsigned i = 0; i < el_size; ++i) {
+        m_elementDeps[i].mergeDependencies(valueDeps[i]);
+    }
 }
 
 } // namespace input_dependency

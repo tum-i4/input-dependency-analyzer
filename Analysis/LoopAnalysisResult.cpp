@@ -416,21 +416,6 @@ bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-// TODO: consider removing this function as it is the same as in bb analiser, and loop analiser inherits from bb analiser
-const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
-{
-    auto pos = m_valueDependencies.find(val);
-    if (pos != m_valueDependencies.end()) {
-        return pos->second.getValueDep();
-    }
-    auto initial_val_pos = m_initialDependencies.find(val);
-    assert(initial_val_pos != m_initialDependencies.end());
-    // add referenced value
-    DepInfo info = initial_val_pos->second.getValueDep();
-    m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val, info)));
-    return info;
-}
-
 DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
 {
     auto parentBB = instr->getParent();

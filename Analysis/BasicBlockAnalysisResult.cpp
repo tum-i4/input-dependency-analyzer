@@ -96,7 +96,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     }
     auto indeppos = m_inputIndependentInstrs.find(instr);
     if (indeppos != m_inputIndependentInstrs.end()) {
-        return DepInfo(DepInfo::DepInfo::INPUT_INDEP);
+        return DepInfo(DepInfo::INPUT_INDEP);
     }
     if (auto* loadInst = llvm::dyn_cast<llvm::LoadInst>(instr)) {
         return getLoadInstrDependencies(loadInst);
@@ -105,18 +105,18 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     return determineInstructionDependenciesFromOperands(instr);
 }
 
-DepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
+ValueDepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
 {
     auto pos = m_valueDependencies.find(value);
     if (pos != m_valueDependencies.end()) {
-        return pos->second.getValueDep();
+        return pos->second;
     }
     auto initial_val_pos = m_initialDependencies.find(value);
     if (initial_val_pos != m_initialDependencies.end()) {
         m_valueDependencies.insert(std::make_pair(value, initial_val_pos->second));
-        return initial_val_pos->second.getValueDep();
+        return initial_val_pos->second;
     }
-    return DepInfo();
+    return ValueDepInfo();
 }
 
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
@@ -325,18 +325,18 @@ bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const DepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val)
+const ValueDepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);
     if (pos != m_valueDependencies.end()) {
-        return pos->second.getValueDep();
+        return pos->second;
     }
     auto initial_val_pos = m_initialDependencies.find(val);
     // This is from external usage, through DependencyAnalysisResult interface
     assert(initial_val_pos != m_initialDependencies.end());
     // add referenced value
-    DepInfo info = initial_val_pos->second.getValueDep();
-    m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val, info)));
+    const auto& info = initial_val_pos->second;
+    m_valueDependencies.insert(std::make_pair(val, info));
     return info;
 }
 
@@ -365,7 +365,7 @@ BasicBlockAnalysisResult::getOutParamsDependencies() const
     return m_outArgDependencies;
 }
 
-const DependencyAnaliser::FunctionCallsArgumentDependencies& 
+const DependencyAnaliser::FunctionCallsArgumentDependencies&
 BasicBlockAnalysisResult::getFunctionsCallInfo() const
 {
     return m_functionCallInfo;
@@ -512,7 +512,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         return DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal});
     }
     assert(depInfo.isDefined());
-    return depInfo;
+    return depInfo.getValueDep();
 }
 
 DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(llvm::Instruction* instr)
@@ -520,9 +520,9 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
     DepInfo deps(DepInfo::INPUT_INDEP);
     for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
         if (auto* opInst = llvm::dyn_cast<llvm::Instruction>(op)) {
-            auto value_dep = getValueDependencies(opInst);
+            const auto& value_dep = getValueDependencies(opInst);
             if (value_dep.isDefined()) {
-                deps.mergeDependencies(value_dep);
+                deps.mergeDependencies(value_dep.getValueDep());
             } else {
                 const auto& c_deps = getInstructionDependencies(opInst);
                 deps.mergeDependencies(c_deps);
@@ -539,7 +539,7 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
                 if (!valDeps.isDefined()) {
                     continue;
                 }
-                deps.mergeDependencies(valDeps);
+                deps.mergeDependencies(valDeps.getValueDep());
             }
         }
     }

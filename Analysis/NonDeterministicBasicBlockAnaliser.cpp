@@ -60,7 +60,7 @@ DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Ins
     return depInfo;
 }
 
-DepInfo NonDeterministicBasicBlockAnaliser::getValueDependencies(llvm::Value* value)
+ValueDepInfo NonDeterministicBasicBlockAnaliser::getValueDependencies(llvm::Value* value)
 {
     auto depInfo = BasicBlockAnalysisResult::getValueDependencies(value);
     if (!depInfo.isDefined()) {

@@ -65,7 +65,7 @@ protected:
     virtual void processInstrForOutputArgs(llvm::Instruction* I);
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
-    virtual DepInfo getValueDependencies(llvm::Value* value) = 0;
+    virtual ValueDepInfo getValueDependencies(llvm::Value* value) = 0;
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;

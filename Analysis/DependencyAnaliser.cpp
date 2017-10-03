@@ -8,7 +8,6 @@
 #include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 
@@ -200,9 +199,9 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
             info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
             continue;
         }
-        auto valDeps = getValueDependencies(val);
+        const auto& valDeps = getValueDependencies(val);
         if (valDeps.isDefined()) {
-            info.mergeDependencies(valDeps);
+            info.mergeDependencies(valDeps.getValueDep());
         } else {
             auto selfF = phi->getParent()->getParent();
             assert(selfF != nullptr);
@@ -229,12 +228,12 @@ void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
     if (!args.empty()) {
         depInfo = DepInfo(DepInfo::INPUT_ARGDEP, args);
     }
-    auto valueDeps = getValueDependencies(castedValue);
-    depInfo.mergeDependencies(valueDeps);
+    const auto& valueDeps = getValueDependencies(castedValue);
+    depInfo.mergeDependencies(valueDeps.getValueDep());
     if (!depInfo.isDefined()) {
         if (auto instr = llvm::dyn_cast<llvm::Instruction>(castedValue)) {
-            auto valueDeps = getInstructionDependencies(instr);
-            depInfo.mergeDependencies(valueDeps);
+            const auto& instrDeps = getInstructionDependencies(instr);
+            depInfo.mergeDependencies(instrDeps);
         }
     }
 
@@ -250,7 +249,7 @@ void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
         updateInstructionDependencies(retInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    if (auto* constVal = llvm::dyn_cast<llvm::Constant>(retValue)) {
+    if (llvm::dyn_cast<llvm::Constant>(retValue)) {
         updateInstructionDependencies(retInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
@@ -258,12 +257,13 @@ void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
     if (auto* retValInst = llvm::dyn_cast<llvm::Instruction>(retValue)) {
         depnums = getInstructionDependencies(retValInst);
     } else {
-        depnums = getValueDependencies(retValue);
+        depnums = getValueDependencies(retValue).getValueDep();
         if (!depnums.isDefined()) {
             depnums = DepInfo(DepInfo::INPUT_INDEP);
         }
     }
     updateInstructionDependencies(retInst, depnums);
+    // TODO: change update return value to use valueDepInfo
     updateReturnValueDependencies(depnums);
 }
 
@@ -275,7 +275,7 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
     }
 
     auto condition = branchInst->getCondition();
-    if (auto* constCond = llvm::dyn_cast<llvm::Constant>(condition)) {
+    if (llvm::dyn_cast<llvm::Constant>(condition)) {
         updateInstructionDependencies(branchInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
@@ -285,7 +285,7 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
     } else {
         // Note: it is important to have this check after instruction as Instruction inherits from Value
         if (auto* condVal = llvm::dyn_cast<llvm::Value>(condition)) {
-            dependencies = getValueDependencies(condVal);
+            dependencies = getValueDependencies(condVal).getValueDep();
             assert(dependencies.isDefined());
         }
     }
@@ -294,12 +294,13 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
+    //TODO: process case of getElementPtr
     auto op = storeInst->getOperand(0);
     DepInfo info;
-    if (auto* constOp = llvm::dyn_cast<llvm::Constant>(op)) {
+    if (llvm::dyn_cast<llvm::Constant>(op)) {
         info = DepInfo(DepInfo::INPUT_INDEP);
     } else {
-        info = getValueDependencies(op);
+        info = getValueDependencies(op).getValueDep();
         if (!info.isDefined()) {
             if (auto* opInstr = llvm::dyn_cast<llvm::Instruction>(op)) {
                 // will always take this branch?
@@ -549,7 +550,8 @@ void DependencyAnaliser::updateInvokeSiteOutArgDependencies(llvm::InvokeInst* in
     updateCallOutArgDependencies(F, invokeArgDeps, argumentValueGetter);
 }
 
-void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callInst, llvm::Function* F)
+void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callInst,
+                                                           llvm::Function* F)
 {
     if (F->doesNotReturn()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
@@ -651,7 +653,8 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
     for (const auto& global : modGlobals) {
         DepInfo depInfo;
         if (is_recurs) {
-            depInfo = getValueDependencies(global);
+            // TODO: change after modifying globals to be of type ValueDepInfo
+            depInfo = getValueDependencies(global).getValueDep();
         } else {
             assert(FA->hasGlobalVariableDepInfo(global));
             depInfo = FA->getGlobalVariableDependencies(global);
@@ -837,12 +840,12 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
         }
         // what if from loop?
         assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
-        auto depInfo = getValueDependencies(val);
+        const auto& depInfo = getValueDependencies(val);
         if (!depInfo.isDefined()) {
             globals.insert(val);
             continue;
         }
-        info.mergeDependencies(depInfo);
+        info.mergeDependencies(depInfo.getValueDep());
     }
     if (!globals.empty()) {
         info.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, globals));
@@ -951,7 +954,7 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
     for (auto& global : callRefGlobals) {
         llvm::Value* globalVal = llvm::dyn_cast<llvm::Value>(global);
         assert(globalVal != nullptr);
-        auto depInfo = getValueDependencies(globalVal);
+        auto depInfo = getValueDependencies(globalVal).getValueDep();
         if (!depInfo.isDefined()) {
             continue;
         }
@@ -968,7 +971,8 @@ DepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
     }
     auto depInfo = getValueDependencies(argVal);
     if (depInfo.isDefined()) {
-        return depInfo;
+        return depInfo.getValueDep()
+                ;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
         return getInstructionDependencies(argInst);

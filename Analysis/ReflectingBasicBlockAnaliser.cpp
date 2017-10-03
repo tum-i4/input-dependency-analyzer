@@ -324,10 +324,7 @@ DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instructi
         return valdeppos->second;
     }
     if (auto* allocaInst = llvm::dyn_cast<llvm::AllocaInst>(instr)) {
-        auto deps = getValueDependencies(allocaInst);
-        DepInfo info;
-        info.mergeDependencies(deps);
-        return info;
+        return getValueDependencies(allocaInst).getValueDep();
     }
     if (auto* loadInst = llvm::dyn_cast<llvm::LoadInst>(instr)) {
         return getLoadInstrDependencies(loadInst);

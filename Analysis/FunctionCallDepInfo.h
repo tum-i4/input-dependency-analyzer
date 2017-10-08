@@ -16,6 +16,7 @@ namespace input_dependency {
 class FunctionCallDepInfo
 {
 public:
+    // TODO: change to ValueDepInfo
     using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
     using GlobalVariableDependencyMap = std::unordered_map<llvm::GlobalVariable*, DepInfo>;
     using CallSiteArgumentsDependenciesMap = std::unordered_map<const llvm::Instruction*, ArgumentDependenciesMap>;

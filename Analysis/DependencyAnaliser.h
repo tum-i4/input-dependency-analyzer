@@ -149,9 +149,8 @@ protected:
     DepInfo m_returnValueDependencies;
     FunctionSet m_calledFunctions;
     FunctionCallsArgumentDependencies m_functionCallInfo;
-    InstrSet m_inputIndependentInstrs; // for debug purposes only
+    InstrSet m_inputIndependentInstrs;
     InstrDependencyMap m_inputDependentInstrs;
-
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;
     ValueDependencies m_initialDependencies;

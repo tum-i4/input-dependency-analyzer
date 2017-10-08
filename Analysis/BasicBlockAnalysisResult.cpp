@@ -140,9 +140,7 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     assert(info.isDefined());
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value, info)));
     if (!res.second) {
-        res.first->second.updateValueDep(llvm::dyn_cast<llvm::Instruction>(value),
-                                         info,
-                                         [this] (llvm::Value* val) { return this->getValueDependencyInfo(val);});
+        res.first->second.updateValueDep(info);
     }
     updateAliasesDependencies(value, info);
 }
@@ -191,11 +189,10 @@ DepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
 void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const DepInfo& info)
 {
     llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(val);
-    const auto& getValueDep = [this] (llvm::Value* val) { return this->getValueDependencyInfo(val);};
     for (auto& valDep : m_valueDependencies) {
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
-            valDep.second.updateValueDep(instr, info, getValueDep);
+            valDep.second.updateValueDep(info);
         }
     }
     for (auto& valDep : m_initialDependencies) {
@@ -248,12 +245,12 @@ void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* i
 }
 
 void BasicBlockAnalysisResult::setInitialValueDependencies(
-                    const DependencyAnaliser::ValueDependencies& valueDependencies)
+                    const ValueDependencies& valueDependencies)
 {
     m_initialDependencies = valueDependencies;
 }
 
-void BasicBlockAnalysisResult::setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs)
+void BasicBlockAnalysisResult::setOutArguments(const ArgumentDependenciesMap& outArgs)
 {
     m_outArgDependencies = outArgs;
 }
@@ -265,7 +262,7 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
 }
 
 bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block,
-                                                const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+                                                const ArgumentDependenciesMap& depArgs) const
 {
     return isInputDependent(block);
 }
@@ -280,7 +277,7 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 }
 
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr,
-                                                const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+                                                const ArgumentDependenciesMap& depArgs) const
 {
     auto pos = m_inputDependentInstrs.find(instr);
     if (pos == m_inputDependentInstrs.end()) {
@@ -302,7 +299,7 @@ bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) cons
 }
 
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
-                                                  const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
+                                                  const ArgumentDependenciesMap& depArgs) const
 {
     auto pos = m_inputDependentInstrs.find(instr);
     if (pos == m_inputDependentInstrs.end()) {
@@ -349,7 +346,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     return pos->second;
 }
 
-const DependencyAnaliser::ValueDependencies& BasicBlockAnalysisResult::getValuesDependencies() const
+const BasicBlockAnalysisResult::ValueDependencies& BasicBlockAnalysisResult::getValuesDependencies() const
 {
     return m_valueDependencies;
 }
@@ -359,13 +356,13 @@ const DepInfo& BasicBlockAnalysisResult::getReturnValueDependencies() const
     return m_returnValueDependencies;
 }
 
-const DependencyAnaliser::ArgumentDependenciesMap&
+const BasicBlockAnalysisResult::ArgumentDependenciesMap&
 BasicBlockAnalysisResult::getOutParamsDependencies() const
 {
     return m_outArgDependencies;
 }
 
-const DependencyAnaliser::FunctionCallsArgumentDependencies&
+const BasicBlockAnalysisResult::FunctionCallsArgumentDependencies&
 BasicBlockAnalysisResult::getFunctionsCallInfo() const
 {
     return m_functionCallInfo;

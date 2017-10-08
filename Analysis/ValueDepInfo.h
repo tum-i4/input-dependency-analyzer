@@ -74,7 +74,7 @@ public:
         return m_depInfo.isValueDep();
     }
 
-    // TODO: maybe keeping global dependencies separatelly will be more efficient
+    // TODO: maybe keeping global dependencies separately will be more efficient
     bool isOnlyGlobalValueDependent() const
     {
         return m_depInfo.isOnlyGlobalValueDependent();

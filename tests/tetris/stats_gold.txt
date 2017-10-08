@@ -1,0 +1,84 @@
+update
+----------------------
+Input Dependent instructions: 69
+Input Independent instructions: 15
+Unknown instructions: 0
+Input dependent instructions' percent: 82%
+fits_in
+----------------------
+Input Dependent instructions: 44
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 93%
+place
+----------------------
+Input Dependent instructions: 23
+Input Independent instructions: 16
+Unknown instructions: 0
+Input dependent instructions' percent: 58%
+next_shape
+----------------------
+Input Dependent instructions: 15
+Input Independent instructions: 6
+Unknown instructions: 0
+Input dependent instructions' percent: 71%
+show_high_score
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+show_online_help
+----------------------
+Input Dependent instructions: 13
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 81%
+tty_init
+----------------------
+Input Dependent instructions: 31
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 91%
+tty_exit
+----------------------
+Input Dependent instructions: 9
+Input Independent instructions: 5
+Unknown instructions: 0
+Input dependent instructions' percent: 64%
+freeze
+----------------------
+Input Dependent instructions: 3
+Input Independent instructions: 7
+Unknown instructions: 0
+Input dependent instructions' percent: 30%
+alarm_handler
+----------------------
+Input Dependent instructions: 1
+Input Independent instructions: 17
+Unknown instructions: 0
+Input dependent instructions' percent: 5%
+exit_handler
+----------------------
+Input Dependent instructions: 3
+Input Independent instructions: 4
+Unknown instructions: 0
+Input dependent instructions' percent: 42%
+sig_init
+----------------------
+Input Dependent instructions: 17
+Input Independent instructions: 18
+Unknown instructions: 0
+Input dependent instructions' percent: 48%
+main
+----------------------
+Input Dependent instructions: 273
+Input Independent instructions: 38
+Unknown instructions: 0
+Input dependent instructions' percent: 87%
+tetris.bc
+----------------------
+Input Dependent instructions: 501
+Input Independent instructions: 136
+Unknown instructions: 0
+Input dependent instructions' percent: 78%

@@ -1,0 +1,78 @@
+peek
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 10
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+dequeue
+----------------------
+Input Dependent instructions: 10
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 90%
+enqueue
+----------------------
+Input Dependent instructions: 10
+Input Independent instructions: 37
+Unknown instructions: 0
+Input dependent instructions' percent: 21%
+snake_write_text
+----------------------
+Input Dependent instructions: 11
+Input Independent instructions: 8
+Unknown instructions: 0
+Input dependent instructions' percent: 57%
+snake_draw_board
+----------------------
+Input Dependent instructions: 13
+Input Independent instructions: 27
+Unknown instructions: 0
+Input dependent instructions' percent: 32%
+snake_game_over
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 19
+Unknown instructions: 0
+Input dependent instructions' percent: 9%
+snake_in_bounds
+----------------------
+Input Dependent instructions: 23
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 92%
+snake_cooridinate_to_index
+----------------------
+Input Dependent instructions: 8
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 72%
+snake_index_to_coordinate
+----------------------
+Input Dependent instructions: 15
+Input Independent instructions: 7
+Unknown instructions: 0
+Input dependent instructions' percent: 68%
+snake_draw_fruit
+----------------------
+Input Dependent instructions: 28
+Input Independent instructions: 14
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
+snake_move_player
+----------------------
+Input Dependent instructions: 68
+Input Independent instructions: 28
+Unknown instructions: 0
+Input dependent instructions' percent: 70%
+main
+----------------------
+Input Dependent instructions: 123
+Input Independent instructions: 12
+Unknown instructions: 0
+Input dependent instructions' percent: 91%
+snake.bc
+----------------------
+Input Dependent instructions: 311
+Input Independent instructions: 168
+Unknown instructions: 0
+Input dependent instructions' percent: 64%

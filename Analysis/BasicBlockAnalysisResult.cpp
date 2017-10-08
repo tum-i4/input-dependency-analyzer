@@ -100,7 +100,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     return determineInstructionDependenciesFromOperands(instr);
 }
 
-ValueDepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
+ValueDepInfo BasicBlockAnalysisResult:: getValueDependencies(llvm::Value* value)
 {
     auto pos = m_valueDependencies.find(value);
     if (pos != m_valueDependencies.end()) {
@@ -112,6 +112,18 @@ ValueDepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
         return initial_val_pos->second;
     }
     return ValueDepInfo();
+}
+
+DepInfo BasicBlockAnalysisResult::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
+{
+    ValueDepInfo valueDepInfo = getValueDependencyInfo(value);
+    if (!valueDepInfo.isDefined()) {
+        return DepInfo();
+    }
+    const auto& elDeps = valueDepInfo.getValueDep(element_instr);
+    // during getvalueDep the valueDepInfo may change
+    updateValueDependencies(value, valueDepInfo);
+    return elDeps;
 }
 
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)

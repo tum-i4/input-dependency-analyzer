@@ -751,7 +751,10 @@ void LoopAnalysisResult::updateValueDependencies()
     for (const auto& BB_analiser : m_BBAnalisers) {
         const auto& valuesDeps = BB_analiser.second->getValuesDependencies();
         for (const auto& item : valuesDeps) {
-            m_valueDependencies[item.first].getValueDep().mergeDependencies(item.second.getValueDep());
+            auto pos = m_valueDependencies.insert(item);
+            if (!pos.second) {
+                pos.first->second.mergeDependencies(item.second);
+            }
         }
     }
 }
@@ -760,7 +763,10 @@ void LoopAnalysisResult::updateValueDependencies(llvm::BasicBlock* B)
 {
     const auto& block_deps = m_BBAnalisers[B]->getValuesDependencies();
     for (const auto& val : block_deps) {
-        m_valueDependencies[val.first] = val.second;
+        auto pos = m_valueDependencies.insert(val);
+        if (!pos.second) {
+            pos.first->second = val.second;
+        }
     }
 }
 

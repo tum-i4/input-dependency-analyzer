@@ -67,6 +67,7 @@ protected:
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
     virtual ValueDepInfo getValueDependencies(llvm::Value* value) = 0;
+    virtual DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) = 0;
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;

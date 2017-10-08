@@ -62,6 +62,11 @@ ValueDepInfo InputDependentBasicBlockAnaliser::getValueDependencies(llvm::Value*
     return ValueDepInfo(value, DepInfo(DepInfo::INPUT_DEP));
 }
 
+DepInfo InputDependentBasicBlockAnaliser::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
+{
+    return DepInfo(DepInfo::INPUT_DEP);
+}
+
 void InputDependentBasicBlockAnaliser::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
 {
     BasicBlockAnalysisResult::updateInstructionDependencies(instr, DepInfo(DepInfo::INPUT_DEP));

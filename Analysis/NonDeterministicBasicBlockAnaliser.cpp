@@ -70,6 +70,16 @@ ValueDepInfo NonDeterministicBasicBlockAnaliser::getValueDependencies(llvm::Valu
     return depInfo;
 }
 
+DepInfo NonDeterministicBasicBlockAnaliser::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
+{
+    auto depInfo = BasicBlockAnalysisResult::getCompositeValueDependencies(value, element_instr);
+    if (!depInfo.isDefined()) {
+        return depInfo;
+    }
+    depInfo.mergeDependencies(m_nonDetDeps);
+    return depInfo;
+}
+
 void NonDeterministicBasicBlockAnaliser::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
 {
     BasicBlockAnalysisResult::updateInstructionDependencies(instr, addOnDependencyInfo(info));

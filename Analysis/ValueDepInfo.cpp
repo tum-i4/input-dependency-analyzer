@@ -63,13 +63,13 @@ ValueDepInfo::ValueDeps& ValueDepInfo::getCompositeValueDeps()
     return m_elementDeps;
 }
 
-const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr)
+const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr) const
 {
     //llvm::dbgs() << "Get dep info for composite value " << *m_value << "\n";
     //llvm::dbgs() << "Element " << *el_instr << "\n";
     // assuming only way to get access to composite type element is with GetElementPtrInst instruction
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
-    if (!get_el_instr) {
+    if (!get_el_instr || get_el_instr->getOperand(0) != m_value) {
         return m_depInfo;
     }
     // get element index
@@ -78,7 +78,7 @@ const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr)
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
-            m_elementDeps.resize(idx + 1, DepInfo(DepInfo::INPUT_INDEP));
+            const_cast<ValueDepInfo*>(this)->m_elementDeps.resize(idx + 1, DepInfo(DepInfo::INPUT_INDEP));
         }
         return m_elementDeps[idx];
     }
@@ -112,7 +112,7 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
     //llvm::dbgs() << "Update dep for composite value " << *m_value << "\n";
     //llvm::dbgs() << "Element: " << *el_instr << "\n";
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
-    if (!get_el_instr) {
+    if (!get_el_instr || get_el_instr->getOperand(0) != m_value) {
         m_depInfo = depInfo;
         return;
     }

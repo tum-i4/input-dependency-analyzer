@@ -835,7 +835,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsDependencies(llvm::BasicBlock* 
         for (auto& dep : valueDeps) {
             auto res = deps.insert(dep);
             if (!res.second) {
-                res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
+                res.first->second.mergeDependencies(dep.second);
             }
         }
         ++pred;

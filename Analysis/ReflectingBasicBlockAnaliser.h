@@ -65,9 +65,9 @@ private:
     void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst, llvm::Function* F);
     void updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst, llvm::Function* F);
 
-    void reflect(llvm::Value* value, const DepInfo& deps);
+    void reflect(llvm::Value* value, const ValueDepInfo& deps);
     void reflectOnValues(llvm::Value* value, const DepInfo& depInfo);
-    void reflectOnInstructions(llvm::Value* value, const DepInfo& depInfo);
+    void reflectOnInstructions(llvm::Value* value, const ValueDepInfo& depInfo);
     void reflectOnOutArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo);

@@ -58,6 +58,7 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
+    DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) override;

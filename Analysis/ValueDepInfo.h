@@ -36,7 +36,7 @@ public:
     DepInfo& getValueDep();
     const ValueDeps& getCompositeValueDeps() const;
     ValueDeps& getCompositeValueDeps();
-    const DepInfo& getValueDep(llvm::Instruction* el_instr);
+    const DepInfo& getValueDep(llvm::Instruction* el_instr) const;
 
     void updateValueDep(const ValueDepInfo& valueDepInfo);
     void updateValueDep(const DepInfo& depInfo);

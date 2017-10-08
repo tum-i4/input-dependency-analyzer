@@ -250,12 +250,9 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     // for int *p; p[0]
     // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where 0 is load of p
     auto value = getElPtr->getOperand(0);
-    auto valueDepInfo = getValueDependencies(value);
-    if (valueDepInfo.isDefined()) {
-        const auto& resDep = valueDepInfo.getValueDep(getElPtr);
-        // valueDepInfo may change during getValueDep
-        updateValueDependencies(value, valueDepInfo);
-        updateInstructionDependencies(getElPtr, resDep);
+    const auto& elDepInfo = getCompositeValueDependencies(value, getElPtr);
+    if (elDepInfo.isDefined()) {
+        updateInstructionDependencies(getElPtr, elDepInfo);
         return;
     }
     auto instr = llvm::dyn_cast<llvm::Instruction>(value);

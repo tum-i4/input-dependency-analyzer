@@ -135,14 +135,25 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
+// TODO: this should be removed later
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
 {
     assert(info.isDefined());
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value, info)));
     if (!res.second) {
+        res.first->second.updateCompositeValueDep(info);
+    }
+    updateAliasesDependencies(value, res.first->second);
+}
+
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
+{
+    assert(info.isDefined());
+    auto res = m_valueDependencies.insert(std::make_pair(value, info));
+    if (!res.second) {
         res.first->second.updateValueDep(info);
     }
-    updateAliasesDependencies(value, info);
+    updateAliasesDependencies(value, res.first->second);
 }
 
 void BasicBlockAnalysisResult::updateReturnValueDependencies(const DepInfo& info)
@@ -186,17 +197,19 @@ DepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
     return info;
 }
 
-void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const DepInfo& info)
+void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info)
 {
     llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(val);
     for (auto& valDep : m_valueDependencies) {
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
             valDep.second.updateValueDep(info);
+        }
+    }
     for (auto& valDep : m_valueDependencies) {
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
-            valDep.second = info;
+            valDep.second.updateValueDep(info);
         }
     }
     for (auto& valDep : m_initialDependencies) {
@@ -205,8 +218,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         }
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
-            ValueDepInfo valDepInfo(valDep.first, info);
-            m_valueDependencies.insert(std::make_pair(valDep.first, valDepInfo));
+            m_valueDependencies.insert(std::make_pair(valDep.first, info));
         }
     }
 }

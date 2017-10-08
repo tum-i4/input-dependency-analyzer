@@ -86,6 +86,12 @@ const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr,
     return valueDepRequester(el_instr).getValueDep();
 }
 
+void ValueDepInfo::updateValueDep(const ValueDepInfo& valueDepInfo)
+{
+    m_depInfo = valueDepInfo.getValueDep();
+    m_elementDeps = valueDepInfo.getCompositeValueDeps();
+}
+
 void ValueDepInfo::updateValueDep(const DepInfo& depInfo)
 {
     m_depInfo = depInfo;
@@ -131,7 +137,6 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
 
 void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
 {
-    assert(m_value == depInfo.getValue());
     m_depInfo.mergeDependencies(depInfo.getValueDep());
 
     const ValueDeps& valueDeps = depInfo.getCompositeValueDeps();

@@ -60,10 +60,11 @@ protected:
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
+    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) override;
     void updateReturnValueDependencies(const DepInfo& info) override;
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
     DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
-    void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) override;
+    void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
     void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) override;
     void updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info);
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;

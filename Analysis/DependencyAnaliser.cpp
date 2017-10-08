@@ -998,9 +998,6 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
         auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
 
-        //if (val == nullptr) {
-        //    continue;
-        //}
         if (FA->isOutArgInputIndependent(&arg)) {
             if (val) {
                 updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));

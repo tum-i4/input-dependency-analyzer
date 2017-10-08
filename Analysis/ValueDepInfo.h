@@ -35,11 +35,17 @@ public:
     llvm::Value* getValue() const;
     const DepInfo& getValueDep() const;
     DepInfo& getValueDep();
+    unsigned getElementsSize() const
+    {
+        return m_elementDeps.size();
+    }
+
     const ValueDeps& getCompositeValueDeps() const;
     ValueDeps& getCompositeValueDeps();
     const DepInfo& getValueDep(llvm::Instruction* el_instr,
                                const ValueDepRequest& valueDepRequester);
 
+    void updateValueDep(const ValueDepInfo& valueDepInfo);
     void updateValueDep(const DepInfo& depInfo);
     void updateCompositeValueDep(const DepInfo& depInfo);
     void updateValueDep(llvm::Instruction* el_instr,

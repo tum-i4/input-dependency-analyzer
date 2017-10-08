@@ -35,11 +35,6 @@ public:
     llvm::Value* getValue() const;
     const DepInfo& getValueDep() const;
     DepInfo& getValueDep();
-    unsigned getElementsSize() const
-    {
-        return m_elementDeps.size();
-    }
-
     const ValueDeps& getCompositeValueDeps() const;
     ValueDeps& getCompositeValueDeps();
     const DepInfo& getValueDep(llvm::Instruction* el_instr,
@@ -80,7 +75,7 @@ public:
         return m_depInfo.isValueDep();
     }
 
-    // TODO: maybe keeping global dependencies separately will be more efficient
+    // TODO: maybe keeping global dependencies separatelly will be more efficient
     bool isOnlyGlobalValueDependent() const
     {
         return m_depInfo.isOnlyGlobalValueDependent();

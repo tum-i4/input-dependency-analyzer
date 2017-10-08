@@ -378,7 +378,7 @@ BasicBlockAnalysisResult::getOutParamsDependencies() const
     return m_outArgDependencies;
 }
 
-const BasicBlockAnalysisResult::FunctionCallsArgumentDependencies&
+const DependencyAnaliser::FunctionCallsArgumentDependencies&
 BasicBlockAnalysisResult::getFunctionsCallInfo() const
 {
     return m_functionCallInfo;

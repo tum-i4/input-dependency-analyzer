@@ -93,7 +93,7 @@ public:
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
-    const DepInfo& getRetValueDependencies() const;
+    const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;

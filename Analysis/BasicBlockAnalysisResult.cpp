@@ -142,7 +142,6 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
-// TODO: this should be removed later
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
 {
     assert(info.isDefined());
@@ -175,19 +174,9 @@ void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* val
     updateAliasesDependencies(value, res.first->second);
 }
 
-void BasicBlockAnalysisResult::updateReturnValueDependencies(const DepInfo& info)
+void BasicBlockAnalysisResult::updateReturnValueDependencies(const ValueDepInfo& info)
 {
-    switch (info.getDependency()) {
-    case DepInfo::INPUT_DEP:
-    case DepInfo::INPUT_ARGDEP:
-    case DepInfo::VALUE_DEP:
-        m_returnValueDependencies.mergeDependencies(info);
-        break;
-    case DepInfo::INPUT_INDEP:
-        break;
-    default:
-        assert(false);
-    };
+    m_returnValueDependencies.mergeDependencies(info);
 }
 
 DepInfo BasicBlockAnalysisResult::getDependenciesFromAliases(llvm::Value* val)
@@ -386,7 +375,7 @@ const BasicBlockAnalysisResult::ValueDependencies& BasicBlockAnalysisResult::get
     return m_valueDependencies;
 }
 
-const DepInfo& BasicBlockAnalysisResult::getReturnValueDependencies() const
+const ValueDepInfo& BasicBlockAnalysisResult::getReturnValueDependencies() const
 {
     return m_returnValueDependencies;
 }
@@ -473,7 +462,7 @@ void BasicBlockAnalysisResult::markAllInputDependent()
     m_is_inputDep = true;
     DepInfo info(DepInfo::INPUT_DEP);
     // out arg dependencies
-    m_returnValueDependencies = info;
+    m_returnValueDependencies.updateValueDep(info);
     // function call arguments
     for (auto& functionItem : m_functionCallInfo) {
         functionItem.second.markAllInputDependent();

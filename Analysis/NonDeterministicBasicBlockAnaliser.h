@@ -36,13 +36,14 @@ protected:
     DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
+    void updateReturnValueDependencies(const ValueDepInfo& info) override;
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
     DepInfo getArgumentValueDependecnies(llvm::Value* argVal) override;
     /// \}
 
 private:
     DepInfo addOnDependencyInfo(const DepInfo& info);
+    ValueDepInfo addOnDependencyInfo(const ValueDepInfo& info);
 
 private:
     DepInfo m_nonDetDeps;

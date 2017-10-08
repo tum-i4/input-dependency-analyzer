@@ -456,7 +456,7 @@ const DependencyAnaliser::ValueDependencies& LoopAnalysisResult::getValuesDepend
     return m_valueDependencies;
 }
 
-const DepInfo& LoopAnalysisResult::getReturnValueDependencies() const
+const ValueDepInfo& LoopAnalysisResult::getReturnValueDependencies() const
 {
     return m_returnValueDependencies;
 }

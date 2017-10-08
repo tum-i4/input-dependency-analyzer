@@ -49,7 +49,6 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
 
 private:
     void processInstrForOutputArgs(llvm::Instruction* I) override;
@@ -76,6 +75,10 @@ private:
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnDepInfo(llvm::Value* value,
                           DepInfo& depInfoTo,
+                          const DepInfo& depInfoFrom,
+                          bool eraseAfterReflection = true);
+    void reflectOnDepInfo(llvm::Value* value,
+                          ValueDepInfo& depInfoTo,
                           const DepInfo& depInfoFrom,
                           bool eraseAfterReflection = true);
     void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,

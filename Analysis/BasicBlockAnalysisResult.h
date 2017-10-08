@@ -65,7 +65,7 @@ protected:
     void updateCompositeValueDependencies(llvm::Value* value,
                                           llvm::Instruction* elInstr,
                                           const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
+    void updateReturnValueDependencies(const ValueDepInfo& info) override;
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
     DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
     void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
@@ -92,7 +92,7 @@ public:
     const ValueDepInfo& getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const ValueDependencies& getValuesDependencies() const override;
-    const DepInfo& getReturnValueDependencies() const override;
+    const ValueDepInfo& getReturnValueDependencies() const override;
     const ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;

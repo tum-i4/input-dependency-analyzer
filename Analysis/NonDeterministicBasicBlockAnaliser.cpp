@@ -90,7 +90,7 @@ void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* va
     BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info));
 }
 
-void NonDeterministicBasicBlockAnaliser::updateReturnValueDependencies(const DepInfo& info)
+void NonDeterministicBasicBlockAnaliser::updateReturnValueDependencies(const ValueDepInfo& info)
 {
     BasicBlockAnalysisResult::updateReturnValueDependencies(addOnDependencyInfo(info));
 }
@@ -122,6 +122,16 @@ DepInfo NonDeterministicBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& i
     newInfo.mergeDependencies(m_nonDetDeps);
     return newInfo;
 }
+
+ValueDepInfo NonDeterministicBasicBlockAnaliser::addOnDependencyInfo(const ValueDepInfo& info)
+{
+    auto newInfo = info;
+    ValueDepInfo nonDetDeps_info = newInfo;
+    nonDetDeps_info.updateCompositeValueDep(m_nonDetDeps);
+    newInfo.mergeDependencies(nonDetDeps_info);
+    return newInfo;
+}
+
 
 } // namespace input_dependency
 

@@ -128,7 +128,7 @@ public:
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     DepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
-    const DepInfo& getRetValueDependencies() const;
+    const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
@@ -199,7 +199,7 @@ private:
     Arguments m_inputs;
     DependencyAnaliser::ValueDependencies m_valueDependencies; // all value dependencies
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
-    DepInfo m_returnValueDependencies;
+    ValueDepInfo m_returnValueDependencies;
     FunctionArgumentsDependencies m_calledFunctionsInfo;
     FunctionGlobalsDependencies m_calledFunctionGlobalsInfo;
     FunctionSet m_calledFunctions;
@@ -265,7 +265,7 @@ bool FunctionAnaliser::Impl::isReturnValueInputIndependent() const
     return m_returnValueDependencies.isInputIndep();
 }
 
-const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
+const ValueDepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
 {
     return m_returnValueDependencies;
 }
@@ -1000,7 +1000,7 @@ bool FunctionAnaliser::isReturnValueInputIndependent() const
     return m_analiser->isReturnValueInputIndependent();
 }
 
-const DepInfo& FunctionAnaliser::getRetValueDependencies() const
+const ValueDepInfo& FunctionAnaliser::getRetValueDependencies() const
 {
     return m_analiser->getRetValueDependencies();
 }

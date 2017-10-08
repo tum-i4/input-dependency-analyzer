@@ -43,7 +43,7 @@ protected:
 
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
+    void updateReturnValueDependencies(const ValueDepInfo& info) override;
     /// \}
 };
 

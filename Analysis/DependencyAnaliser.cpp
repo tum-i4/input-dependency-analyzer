@@ -275,18 +275,17 @@ void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
         updateInstructionDependencies(retInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    DepInfo depnums;
-    if (auto* retValInst = llvm::dyn_cast<llvm::Instruction>(retValue)) {
-        depnums = getInstructionDependencies(retValInst);
-    } else {
-        depnums = getValueDependencies(retValue).getValueDep();
-        if (!depnums.isDefined()) {
-            depnums = DepInfo(DepInfo::INPUT_INDEP);
+    ValueDepInfo retDepInfo = getValueDependencies(retValue);
+    if (!retDepInfo.isDefined()) {
+        if (auto* retValInst = llvm::dyn_cast<llvm::Instruction>(retValue)) {
+            retDepInfo = ValueDepInfo(retValue, getInstructionDependencies(retValInst));
         }
     }
-    updateInstructionDependencies(retInst, depnums);
-    // TODO: change update return value to use valueDepInfo
-    updateReturnValueDependencies(depnums);
+    if (!retDepInfo.isDefined()) {
+        retDepInfo = ValueDepInfo(retValue, DepInfo(DepInfo::INPUT_INDEP));
+    }
+    updateInstructionDependencies(retInst, retDepInfo.getValueDep());
+    updateReturnValueDependencies(retDepInfo);
 }
 
 void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
@@ -595,6 +594,7 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
+    // TODO: here we might lose input dep information, as returned ValueDepInfo is casted to DepInfo
     if (retDeps.isInputDep()) {
         // is input dependent, but not dependent on arguments
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));

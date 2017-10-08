@@ -75,7 +75,7 @@ protected:
     virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) = 0;
     virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const DepInfo& info) = 0;
-    virtual void updateReturnValueDependencies(const DepInfo& info) = 0;
+    virtual void updateReturnValueDependencies(const ValueDepInfo& info) = 0;
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
@@ -151,7 +151,7 @@ protected:
     bool m_globalsFinalized;
 
     ArgumentDependenciesMap m_outArgDependencies;
-    DepInfo m_returnValueDependencies;
+    ValueDepInfo m_returnValueDependencies;
     FunctionSet m_calledFunctions;
     FunctionCallsArgumentDependencies m_functionCallInfo;
     InstrSet m_inputIndependentInstrs;

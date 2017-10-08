@@ -358,12 +358,6 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
     }
 }
 
-// basic block analysis result could do this same way
-void ReflectingBasicBlockAnaliser::updateReturnValueDependencies(const DepInfo& info)
-{
-    m_returnValueDependencies.mergeDependencies(info);
-}
-
 DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
     auto* loadOp = instr->getPointerOperand();
@@ -691,6 +685,18 @@ void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
     assert(valPos != valueDeps.end());
     valueDeps.erase(valPos);
 }
+
+void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
+                                                    ValueDepInfo& depInfoTo,
+                                                    const DepInfo& depInfoFrom,
+                                                    bool eraseAfterReflection)
+{
+    reflectOnDepInfo(value, depInfoTo.getValueDep(), depInfoFrom, eraseAfterReflection);
+    for (auto& elem_info : depInfoTo.getCompositeValueDeps()) {
+        reflectOnDepInfo(value, elem_info, depInfoFrom, eraseAfterReflection);
+    }
+}
+
 
 void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,
                                                             const DepInfo& mandatory_deps)

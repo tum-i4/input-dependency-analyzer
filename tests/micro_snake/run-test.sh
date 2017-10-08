@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Run C snake"
+echo "Run micro snake"
 
 
 PROJ_PATH=snake

@@ -3,18 +3,4 @@ OH/.*.swp
 Transforms/.*.swp
 CutVertice/.*.swp
 build/
-!test/2048_game/
-!test/micro_snake/
-!test/snake_c/
-!test/tetris/
-!test/bubble_sort/
-!test/control_flow/
-!test/loop_controlflow/
-test/cloning/
-test/crash_test/
-test/issue8/
-test/function_simples/
-test/*.cpp
-test/*.c
-
 

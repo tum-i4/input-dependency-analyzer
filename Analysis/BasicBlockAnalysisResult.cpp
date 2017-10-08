@@ -193,6 +193,10 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
             valDep.second.updateValueDep(info);
+    for (auto& valDep : m_valueDependencies) {
+        auto alias = m_AAR.alias(val, valDep.first);
+        if (alias != llvm::AliasResult::NoAlias) {
+            valDep.second = info;
         }
     }
     for (auto& valDep : m_initialDependencies) {

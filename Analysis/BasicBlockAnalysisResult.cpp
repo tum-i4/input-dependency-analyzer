@@ -74,18 +74,13 @@ void BasicBlockAnalysisResult::analize()
             processPhiNode(phi);
         } else if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(&I)) {
             processBitCast(bitcast);
+        } else if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(&I)) {
+            processGetElementPtrInst(getElPtr);
         } else {
             processInstruction(&I);
         }
         processInstrForOutputArgs(&I);
     }
-    //for (auto val_dep : m_initialDependencies) {
-    //    // won't insert if already exists
-    //    // consider bb chain A -> B -> C, where B is the current bb.
-    //    // if variable v changes its dep info in A,
-    //    // and B does not change that value, C will get incorrect info for v (not the one from A)
-    //    m_valueDependencies.insert(val_dep);
-    //}
 }
 
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)
@@ -152,6 +147,18 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     auto res = m_valueDependencies.insert(std::make_pair(value, info));
     if (!res.second) {
         res.first->second.updateValueDep(info);
+    }
+    updateAliasesDependencies(value, res.first->second);
+}
+
+void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* value,
+                                                                llvm::Instruction* elInstr,
+                                                                const DepInfo& info)
+{
+    assert(info.isDefined());
+    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value, info)));
+    if (!res.second) {
+        res.first->second.updateValueDep(elInstr, info);
     }
     updateAliasesDependencies(value, res.first->second);
 }
@@ -490,17 +497,17 @@ long unsigned BasicBlockAnalysisResult::get_input_unknowns_count() const
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
-    DepInfo info = getRefInfo(instr);
-    if (info.isDefined()) {
-        return info;
-    }
+    DepInfo info;
     auto* loadOp = instr->getPointerOperand();
     if (auto opinstr = llvm::dyn_cast<llvm::Instruction>(loadOp)) {
         if (!llvm::dyn_cast<llvm::AllocaInst>(opinstr)) {
             info = getInstructionDependencies(opinstr);
         }
     } else {
-        info = getDependenciesFromAliases(loadOp);
+        info = getRefInfo(instr);
+        if (!info.isDefined()) {
+            info = getDependenciesFromAliases(loadOp);
+        }
     }
 
     if (info.isDefined()) {

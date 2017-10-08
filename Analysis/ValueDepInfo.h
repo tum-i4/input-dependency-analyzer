@@ -22,7 +22,6 @@ class ValueDepInfo
 {
 public:
     using ValueDeps = std::vector<DepInfo>;
-    using ValueDepRequest = std::function<const ValueDepInfo& (llvm::Value* )>;
 
 public:
     ValueDepInfo() = default;
@@ -37,15 +36,13 @@ public:
     DepInfo& getValueDep();
     const ValueDeps& getCompositeValueDeps() const;
     ValueDeps& getCompositeValueDeps();
-    const DepInfo& getValueDep(llvm::Instruction* el_instr,
-                               const ValueDepRequest& valueDepRequester);
+    const DepInfo& getValueDep(llvm::Instruction* el_instr);
 
     void updateValueDep(const ValueDepInfo& valueDepInfo);
     void updateValueDep(const DepInfo& depInfo);
     void updateCompositeValueDep(const DepInfo& depInfo);
     void updateValueDep(llvm::Instruction* el_instr,
-                        const DepInfo& depInfo,
-                        const ValueDepRequest& valueDepRequester);
+                        const DepInfo& depInfo);
     void mergeDependencies(const ValueDepInfo& depInfo);
 
 // interface of DepInfo. Eventually DepInfo may be removed altogether

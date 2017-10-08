@@ -17,6 +17,7 @@ class Instruction;
 class Module;
 class Value;
 class BranchInst;
+class GetElementPtrInst;
 class CallInst;
 class LoadInst;
 class InvokeInst;

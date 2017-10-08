@@ -57,6 +57,7 @@ protected:
     virtual void processInstruction(llvm::Instruction* inst);
     virtual void processPhiNode(llvm::PHINode* phi);
     virtual void processBitCast(llvm::BitCastInst* bitcast);
+    virtual void processGetElementPtrInst(llvm::GetElementPtrInst* getElPtr);
     virtual void processReturnInstr(llvm::ReturnInst* retInst);
     virtual void processBranchInst(llvm::BranchInst* branchInst);
     virtual void processStoreInst(llvm::StoreInst* storeInst);
@@ -69,8 +70,10 @@ protected:
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
+    // TODO: remove this version when all calls are changed to the one with ValueDepInfo
     virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) = 0;
+    virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const DepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const DepInfo& info) = 0;
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;

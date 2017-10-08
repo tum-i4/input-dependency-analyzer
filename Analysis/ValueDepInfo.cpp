@@ -63,27 +63,28 @@ ValueDepInfo::ValueDeps& ValueDepInfo::getCompositeValueDeps()
     return m_elementDeps;
 }
 
-const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr,
-                                         const ValueDepRequest& valueDepRequester)
+const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr)
 {
+    //llvm::dbgs() << "Get dep info for composite value " << *m_value << "\n";
+    //llvm::dbgs() << "Element " << *el_instr << "\n";
     // assuming only way to get access to composite type element is with GetElementPtrInst instruction
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         return m_depInfo;
     }
     // get element index
-    auto idx_op = get_el_instr->getOperand(2);
+    unsigned last_index = get_el_instr->getNumIndices();
+    auto idx_op = get_el_instr->getOperand(last_index);
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
-            m_elementDeps.resize(idx, DepInfo(DepInfo::INPUT_INDEP));
+            m_elementDeps.resize(idx + 1, DepInfo(DepInfo::INPUT_INDEP));
         }
         return m_elementDeps[idx];
     }
-    // element accessed with non-const index definetily depend on the index itself.
-    // TODO: how determine what else this element depends on? do we need to include dependencies of all ementents,
-    // as any of them may be referenced with given index?
-    return valueDepRequester(el_instr).getValueDep();
+    // element accessed with non-const index may be any of the elements,
+    // m_depInfo contains info for all elements, thus returning it is safe
+    return m_depInfo;
 }
 
 void ValueDepInfo::updateValueDep(const ValueDepInfo& valueDepInfo)
@@ -106,16 +107,17 @@ void ValueDepInfo::updateCompositeValueDep(const DepInfo& depInfo)
 }
 
 void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
-                                  const DepInfo& depInfo,
-                                  const ValueDepRequest& valueDepRequester)
+                                  const DepInfo& depInfo)
 {
+    //llvm::dbgs() << "Update dep for composite value " << *m_value << "\n";
+    //llvm::dbgs() << "Element: " << *el_instr << "\n";
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         m_depInfo = depInfo;
         return;
     }
     // get element index
-    auto idx_op = get_el_instr->getOperand(2);
+    auto idx_op = get_el_instr->getOperand(get_el_instr->getNumIndices());
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
@@ -126,13 +128,10 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
         m_depInfo.mergeDependencies(depInfo);
         return;
     }
-    const ValueDepInfo& indexDepInfo = valueDepRequester(idx_op);
-
-    // TODO: how handle this case? is it correct to update every element of value?
-    // While this will be safer approach, it is very pessimistic.
+    // If the index is not constant, assign given input dep info to every element
     std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (DepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
     // make composite type dependent on both given depInfo and dep info of the index
-    m_depInfo.mergeDependencies(indexDepInfo.getValueDep());
+    m_depInfo.mergeDependencies(depInfo);
 }
 
 void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)

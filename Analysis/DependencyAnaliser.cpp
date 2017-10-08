@@ -238,8 +238,33 @@ void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
     }
 
     assert(depInfo.isDefined());
-    updateValueDependencies(bitcast, depInfo);
+    m_valueDependencies[bitcast] = ValueDepInfo(bitcast, depInfo);
     updateInstructionDependencies(bitcast, depInfo);
+}
+
+void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getElPtr)
+{
+    // example of getElementPtrInstr
+    // p.x where x is the second field of struct p
+    // %x = getelementptr inbounds %struct.point, %struct.point* %p, i32 0, i32 1
+    // for int *p; p[0]
+    // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where 0 is load of p
+    auto value = getElPtr->getOperand(0);
+    auto valueDepInfo = getValueDependencies(value);
+    if (valueDepInfo.isDefined()) {
+        const auto& resDep = valueDepInfo.getValueDep(getElPtr);
+        // valueDepInfo may change during getValueDep
+        updateValueDependencies(value, valueDepInfo);
+        updateInstructionDependencies(getElPtr, resDep);
+        return;
+    }
+    auto instr = llvm::dyn_cast<llvm::Instruction>(value);
+    if (!instr) {
+        updateInstructionDependencies(getElPtr, DepInfo(DepInfo::INPUT_DEP));
+    }
+    const auto& instrDeps = getInstructionDependencies(instr);
+    // While being safe, this might not always be an accurate decision. 
+    updateInstructionDependencies(getElPtr, instrDeps);
 }
 
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
@@ -294,7 +319,6 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
-    //TODO: process case of getElementPtr
     auto op = storeInst->getOperand(0);
     DepInfo info;
     if (llvm::dyn_cast<llvm::Constant>(op)) {
@@ -324,8 +348,13 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     }
     updateInstructionDependencies(storeInst, info);
     // Whatever storeTo is (value or instruction) is going to be collected in value list. 
-    updateValueDependencies(storeTo, info);
-    updateModAliasesDependencies(storeInst, info);
+    if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(storeTo)) {
+        llvm::Value* compositeValue = getElPtr->getOperand(0);
+        updateCompositeValueDependencies(compositeValue, getElPtr, info);
+    } else {
+        updateValueDependencies(storeTo, info);
+        updateModAliasesDependencies(storeInst, info);
+    }
 }
 
 void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)

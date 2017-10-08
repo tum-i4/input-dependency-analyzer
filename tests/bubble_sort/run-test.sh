@@ -7,7 +7,7 @@ LOCAL_LIB_LOC=../../build/lib
 
 rm *.bc
 
-clang bubble_sort.cpp -stdlib=libc++ -c -emit-llvm
+clang bubble_sort.cpp -c -emit-llvm
 
 opt -load $LOCAL_LIB_LOC/libInputDependency.so bubble_sort.bc -inputdep-statistics -o out.bc
 

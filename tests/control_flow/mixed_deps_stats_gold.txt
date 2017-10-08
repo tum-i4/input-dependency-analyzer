@@ -1,3 +1,9 @@
+__cxx_global_var_init
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
 _Z3if_i
 ----------------------
 Input Dependent instructions: 10
@@ -34,9 +40,15 @@ Input Dependent instructions: 28
 Input Independent instructions: 15
 Unknown instructions: 0
 Input dependent instructions' percent: 65%
+_GLOBAL__sub_I_mixed_dependencies.cpp
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
 mixed_dependencies.bc
 ----------------------
-Input Dependent instructions: 123
-Input Independent instructions: 32
+Input Dependent instructions: 125
+Input Independent instructions: 35
 Unknown instructions: 0
-Input dependent instructions' percent: 79%
+Input dependent instructions' percent: 78%

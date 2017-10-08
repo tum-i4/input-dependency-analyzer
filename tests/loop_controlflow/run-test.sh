@@ -9,10 +9,11 @@ rm *.bc
 
 echo "Input argument dependencies test"
 
-clang input_argument_dependents.cpp -stdlib=libc++ -c -emit-llvm
+clang input_argument_dependents.cpp -c -emit-llvm
 
 opt -load $LOCAL_LIB_LOC/libInputDependency.so input_argument_dependents.bc -inputdep-statistics -o out.bc
 
+#cp stats.txt input_argument_deps_stats_gold.txt
 if cmp stats.txt input_argument_deps_stats_gold.txt; then
     echo "PASS"
 else
@@ -21,10 +22,11 @@ fi
 
 echo "Input dependencies test"
 
-clang input_dependents.cpp -stdlib=libc++ -c -emit-llvm
+clang input_dependents.cpp -c -emit-llvm
 
 opt -load $LOCAL_LIB_LOC/libInputDependency.so input_dependents.bc -inputdep-statistics -o out.bc
 
+#cp stats.txt input_deps_stats_gold.txt
 if cmp stats.txt input_deps_stats_gold.txt; then
     echo "PASS"
 else
@@ -33,10 +35,11 @@ fi
 
 echo "Input independent test"
 
-clang input_independents.cpp -stdlib=libc++ -c -emit-llvm
+clang input_independents.cpp -c -emit-llvm
 
 opt -load $LOCAL_LIB_LOC/libInputDependency.so input_independents.bc -inputdep-statistics -o out.bc
 
+#cp stats.txt input_indeps_stats_gold.txt
 if cmp stats.txt input_indeps_stats_gold.txt; then
     echo "PASS"
 else
@@ -45,10 +48,11 @@ fi
 
 echo "Mixed dependencies test"
 
-clang mixed_dependents.cpp -stdlib=libc++ -c -emit-llvm
+clang mixed_dependents.cpp -c -emit-llvm
 
 opt -load $LOCAL_LIB_LOC/libInputDependency.so mixed_dependents.bc -inputdep-statistics -o out.bc
 
+#cp stats.txt mixed_deps_stats_gold.txt
 if cmp stats.txt mixed_deps_stats_gold.txt; then
     echo "PASS"
 else

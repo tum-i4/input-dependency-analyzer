@@ -1,3 +1,9 @@
+__cxx_global_var_init
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
 _Z3sumi
 ----------------------
 Input Dependent instructions: 0
@@ -28,9 +34,15 @@ Input Dependent instructions: 0
 Input Independent instructions: 19
 Unknown instructions: 0
 Input dependent instructions' percent: 0%
-input_independents.bc
+_GLOBAL__sub_I_input_independents.cpp
 ----------------------
 Input Dependent instructions: 0
-Input Independent instructions: 128
+Input Independent instructions: 2
 Unknown instructions: 0
 Input dependent instructions' percent: 0%
+input_independents.bc
+----------------------
+Input Dependent instructions: 2
+Input Independent instructions: 131
+Unknown instructions: 0
+Input dependent instructions' percent: 1%

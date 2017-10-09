@@ -586,29 +586,26 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
+        updateValueDependencies(callInst, ValueDepInfo(callInst, DepInfo(DepInfo::INPUT_INDEP)));
         return;
     }
-    const auto& retDeps = FA->getRetValueDependencies();
+    auto retDeps = FA->getRetValueDependencies();
     if (!retDeps.isDefined()) {
         // Constructors are going with this branch
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    // TODO: here we might lose input dep information, as returned ValueDepInfo is casted to DepInfo
     if (retDeps.isInputDep()) {
         // is input dependent, but not dependent on arguments
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(callInst, ValueDepInfo(callInst, DepInfo(DepInfo::INPUT_DEP)));
         return;
     }
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    DepInfo dependencies;
-    if (retDeps.isValueDep()) {
-        dependencies = getArgumentActualValueDependencies(retDeps.getValueDependencies());
-    }
-    dependencies.mergeDependencies(getArgumentActualDependencies(retDeps.getArgumentDependencies(),
-                                                                 pos->second.getArgumentDependenciesForCall(callInst)));
-    updateInstructionDependencies(callInst, dependencies);
+    resolveReturnedValueDependencies(retDeps, pos->second.getArgumentDependenciesForCall(callInst));
+    updateInstructionDependencies(callInst, retDeps.getValueDep());
+    updateValueDependencies(callInst, retDeps);
 }
 
 void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, llvm::Function* F)
@@ -621,9 +618,10 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
+        updateValueDependencies(invokeInst, ValueDepInfo(invokeInst, DepInfo(DepInfo::INPUT_INDEP)));
         return;
     }
-    const auto& retDeps = FA->getRetValueDependencies();
+    auto retDeps = FA->getRetValueDependencies();
     if (!retDeps.isDefined()) {
         // Constructors are going with this branch
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
@@ -632,17 +630,15 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     if (retDeps.isInputDep()) {
         // is input dependent, but not dependent on arguments
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(invokeInst, ValueDepInfo(invokeInst, DepInfo(DepInfo::INPUT_DEP)));
+        return;
         return;
     }
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
-    DepInfo dependencies;
-    if (retDeps.isValueDep()) {
-        dependencies = getArgumentActualValueDependencies(retDeps.getValueDependencies());
-    }
-    dependencies.mergeDependencies(getArgumentActualDependencies(retDeps.getArgumentDependencies(),
-                                                                 pos->second.getArgumentDependenciesForInvoke(invokeInst)));
-    updateInstructionDependencies(invokeInst, dependencies);
+    resolveReturnedValueDependencies(retDeps, pos->second.getArgumentDependenciesForInvoke(invokeInst));
+    updateInstructionDependencies(invokeInst, retDeps.getValueDep());
+    updateValueDependencies(invokeInst, retDeps);
 }
 
 void DependencyAnaliser::updateGlobalsAfterFunctionCall(llvm::CallInst* callInst, llvm::Function* F)
@@ -1112,6 +1108,25 @@ DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dep
         info.mergeDependencies(pos->second);
     }
     return info;
+}
+
+void DependencyAnaliser::resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo)
+{
+    DepInfo resolvedDep;
+    if (valueDeps.isValueDep()) {
+        resolvedDep = getArgumentActualValueDependencies(valueDeps.getValueDependencies());
+    }
+    resolvedDep.mergeDependencies(getArgumentActualDependencies(valueDeps.getArgumentDependencies(), argDepInfo));
+    valueDeps.updateValueDep(resolvedDep);
+
+    for (auto& elDep : valueDeps.getCompositeValueDeps()) {
+        DepInfo resolvedElDep;
+        if (elDep.isValueDep()) {
+            resolvedElDep = getArgumentActualValueDependencies(elDep.getValueDependencies());
+        }
+        resolvedElDep.mergeDependencies(getArgumentActualDependencies(elDep.getArgumentDependencies(), argDepInfo));
+        elDep = resolvedElDep;
+    }
 }
 
 llvm::Value* DependencyAnaliser::getFunctionOutArgumentValue(llvm::Value* actualArg)

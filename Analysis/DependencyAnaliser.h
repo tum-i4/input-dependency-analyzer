@@ -129,6 +129,7 @@ private:
                                                   const ArgumentValueGetterByIndex& actualArgumentGetter);
 
     DepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
+    void resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo);
 
     void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
     void finalizeInstructions(const GlobalVariableDependencyMap& globalDeps);

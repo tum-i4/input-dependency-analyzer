@@ -251,7 +251,7 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
     }
 }
 
-void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info)
+void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info)
 {
     const auto& DL = instr->getModule()->getDataLayout();
     for (auto& dep : m_valueDependencies) {

@@ -96,13 +96,13 @@ const bool LibFunctionInfo::hasResolvedArgument(llvm::Argument* arg) const
     return m_resolvedArgumentDependencies.find(arg) != m_resolvedArgumentDependencies.end();
 }
 
-const DepInfo& LibFunctionInfo::getResolvedArgumentDependencies(llvm::Argument* arg) const
+const ValueDepInfo& LibFunctionInfo::getResolvedArgumentDependencies(llvm::Argument* arg) const
 {
     assert(m_isResolved);
     auto pos = m_resolvedArgumentDependencies.find(arg);
     return pos->second;
 }
-const DepInfo& LibFunctionInfo::getResolvedReturnDependency() const
+const ValueDepInfo& LibFunctionInfo::getResolvedReturnDependency() const
 {
     assert(m_isResolved);
     return m_resolvedReturnDependency;
@@ -122,6 +122,7 @@ void LibFunctionInfo::resolveArgumentDependencies(const IndexToArgumentMap& inde
         auto argPos = indexToArg.find(argDeps.first);
         assert(argPos != indexToArg.end());
         auto& resolvedDeps = m_resolvedArgumentDependencies[argPos->second];
+        resolvedDeps.setValue(argPos->second);
         resolvedDeps.setDependency(argDeps.second.dependency);
         ArgumentSet arguments = getResolvedArguments(indexToArg, argDeps.second);
         resolvedDeps.setArgumentDependencies(std::move(arguments));

@@ -91,7 +91,7 @@ public:
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
     DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
-    DepInfo getOutArgDependencies(llvm::Argument* arg) const;
+    ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
     const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;

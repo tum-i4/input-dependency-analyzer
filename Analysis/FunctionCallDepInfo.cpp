@@ -80,8 +80,8 @@ void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualD
     auto it = toFinalize.begin();
     // TODO: what about don't erase, set to input indep?
     while (it != toFinalize.end()) {
-        if (it->second.isInputIndep() ||(
-            it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies()))) {
+        if (it->second.isInputIndep() ||
+            (it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies()))) {
             auto old = it;
             ++it;
             toFinalize.erase(old);
@@ -338,14 +338,22 @@ FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobal
     return pos->second;
 }
 
-template <class Key>
-void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps)
+void FunctionCallDepInfo::markAllInputDependent(ArgumentDependenciesMap& argDeps)
 {
     DepInfo info(DepInfo::INPUT_DEP);
     for (auto& item : argDeps) {
+        item.second.updateCompositeValueDep(info);
+    }
+}
+
+void FunctionCallDepInfo::markAllInputDependent(GlobalVariableDependencyMap& globalDeps)
+{
+    DepInfo info(DepInfo::INPUT_DEP);
+    for (auto& item : globalDeps) {
         item.second = info;
     }
 }
+
 
 }
 

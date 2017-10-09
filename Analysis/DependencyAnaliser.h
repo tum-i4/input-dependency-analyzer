@@ -80,9 +80,9 @@ protected:
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
     virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) = 0;
-    virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
+    virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;
 
-    virtual DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
+    virtual ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal);
     virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
     virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);
     /// \}
@@ -128,7 +128,7 @@ private:
     void updateFunctionInputDepOutArgDependencies(llvm::FunctionType* FType,
                                                   const ArgumentValueGetterByIndex& actualArgumentGetter);
 
-    DepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
+    ValueDepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
     void resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo);
 
     void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
@@ -136,7 +136,7 @@ private:
     void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
 
 protected:
-    static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
+    static ValueDepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                  const ArgumentDependenciesMap& argDepInfo);
     static llvm::Value* getFunctionOutArgumentValue(llvm::Value* actualArg);
     static llvm::Value* getMemoryValue(llvm::Value* instrOp);

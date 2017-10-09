@@ -32,35 +32,15 @@ ValueDepInfo::ValueDepInfo(llvm::AllocaInst* alloca)
     }
 }
 
+ValueDepInfo::ValueDepInfo(const DepInfo& depInfo)
+    : m_depInfo(depInfo)
+{
+}
+
 ValueDepInfo::ValueDepInfo(llvm::Value* val, const DepInfo& depInfo)
     : m_value(val)
     , m_depInfo(depInfo)
 {
-}
-
-llvm::Value* ValueDepInfo::getValue() const
-{
-    return m_value;
-}
-
-const DepInfo& ValueDepInfo::getValueDep() const
-{
-    return m_depInfo;
-}
-
-DepInfo& ValueDepInfo::getValueDep()
-{
-    return m_depInfo;
-}
-
-const ValueDepInfo::ValueDeps& ValueDepInfo::getCompositeValueDeps() const
-{
-    return m_elementDeps;
-}
-
-ValueDepInfo::ValueDeps& ValueDepInfo::getCompositeValueDeps()
-{
-    return m_elementDeps;
 }
 
 const DepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr) const

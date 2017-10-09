@@ -109,7 +109,7 @@ void NonDeterministicBasicBlockAnaliser::setInitialValueDependencies(const Depen
     }
 }
 
-DepInfo NonDeterministicBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+ValueDepInfo NonDeterministicBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
     auto depInfo = BasicBlockAnalysisResult::getArgumentValueDependecnies(argVal);
     addOnDependencyInfo(depInfo);

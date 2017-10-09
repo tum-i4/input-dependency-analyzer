@@ -17,6 +17,7 @@ namespace input_dependency {
  * \brief Represents input dependency information for a value
  * For composite values, such as structs, arrays, etc., has info for each element
  * TODO: see if DepInfo is necessary
+ * TODO: consider having elements' dependency info type ValueDepInfo instead of DepInfo
  */
 class ValueDepInfo
 {
@@ -26,16 +27,47 @@ public:
 public:
     ValueDepInfo() = default;
 
-    ValueDepInfo(llvm::Value* val);
-    ValueDepInfo(llvm::AllocaInst* alloca);
+    explicit ValueDepInfo(llvm::Value* val);
+    explicit ValueDepInfo(llvm::AllocaInst* alloca);
+    explicit ValueDepInfo(const DepInfo& depInfo);
     ValueDepInfo(llvm::Value* val, const DepInfo& depInfo);
 
 public:
-    llvm::Value* getValue() const;
-    const DepInfo& getValueDep() const;
-    DepInfo& getValueDep();
-    const ValueDeps& getCompositeValueDeps() const;
-    ValueDeps& getCompositeValueDeps();
+    bool hasValue() const
+    {
+        return m_value != nullptr;
+    }
+
+    void setValue(llvm::Value* value)
+    {
+        m_value = value;
+    }
+
+    llvm::Value* getValue() const
+    {
+        return m_value;
+    }
+
+    const DepInfo& getValueDep() const
+    {
+        return m_depInfo;
+    }
+
+    DepInfo& getValueDep()
+    {
+        return m_depInfo;
+    }
+
+    const ValueDeps& getCompositeValueDeps() const
+    {
+        return m_elementDeps;
+    }
+
+    ValueDeps& getCompositeValueDeps()
+    {
+        return m_elementDeps;
+    }
+
     const DepInfo& getValueDep(llvm::Instruction* el_instr) const;
 
     void updateValueDep(const ValueDepInfo& valueDepInfo);

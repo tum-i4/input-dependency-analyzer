@@ -38,7 +38,7 @@ protected:
     void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
-    DepInfo getArgumentValueDependecnies(llvm::Value* argVal) override;
+    ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal) override;
     /// \}
 
 private:

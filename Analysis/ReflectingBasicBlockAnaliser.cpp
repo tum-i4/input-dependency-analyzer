@@ -258,7 +258,7 @@ void ReflectingBasicBlockAnaliser::markAllInputDependent()
     m_instructionValueDependencies.clear();
     for (auto& depItem : m_valueDependentOutArguments) {
         for (auto& arg : depItem.second) {
-            m_outArgDependencies[arg] = info;
+            m_outArgDependencies[arg].updateCompositeValueDep(info);
         }
     }
     m_valueDependentFunctionCallArguments.clear();
@@ -303,7 +303,7 @@ void ReflectingBasicBlockAnaliser::processInstrForOutputArgs(llvm::Instruction* 
             item->second.mergeDependencies(depInstrPos->second);
         } else {
             // making output input independent
-            item->second = DepInfo(DepInfo::INPUT_INDEP);
+            item->second.updateValueDep(DepInfo(DepInfo::INPUT_INDEP));
         }
         ++item;
     }

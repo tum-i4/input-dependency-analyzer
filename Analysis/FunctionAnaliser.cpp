@@ -126,7 +126,7 @@ public:
     bool isInputIndependent(llvm::Value* value) const;
     bool isInputDependentBlock(llvm::BasicBlock* block) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
-    DepInfo getOutArgDependencies(llvm::Argument* arg) const;
+    ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
     const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
@@ -251,11 +251,11 @@ bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
     return pos->second.isInputIndep();
 }
 
-DepInfo FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
+ValueDepInfo FunctionAnaliser::Impl::getOutArgDependencies(llvm::Argument* arg) const
 {
     auto pos = m_outArgDependencies.find(arg);
     if (pos == m_outArgDependencies.end()) {
-        return DepInfo();
+        return ValueDepInfo();
     }
     return pos->second;
 }
@@ -559,8 +559,8 @@ InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const Dependenc
             ArgumentDependenciesMap clonedArgDeps;
             std::unordered_map<llvm::Argument*, llvm::Argument*> argument_mapping;
             for (auto& argdep_entry : callsite_entry.second) {
-                DepInfo depInfo = argdep_entry.second;
-                if (Utils::isInputDependentForArguments(argdep_entry.second, inputDepArgs)) {
+                ValueDepInfo depInfo = argdep_entry.second;
+                if (Utils::isInputDependentForArguments(argdep_entry.second.getValueDep(), inputDepArgs)) {
                     depInfo.setDependency(DepInfo::INPUT_DEP);
                 } else {
                     depInfo.setDependency(DepInfo::INPUT_INDEP);
@@ -597,7 +597,8 @@ void FunctionAnaliser::Impl::collectArguments()
                 this->m_inputs.push_back(&arg);
                 llvm::Value* val = llvm::dyn_cast<llvm::Value>(&arg);
                 if (val->getType()->isPointerTy()) {
-                    m_outArgDependencies[&arg] = DepInfo(DepInfo::INPUT_ARGDEP, ArgumentSet{&arg});
+                    m_outArgDependencies.insert(
+                            std::make_pair(&arg, ValueDepInfo(&arg, DepInfo(DepInfo::INPUT_ARGDEP, ArgumentSet{&arg}))));
                 }
             });
 }
@@ -990,7 +991,7 @@ bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const
     return m_analiser->isOutArgInputIndependent(arg);
 }
 
-DepInfo FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
+ValueDepInfo FunctionAnaliser::getOutArgDependencies(llvm::Argument* arg) const
 {
     return m_analiser->getOutArgDependencies(arg);
 }

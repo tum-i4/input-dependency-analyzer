@@ -74,11 +74,8 @@ private:
     void addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps);
     void addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps);
 
-    //template <class Key>
-    //void markAllInputDependent(std::unordered_map<Key, ValueDepInfo>& argDeps);
-
-    void markAllInputDependent(ArgumentDependenciesMap& argDeps);
-    void markAllInputDependent(GlobalVariableDependencyMap& globalDeps);
+    template <class Key>
+    void markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps);
 
 private:
     const llvm::Function* m_F;

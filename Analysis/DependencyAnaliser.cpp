@@ -493,10 +493,10 @@ void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
         auto depInfo = getInstructionDependencies(I);
         // TODO: what can go wrong for argument dep case?
         if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
-            item->second = depInfo;
+            item->second.updateValueDep(depInfo);
             //item->second.mergeDependencies(pos->second);
         } else {
-            item->second = DepInfo(DepInfo::INPUT_INDEP);
+            item->second.updateValueDep(DepInfo(DepInfo::INPUT_INDEP));
         }
         ++item;
     }
@@ -595,12 +595,6 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
         return;
     }
-    if (retDeps.isInputDep()) {
-        // is input dependent, but not dependent on arguments
-        updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
-        updateValueDependencies(callInst, ValueDepInfo(callInst, DepInfo(DepInfo::INPUT_DEP)));
-        return;
-    }
     auto pos = m_functionCallInfo.find(F);
     assert(pos != m_functionCallInfo.end());
     resolveReturnedValueDependencies(retDeps, pos->second.getArgumentDependenciesForCall(callInst));
@@ -625,13 +619,6 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     if (!retDeps.isDefined()) {
         // Constructors are going with this branch
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
-        return;
-    }
-    if (retDeps.isInputDep()) {
-        // is input dependent, but not dependent on arguments
-        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
-        updateValueDependencies(invokeInst, ValueDepInfo(invokeInst, DepInfo(DepInfo::INPUT_DEP)));
-        return;
         return;
     }
     auto pos = m_functionCallInfo.find(F);
@@ -689,10 +676,12 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
         }
         DepInfo dependencies;
         if (depInfo.isValueDep()) {
-            dependencies = getArgumentActualValueDependencies(depInfo.getValueDependencies());
+            dependencies = getArgumentActualValueDependencies(depInfo.getValueDependencies()).getValueDep();
         }
         if (depInfo.isInputArgumentDep()) {
-            dependencies.mergeDependencies(getArgumentActualDependencies(depInfo.getArgumentDependencies(), functionArgDeps));
+            // TODO: modify when changing globals type
+            dependencies.mergeDependencies(getArgumentActualDependencies(depInfo.getArgumentDependencies(),
+            functionArgDeps).getValueDep());
         }
         updateValueDependencies(val, dependencies);
     }
@@ -775,15 +764,10 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
-    const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
-    if (libFuncRetDeps.isInputIndep()) {
-        updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
-    } else if (libFuncRetDeps.isInputDep()) {
-        updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
-    } else {
-        auto dependencies = getArgumentActualDependencies(libFuncRetDeps.getArgumentDependencies(), argDepMap);
-        updateInstructionDependencies(callInst, dependencies);
-    }
+    auto libFuncRetDeps = libFInfo.getResolvedReturnDependency();
+    resolveReturnedValueDependencies(libFuncRetDeps, argDepMap);
+    updateValueDependencies(callInst, libFuncRetDeps);
+    updateInstructionDependencies(callInst, libFuncRetDeps.getValueDep());
 }
 
 void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst,
@@ -805,13 +789,10 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
     libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
-    const auto& libFuncRetDeps = libFInfo.getResolvedReturnDependency();
-    if (libFuncRetDeps.isInputIndep()) {
-        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
-    } else {
-        auto dependencies = getArgumentActualDependencies(libFuncRetDeps.getArgumentDependencies(), argDepMap);
-        updateInstructionDependencies(invokeInst, dependencies);
-    }
+    auto libFuncRetDeps = libFInfo.getResolvedReturnDependency();
+    resolveReturnedValueDependencies(libFuncRetDeps, argDepMap);
+    updateValueDependencies(invokeInst, libFuncRetDeps);
+    updateInstructionDependencies(invokeInst, libFuncRetDeps.getValueDep());
 }
 
 void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
@@ -849,9 +830,9 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
     }
 }
 
-DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& valueDeps)
+ValueDepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& valueDeps)
 {
-    DepInfo info(DepInfo::INPUT_INDEP);
+    ValueDepInfo info(DepInfo::INPUT_INDEP);
     ValueSet globals;
     for (const auto& val : valueDeps) {
         // Can be non global if the current block is in a loop.
@@ -867,7 +848,7 @@ DepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueSet& v
             globals.insert(val);
             continue;
         }
-        info.mergeDependencies(depInfo.getValueDep());
+        info.mergeDependencies(depInfo);
     }
     if (!globals.empty()) {
         info.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, globals));
@@ -986,24 +967,23 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
 }
 
 
-DepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
-        return DepInfo();
+        return ValueDepInfo();
     }
     auto depInfo = getValueDependencies(argVal);
     if (depInfo.isDefined()) {
-        return depInfo.getValueDep()
-                ;
+        return depInfo;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
-        return getInstructionDependencies(argInst);
+        return ValueDepInfo(argVal, getInstructionDependencies(argInst));
     }
     auto args = isInput(argVal);
     if (!args.empty()) {
-        return DepInfo(DepInfo::INPUT_ARGDEP, args);
+        return ValueDepInfo(argVal, DepInfo(DepInfo::INPUT_ARGDEP, args));
     }
-    return DepInfo();
+    return ValueDepInfo();
 }
 
 void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
@@ -1022,34 +1002,20 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
 
         if (FA->isOutArgInputIndependent(&arg)) {
             if (val) {
-                updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
+                updateValueDependencies(val, ValueDepInfo(val, DepInfo::INPUT_INDEP));
             }
             if (instr) {
-                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_INDEP));
+                updateRefAliasesDependencies(instr, ValueDepInfo(DepInfo::INPUT_INDEP));
             }
             continue;
         }
-        const auto& argDeps = FA->getOutArgDependencies(&arg);
-        // argDeps may also have argument dependencies, but it is not important, if it also depends on new input.
-        if (argDeps.isInputDep()) {
-            if (val) {
-                updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
-            }
-            if (instr) {
-                updateRefAliasesDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
-            }
-            continue;
-        }
-        DepInfo argDependencies;
-        if (argDeps.isValueDep()) {
-            argDependencies = getArgumentActualValueDependencies(argDeps.getValueDependencies());
-        }
-        argDependencies.mergeDependencies(getArgumentActualDependencies(argDeps.getArgumentDependencies(), callArgDeps));
+        auto argDeps = FA->getOutArgDependencies(&arg);
+        resolveReturnedValueDependencies(argDeps, callArgDeps);
         if (val) {
-            updateValueDependencies(val, argDependencies);
+            updateValueDependencies(val, argDeps);
         }
         if (instr) {
-            updateRefAliasesDependencies(instr, argDependencies);
+            updateRefAliasesDependencies(instr, argDeps);
         }
     }
 }
@@ -1084,22 +1050,16 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
         if (!libFInfo.hasResolvedArgument(&arg)) {
             continue;
         }
-        const auto& libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);
-        if (libArgDeps.isInputDep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
-        } else if (libArgDeps.isInputIndep()) {
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_INDEP));
-        } else {
-            auto argDependencies = getArgumentActualDependencies(libArgDeps.getArgumentDependencies(), callArgDeps);
-            updateValueDependencies(val, argDependencies);
-        }
+        auto libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);
+        resolveReturnedValueDependencies(libArgDeps, callArgDeps);
+        updateValueDependencies(val, libArgDeps);
     }
 }
 
-DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dependencies,
-                                                          const ArgumentDependenciesMap& argDepInfo)
+ValueDepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dependencies,
+                                                               const ArgumentDependenciesMap& argDepInfo)
 {
-    DepInfo info(DepInfo::INPUT_INDEP);
+    ValueDepInfo info(DepInfo(DepInfo::INPUT_INDEP));
     for (const auto& arg : dependencies) {
         auto pos = argDepInfo.find(arg);
         if (pos == argDepInfo.end()) {
@@ -1112,19 +1072,34 @@ DepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dep
 
 void DependencyAnaliser::resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo)
 {
-    DepInfo resolvedDep;
-    if (valueDeps.isValueDep()) {
+    ValueDepInfo resolvedDep;
+    if (valueDeps.isInputIndep()) {
+        valueDeps.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
+        return;
+    }
+    if (valueDeps.isInputDep()) {
+        resolvedDep.updateValueDep(DepInfo(DepInfo::INPUT_DEP));
+    } else if (valueDeps.isValueDep()) {
         resolvedDep = getArgumentActualValueDependencies(valueDeps.getValueDependencies());
     }
-    resolvedDep.mergeDependencies(getArgumentActualDependencies(valueDeps.getArgumentDependencies(), argDepInfo));
+    if (!valueDeps.isInputDep()) {
+        resolvedDep.mergeDependencies(getArgumentActualDependencies(valueDeps.getArgumentDependencies(), argDepInfo));
+    }
     valueDeps.updateValueDep(resolvedDep);
 
     for (auto& elDep : valueDeps.getCompositeValueDeps()) {
         DepInfo resolvedElDep;
-        if (elDep.isValueDep()) {
-            resolvedElDep = getArgumentActualValueDependencies(elDep.getValueDependencies());
+        if (elDep.isInputDep()) {
+            resolvedElDep = DepInfo(DepInfo::INPUT_DEP);
+        } else if (elDep.isInputIndep()) {
+            resolvedElDep = DepInfo(DepInfo::INPUT_INDEP);
+        } else {
+            if (elDep.isValueDep()) {
+                resolvedElDep = getArgumentActualValueDependencies(elDep.getValueDependencies()).getValueDep();
+            }
+            resolvedElDep.mergeDependencies(getArgumentActualDependencies(elDep.getArgumentDependencies(),
+                                                                          argDepInfo).getValueDep());
         }
-        resolvedElDep.mergeDependencies(getArgumentActualDependencies(elDep.getArgumentDependencies(), argDepInfo));
         elDep = resolvedElDep;
     }
 }

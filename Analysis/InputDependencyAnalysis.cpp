@@ -183,7 +183,7 @@ void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepRe
         auto& arguments = F->getArgumentList();
         DependencyAnaliser::ArgumentDependenciesMap arg_deps;
         for (auto& arg : arguments) {
-            arg_deps.insert(std::make_pair(&arg, DepInfo(DepInfo::INPUT_DEP)));
+            arg_deps.insert(std::make_pair(&arg, ValueDepInfo(&arg, DepInfo(DepInfo::INPUT_DEP))));
         }
         f_analiser->finalizeArguments(arg_deps);
         return;

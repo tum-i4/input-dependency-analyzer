@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DependencyInfo.h"
+#include "ValueDepInfo.h"
 
 namespace llvm {
 
@@ -22,7 +22,7 @@ public:
 
 public:
     using LibArgumentDependenciesMap = std::unordered_map<int, LibArgDepInfo>;
-    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
+    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, ValueDepInfo>;
     using IndexToArgumentMap = std::unordered_map<int, llvm::Argument*>;
 
 public:
@@ -41,8 +41,8 @@ public:
     const LibArgDepInfo& getReturnDependency() const;
     const ArgumentDependenciesMap& getResolvedArgumentDependencies() const;
     const bool hasResolvedArgument(llvm::Argument* arg) const;
-    const DepInfo& getResolvedArgumentDependencies(llvm::Argument* arg) const;
-    const DepInfo& getResolvedReturnDependency() const;
+    const ValueDepInfo& getResolvedArgumentDependencies(llvm::Argument* arg) const;
+    const ValueDepInfo& getResolvedReturnDependency() const;
 
 public:
     void resolve(llvm::Function* F);
@@ -57,7 +57,7 @@ private:
     LibArgumentDependenciesMap m_argumentDependencies;
     LibArgDepInfo m_returnDependency;
     ArgumentDependenciesMap m_resolvedArgumentDependencies;
-    DepInfo m_resolvedReturnDependency;
+    ValueDepInfo m_resolvedReturnDependency;
 }; // class LibFunctionInfo
 
 } // namespace input_dependency

@@ -96,7 +96,7 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateReturnValueDependencies
     ReflectingBasicBlockAnaliser::updateReturnValueDependencies(addOnDependencyInfo(info));
 }
 
-DepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
+ValueDepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
     auto depInfo = ReflectingBasicBlockAnaliser::getArgumentValueDependecnies(argVal);
     addOnDependencyInfo(depInfo);

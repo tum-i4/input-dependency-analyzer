@@ -11,23 +11,22 @@ namespace input_dependency {
 
 namespace {
 
-DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepInfo>& actualDeps,
-                            const ValueSet& valueDeps)
+// Note, only the dependency info of a global value is going to be finalized, the dependencies of elements are not
+ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, ValueDepInfo>& actualDeps,
+                                 const ValueSet& valueDeps)
 {
-    DepInfo resultInfo;
+    ValueDepInfo resultInfo;
     for (auto& dep : valueDeps) {
         auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
-        // ??????????????
         if (global == nullptr) {
             continue;
         }
-        assert(global != nullptr);
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {
             continue;
         }
         assert(pos->second.isDefined());
-        DepInfo global_depInfo = pos->second;
+        ValueDepInfo global_depInfo = pos->second;
         ValueSet& globalDependencies = global_depInfo.getValueDependencies();
         if (global_depInfo.getDependency() == DepInfo::VALUE_DEP && !globalDependencies.empty()) {
             ValueSet seen;
@@ -338,22 +337,14 @@ FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobal
     return pos->second;
 }
 
-void FunctionCallDepInfo::markAllInputDependent(ArgumentDependenciesMap& argDeps)
+template<class Key>
+void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, ValueDepInfo>& argDeps)
 {
     DepInfo info(DepInfo::INPUT_DEP);
     for (auto& item : argDeps) {
         item.second.updateCompositeValueDep(info);
     }
 }
-
-void FunctionCallDepInfo::markAllInputDependent(GlobalVariableDependencyMap& globalDeps)
-{
-    DepInfo info(DepInfo::INPUT_DEP);
-    for (auto& item : globalDeps) {
-        item.second = info;
-    }
-}
-
 
 }
 

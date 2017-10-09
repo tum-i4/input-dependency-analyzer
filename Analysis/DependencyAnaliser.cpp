@@ -39,7 +39,6 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
         }
         assert(global != nullptr);
         auto pos = globalDeps.find(global);
-        // ??????????
         if (pos == globalDeps.end()) {
             continue;
         }
@@ -207,7 +206,8 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
             assert(selfF != nullptr);
             auto selfFunctionResults = m_FAG(selfF);
             assert(selfFunctionResults);
-            info.mergeDependencies(selfFunctionResults->getDependencyInfoFromBlock(val, phi->getIncomingBlock(i)));
+            info.mergeDependencies(selfFunctionResults->getDependencyInfoFromBlock(val,
+                        phi->getIncomingBlock(i)).getValueDep());
         }
         if (info.isInputDep()) {
             break;
@@ -348,8 +348,9 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         llvm::Value* compositeValue = getElPtr->getOperand(0);
         updateCompositeValueDependencies(compositeValue, getElPtr, info);
     } else {
-        updateValueDependencies(storeTo, info);
-        updateModAliasesDependencies(storeInst, info);
+        ValueDepInfo valDepInfo(storeTo, info);
+        updateValueDependencies(storeTo, valDepInfo);
+        updateModAliasesDependencies(storeInst, valDepInfo);
     }
 }
 
@@ -660,10 +661,9 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
     m_modifiedGlobals.insert(modGlobals.begin(), modGlobals.end());
 
     for (const auto& global : modGlobals) {
-        DepInfo depInfo;
+        ValueDepInfo depInfo(global);
         if (is_recurs) {
-            // TODO: change after modifying globals to be of type ValueDepInfo
-            depInfo = getValueDependencies(global).getValueDep();
+            depInfo = getValueDependencies(global);
         } else {
             assert(FA->hasGlobalVariableDepInfo(global));
             depInfo = FA->getGlobalVariableDependencies(global);
@@ -674,16 +674,8 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
             updateValueDependencies(val, depInfo);
             continue;
         }
-        DepInfo dependencies;
-        if (depInfo.isValueDep()) {
-            dependencies = getArgumentActualValueDependencies(depInfo.getValueDependencies()).getValueDep();
-        }
-        if (depInfo.isInputArgumentDep()) {
-            // TODO: modify when changing globals type
-            dependencies.mergeDependencies(getArgumentActualDependencies(depInfo.getArgumentDependencies(),
-            functionArgDeps).getValueDep());
-        }
-        updateValueDependencies(val, dependencies);
+        resolveReturnedValueDependencies(depInfo, functionArgDeps);
+        updateValueDependencies(val, depInfo);
     }
 }
 
@@ -713,7 +705,7 @@ void DependencyAnaliser::updateFunctionInputDepOutArgDependencies(llvm::Function
         if (val == nullptr) {
             continue;
         }
-        updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
     }
 }
 
@@ -808,7 +800,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
         if (val == nullptr) {
             continue;
         }
-        updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
     }
     // TODO: add this for all call instruction processors
     if (F->isVarArg()) {
@@ -824,7 +816,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
                 break;
                 //continue;
             }
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
             actualArg = argumentValueGetter(index++);
         }
     }
@@ -957,7 +949,7 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
     for (auto& global : callRefGlobals) {
         llvm::Value* globalVal = llvm::dyn_cast<llvm::Value>(global);
         assert(globalVal != nullptr);
-        auto depInfo = getValueDependencies(globalVal).getValueDep();
+        auto depInfo = getValueDependencies(globalVal);
         if (!depInfo.isDefined()) {
             continue;
         }

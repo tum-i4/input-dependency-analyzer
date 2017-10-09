@@ -86,11 +86,6 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateInstructionDependencies
     ReflectingBasicBlockAnaliser::updateInstructionDependencies(instr, addOnDependencyInfo(info));
 }
 
-void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info)
-{
-    ReflectingBasicBlockAnaliser::updateValueDependencies(value, addOnDependencyInfo(info));
-}
-
 void NonDeterministicReflectingBasicBlockAnaliser::updateReturnValueDependencies(const ValueDepInfo& info)
 {
     ReflectingBasicBlockAnaliser::updateReturnValueDependencies(addOnDependencyInfo(info));

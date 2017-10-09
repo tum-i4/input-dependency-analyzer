@@ -60,7 +60,6 @@ protected:
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) override;
     void updateCompositeValueDependencies(llvm::Value* value,
                                           llvm::Instruction* elInstr,
@@ -69,7 +68,7 @@ protected:
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
     DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
     void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
-    void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) override;
+    void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) override;
     void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info);
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;

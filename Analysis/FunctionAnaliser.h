@@ -95,8 +95,8 @@ public:
     bool isReturnValueInputIndependent() const;
     const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
-    const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
-    DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
+    const ValueDepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    ValueDepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
     /// \}

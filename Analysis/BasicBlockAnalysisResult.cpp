@@ -142,16 +142,6 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
-void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
-{
-    assert(info.isDefined());
-    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value, info)));
-    if (!res.second) {
-        res.first->second.updateCompositeValueDep(info);
-    }
-    updateAliasesDependencies(value, res.first->second);
-}
-
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
 {
     assert(info.isDefined());
@@ -231,7 +221,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
     }
 }
 
-void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info)
+void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info)
 {
     const auto& DL = storeInst->getModule()->getDataLayout();
     for (auto& dep : m_valueDependencies) {

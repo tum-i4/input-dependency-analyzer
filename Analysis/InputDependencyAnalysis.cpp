@@ -297,7 +297,7 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
                 continue;
             }
         }
-        globalDeps[global] = DepInfo(DepInfo::INPUT_INDEP);
+        globalDeps[global] = ValueDepInfo(global, DepInfo(DepInfo::INPUT_INDEP));
     }
 }
 

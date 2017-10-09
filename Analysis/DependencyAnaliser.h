@@ -71,15 +71,13 @@ protected:
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
-    // TODO: remove this version when all calls are changed to the one with ValueDepInfo
-    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) = 0;
     virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const DepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const ValueDepInfo& info) = 0;
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
-    virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) = 0;
+    virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) = 0;
     virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;
 
     virtual ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal);

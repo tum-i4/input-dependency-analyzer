@@ -99,6 +99,10 @@ void resolveCompundNodeDeps(value_dependence_graph::nodeT& node,
             resolve_value_to_input_dep(val_pos->second);
         }
         for (auto& dep_node : node->get_dependent_values()) {
+            if (dep_node->is_root()) {
+                dep_node->remove_depends_on(node);
+                continue;
+            }
             auto dep_val = dep_node->get_value();
             auto dep_val_pos = value_dependencies.find(dep_val);
             assert(dep_val_pos != value_dependencies.end());
@@ -126,7 +130,6 @@ void resolveCompundNodeDeps(value_dependence_graph::nodeT& node,
             if (dep_node->is_root()) {
                 continue;
             }
-            // TODO: dep_node is compound itself
             auto remove_values = node_values;
             if (dep_node->is_compound()) {
                 for (auto& dep_val : dep_node->get_values()) {
@@ -163,6 +166,9 @@ void resolveNodeDeps(value_dependence_graph::nodeT& node,
     assert(!val_pos->second.isValueDep() || val_pos->second.isOnlyGlobalValueDependent());
     for (auto& dep_node : node->get_dependent_values()) {
         dep_node->remove_depends_on(node);
+        if (dep_node->is_root()) {
+            continue;
+        }
         auto dep_vals = dep_node->get_values();
         for (const auto& dep_val : dep_vals) {
             auto dep_val_pos = value_dependencies.find(dep_val);
@@ -737,10 +743,14 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     }
     value_dependence_graph graph;
     graph.build(m_valueDependencies, m_initialDependencies);
+
+    // write dot for value dependency graph
     //std::string name = m_BB->getParent()->getName();
+    //llvm::dbgs() << m_BB->getName() << "\n";
     //name += "_";
     //name += m_BB->getName();
     //graph.dump(name);
+
     resolveDependencies(graph.get_leaves(), m_valueDependencies);
     for (auto& item : m_valueDependencies) {
         assert(!item.second.isValueDep() || item.second.isOnlyGlobalValueDependent());

@@ -54,6 +54,7 @@ void resolveCompundNodeDeps(value_dependence_graph::nodeT& node,
     ValueSet all_values;
     DepInfo::Dependency dep = DepInfo::UNKNOWN;
     for (auto& node_val : node_values) {
+
         auto val_pos = value_dependencies.find(node_val);
         assert(val_pos != value_dependencies.end());
         auto& val_dep = val_pos->second.getValueDep();
@@ -73,10 +74,16 @@ void resolveCompundNodeDeps(value_dependence_graph::nodeT& node,
             resolve_value_to_input_dep(val_pos->second.getValueDep());
         }
         for (auto& dep_node : node->get_dependent_values()) {
-            auto dep_val = dep_node->get_value();
-            auto dep_val_pos = value_dependencies.find(dep_val);
-            assert(dep_val_pos != value_dependencies.end());
-            resolve_value_to_input_dep(dep_val_pos->second.getValueDep());
+            if (dep_node->is_root()) {
+                dep_node->remove_depends_on(node);
+                continue;
+            }
+            auto& dep_values = dep_node->get_values();
+            for (auto& dep_val : dep_values) {
+                auto dep_val_pos = value_dependencies.find(dep_val);
+                assert(dep_val_pos != value_dependencies.end());
+                resolve_value_to_input_dep(dep_val_pos->second.getValueDep());
+            }
             dep_node->clear_depends_on_values();
             leaves.push_front(dep_node);
         }
@@ -137,6 +144,9 @@ void resolveNodeDeps(value_dependence_graph::nodeT& node,
     assert(!val_dep.isValueDep() || val_dep.isOnlyGlobalValueDependent());
     for (auto& dep_node : node->get_dependent_values()) {
         dep_node->remove_depends_on(node);
+        if (dep_node->is_root()) {
+            continue;
+        }
         auto dep_vals = dep_node->get_values();
         for (const auto& dep_val : dep_vals) {
             auto dep_val_pos = value_dependencies.find(dep_val);
@@ -712,13 +722,45 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     }
     value_dependence_graph graph;
     graph.build(m_valueDependencies, m_initialDependencies);
+
+    // write dot for value dependency graph
     //std::string name = m_BB->getParent()->getName();
+    //llvm::dbgs() << m_BB->getName() << "\n";
     //name += "_";
     //name += m_BB->getName();
     //graph.dump(name);
+
+
     resolveDependencies(graph.get_leaves(), m_valueDependencies);
     for (auto& item : m_valueDependencies) {
-        assert(!item.second.getValueDep().isValueDep() || item.second.getValueDep().isOnlyGlobalValueDependent());
+        if (item.second.isValueDep() && !item.second.isOnlyGlobalValueDependent()) {
+            auto& value_dependencies = item.second.getValueDependencies();
+            std::vector<llvm::Value*> to_erase;
+            for (const auto& value : value_dependencies) {
+                if (llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+                    continue;
+                }
+                auto pos = m_valueDependencies.find(value);
+                if (pos == m_valueDependencies.end()) {
+                    to_erase.push_back(value);
+                    continue;
+                }
+                if (pos->second.isInputDep()) {
+                    item.second.setDependency(DepInfo::INPUT_DEP);
+                    value_dependencies.clear();
+                    break;
+                }
+                item.second.mergeDependencies(pos->second.getArgumentDependencies());
+                item.second.mergeDependency(pos->second.getDependency());
+                to_erase.push_back(value);
+            }
+            std::for_each(to_erase.begin(), to_erase.end(),
+                          [&value_dependencies] (llvm::Value* val) {value_dependencies.erase(val);});
+            if (value_dependencies.empty() && item.second.getDependency() == DepInfo::VALUE_DEP) {
+                item.second.setDependency(DepInfo::INPUT_INDEP);
+            }
+        }
+        assert(!item.second.isValueDep() || item.second.isOnlyGlobalValueDependent());
         if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(item.first)) {
             llvm::Value* compositeValue = getElPtr->getOperand(0);
             updateCompositeValueDependencies(compositeValue, getElPtr, item.second.getValueDep());

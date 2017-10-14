@@ -415,7 +415,7 @@ void FunctionAnaliser::Impl::analize()
             m_BBAnalysisResults[bb].reset(loopA);
         } else if (auto loop = m_LI.getLoopFor(bb)) {
             // For irregular loops a random block from a loop can come before loop header in a bitcode.
-            // If this is the case, skip this block here, it will be analized later when analysing the loop
+            // If this is the case, skip this block here, it will be analyzed later when analysing the loop
             if (m_currentLoop == nullptr) {
                 m_loopBlocks[bb] = Utils::getTopLevelLoop(loop)->getHeader();
                 continue;
@@ -632,23 +632,17 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             break;
         }
         // predecessor is in loop
-        // We assume loops are not inifinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
+        // We assume loops are not infinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
         //TODO: this is not necessarily the case for goto-s
         if (m_LI.getLoopFor(pb) != nullptr) {
             ++pred;
             continue;
         }
-        // if all terminating instructions leading to this block are unconditional, this block will be executed not depending on input.
-        //if (auto* branchInstr = llvm::dyn_cast<llvm::BranchInst>(termInstr)) {
-        //    if (branchInstr->isUnconditional()) {
-        //        ++pred;
-        //        continue;
-        //    }
-        //}
-
         auto pos = m_BBAnalysisResults.find(pb);
         if (pos == m_BBAnalysisResults.end()) {
-            assert(m_LI.getLoopFor(pb) != nullptr);
+            // mean block is in a loop or has not been analysed yet.
+            // This happens for functions with irregular CFGs, where predecessor block comes after the current
+            // block. TODO: for this case see if can be fixed by employing different CFG traversal approach
             ++pred;
             // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
             continue;

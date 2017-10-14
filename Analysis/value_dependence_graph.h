@@ -33,8 +33,8 @@ public:
 
         node_set& get_depends_on_values();
         node_set& get_dependent_values();
-        bool add_depends_on_value(nodeT dep_node);
-        bool add_dependent_value(nodeT dep_node);
+        void add_depends_on_value(nodeT dep_node);
+        void add_dependent_value(nodeT dep_node);
         void remove_depends_on(nodeT dep_node);
         void remove_dependent_value(nodeT dep_node);
         void clear_dependent_values();
@@ -152,82 +152,6 @@ private:
 }
 
 namespace llvm {
-
-/*
-class scc_node
-{
-public:
-    using nodeT = input_dependency::value_dependence_graph::nodeT;
-    using iterator = std::vector<scc_node*>::iterator;
-    using const_iterator = std::vector<scc_node*>::const_iterator;
-
-public:
-    scc_node(const nodeT& n)
-        : m_node(n)
-    {
-        for (const auto& dep : m_node->get_depends_on_values()) {
-            depends_on.push_back(new scc_node(dep));
-        }
-        for (const auto& dep : m_node->get_dependent_values()) {
-            dependents.push_back(new scc_node(dep));
-        }
-    }
-
-public:
-    iterator begin()
-    {
-        return depends_on.begin();
-    }
-    const_iterator begin() const
-    {
-        return depends_on.begin();
-    }
-    iterator end()
-    {
-        return depends_on.end();
-    }
-    const_iterator end() const
-    {
-        return depends_on.end();
-    }
-
-    iterator inv_begin()
-    {
-        return dependents.begin();
-    }
-    const_iterator inv_begin() const
-    {
-        return dependents.begin();
-    }
-    iterator inv_end()
-    {
-        return dependents.end();
-    }
-    const_iterator inv_end() const
-    {
-        return dependents.end();
-    }
-
-    size_t size() const
-    {
-        return depends_on.size();
-    }
-    scc_node* getEntryBlock() const
-    {
-        return *depends_on.begin();
-    }
-
-    nodeT get_node() const
-    {
-        return m_node;
-    }
-
-private:
-    nodeT m_node;
-    std::vector<scc_node*> depends_on;
-    std::vector<scc_node*> dependents;
-};
-*/
 
 using scc_node = input_dependency::value_dependence_graph::node;
 

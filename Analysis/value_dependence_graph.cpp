@@ -58,21 +58,16 @@ value_dependence_graph::node_set& value_dependence_graph::node::get_dependent_va
     return dependent_values;
 }
 
-bool value_dependence_graph::node::add_depends_on_value(value_dependence_graph::nodeT dep_node)
+void value_dependence_graph::node::add_depends_on_value(value_dependence_graph::nodeT dep_node)
 {
-    auto res = depends_on_values.insert(dep_node).second;
-    if (res) {
-        depends_ons.insert(dep_node.get());
-    }
-    return res;
+    depends_on_values.insert(dep_node).second;
+    depends_ons.insert(dep_node.get());
 }
 
-bool value_dependence_graph::node::add_dependent_value(value_dependence_graph::nodeT dep_node)
+void value_dependence_graph::node::add_dependent_value(value_dependence_graph::nodeT dep_node)
 {
-    auto res = dependent_values.insert(dep_node).second;
-    if (res) {
-        dependents.insert(dep_node.get());
-    }
+    dependent_values.insert(dep_node).second;
+    dependents.insert(dep_node.get());
 }
 
 void value_dependence_graph::node::remove_depends_on(value_dependence_graph::nodeT dep_node)
@@ -122,8 +117,9 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
     while (!processing_list.empty()) {
         auto process_val = processing_list.back();
         processing_list.pop_back();
-        processed_values.insert(process_val);
-
+        if (!processed_values.insert(process_val).second) {
+            continue;
+        }
         auto item = valueDeps.find(process_val);
         if (item == valueDeps.end()) {
             item = initialDeps.find(process_val);
@@ -162,9 +158,8 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
             if (is_global && valueDeps.find(val) == valueDeps.end()) {
                 continue;
             }
-            if (item_node->add_depends_on_value(dep_node)) {
-                dep_node->add_dependent_value(item_node);
-            }
+            item_node->add_depends_on_value(dep_node);
+            dep_node->add_dependent_value(item_node);
             // is not in value list modified or referenced in this block
             if (valueDeps.find(val) == valueDeps.end() && processed_values.find(val) == processed_values.end()) {
                 processing_list.push_back(val);

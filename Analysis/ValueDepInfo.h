@@ -22,32 +22,16 @@ namespace input_dependency {
 class ValueDepInfo
 {
 public:
-    using ValueDeps = std::vector<DepInfo>;
+    using ValueDeps = std::vector<ValueDepInfo>;
 
 public:
     ValueDepInfo() = default;
 
-    explicit ValueDepInfo(llvm::Value* val);
-    explicit ValueDepInfo(llvm::AllocaInst* alloca);
+    explicit ValueDepInfo(llvm::Value* value);
     explicit ValueDepInfo(const DepInfo& depInfo);
     ValueDepInfo(llvm::Value* val, const DepInfo& depInfo);
 
 public:
-    bool hasValue() const
-    {
-        return m_value != nullptr;
-    }
-
-    void setValue(llvm::Value* value)
-    {
-        m_value = value;
-    }
-
-    llvm::Value* getValue() const
-    {
-        return m_value;
-    }
-
     const DepInfo& getValueDep() const
     {
         return m_depInfo;
@@ -68,13 +52,13 @@ public:
         return m_elementDeps;
     }
 
-    const DepInfo& getValueDep(llvm::Instruction* el_instr) const;
+    const ValueDepInfo& getValueDep(llvm::Instruction* el_instr) const;
 
     void updateValueDep(const ValueDepInfo& valueDepInfo);
     void updateValueDep(const DepInfo& depInfo);
     void updateCompositeValueDep(const DepInfo& depInfo);
     void updateValueDep(llvm::Instruction* el_instr,
-                        const DepInfo& depInfo);
+                        const ValueDepInfo& depInfo);
     void mergeDependencies(const ValueDepInfo& depInfo);
 
 // interface of DepInfo. Eventually DepInfo may be removed altogether
@@ -181,7 +165,6 @@ public:
     }
 
 private:
-    llvm::Value* m_value;
     DepInfo m_depInfo;
     ValueDeps m_elementDeps;
 }; // class ValueDepInfo

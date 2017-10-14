@@ -122,7 +122,6 @@ void LibFunctionInfo::resolveArgumentDependencies(const IndexToArgumentMap& inde
         auto argPos = indexToArg.find(argDeps.first);
         assert(argPos != indexToArg.end());
         auto& resolvedDeps = m_resolvedArgumentDependencies[argPos->second];
-        resolvedDeps.setValue(argPos->second);
         resolvedDeps.setDependency(argDeps.second.dependency);
         ArgumentSet arguments = getResolvedArguments(indexToArg, argDeps.second);
         resolvedDeps.setArgumentDependencies(std::move(arguments));

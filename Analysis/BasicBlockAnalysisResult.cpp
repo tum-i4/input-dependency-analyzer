@@ -114,15 +114,13 @@ ValueDepInfo BasicBlockAnalysisResult:: getValueDependencies(llvm::Value* value)
     return ValueDepInfo();
 }
 
-DepInfo BasicBlockAnalysisResult::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
+ValueDepInfo BasicBlockAnalysisResult::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
 {
     ValueDepInfo valueDepInfo = getValueDependencyInfo(value);
     if (!valueDepInfo.isDefined()) {
-        return DepInfo();
+        return ValueDepInfo();
     }
     const auto& elDeps = valueDepInfo.getValueDep(element_instr);
-    // during getvalueDep the valueDepInfo may change
-    updateValueDependencies(value, valueDepInfo);
     return elDeps;
 }
 
@@ -142,6 +140,16 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
+{
+    assert(info.isDefined());
+    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
+    if (!res.second) {
+        res.first->second.updateCompositeValueDep(info);
+    }
+    updateAliasesDependencies(value, res.first->second);
+}
+
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
 {
     assert(info.isDefined());
@@ -154,10 +162,10 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
 
 void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* value,
                                                                 llvm::Instruction* elInstr,
-                                                                const DepInfo& info)
+                                                                const ValueDepInfo& info)
 {
     assert(info.isDefined());
-    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value, info)));
+    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
     if (!res.second) {
         res.first->second.updateValueDep(elInstr, info);
     }
@@ -336,7 +344,7 @@ bool BasicBlockAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const ValueDepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val)
+ValueDepInfo BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);
     if (pos != m_valueDependencies.end()) {

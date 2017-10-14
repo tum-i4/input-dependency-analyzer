@@ -416,7 +416,7 @@ bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const ValueDepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
+ValueDepInfo LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
     auto pos = m_valueDependencies.find(val);		
     if (pos != m_valueDependencies.end()) {		

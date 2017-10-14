@@ -67,12 +67,13 @@ protected:
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
     virtual ValueDepInfo getValueDependencies(llvm::Value* value) = 0;
-    virtual DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) = 0;
+    virtual ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) = 0;
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
+    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
     virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) = 0;
-    virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const DepInfo& info) = 0;
+    virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const ValueDepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const ValueDepInfo& info) = 0;
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
@@ -108,6 +109,8 @@ protected:
     void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& argDepMap);
 
 private:
+    void updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info);
+
     //TODO: make const
     ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
     ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);

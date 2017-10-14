@@ -58,12 +58,13 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
-    DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
+    ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) override;
     void updateCompositeValueDependencies(llvm::Value* value,
                                           llvm::Instruction* elInstr,
-                                          const DepInfo& info) override;
+                                          const ValueDepInfo& info) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
     DepInfo getDependenciesFromAliases(llvm::Value* val) override;
     DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
@@ -88,7 +89,7 @@ public:
     bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override;
 
     bool hasValueDependencyInfo(llvm::Value* val) const override;
-    const ValueDepInfo& getValueDependencyInfo(llvm::Value* val) override;
+    ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const ValueDependencies& getValuesDependencies() const override;
     const ValueDepInfo& getReturnValueDependencies() const override;

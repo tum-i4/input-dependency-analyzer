@@ -130,7 +130,7 @@ public:
     bool isReturnValueInputIndependent() const;
     const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
-    const ValueDepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    ValueDepInfo getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     ValueDepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
     // Returns collected data for function calls in this function
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
@@ -280,7 +280,7 @@ bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* glob
     return pos->second->hasValueDependencyInfo(val);
 }
 
-const ValueDepInfo& FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
+ValueDepInfo FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
 {
     auto& lastBB = m_F->back();
     const auto& pos = m_BBAnalysisResults.find(&lastBB);
@@ -1005,7 +1005,7 @@ bool FunctionAnaliser::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) co
     return m_analiser->hasGlobalVariableDepInfo(global);
 }
 
-const ValueDepInfo& FunctionAnaliser::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
+ValueDepInfo FunctionAnaliser::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
 {
     return m_analiser->getGlobalVariableDependencies(global);
 }

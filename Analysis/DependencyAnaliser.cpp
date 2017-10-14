@@ -242,7 +242,7 @@ void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
     }
 
     assert(depInfo.isDefined());
-    m_valueDependencies[bitcast] = ValueDepInfo(bitcast, depInfo);
+    m_valueDependencies[bitcast] = ValueDepInfo(depInfo);
     updateInstructionDependencies(bitcast, depInfo);
 }
 
@@ -253,31 +253,24 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     // %x = getelementptr inbounds %struct.point, %struct.point* %p, i32 0, i32 1
     // for int *p; p[0]
     // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where %0 is load of p
-    auto value = getMemoryValue(getElPtr->getOperand(0));
-    if (!value) {
-        value = getElPtr->getOperand(0);
-        if (auto instr = llvm::dyn_cast<llvm::Instruction>(value)) {
-            auto depInfo = getInstructionDependencies(instr);
-            if (!depInfo.isDefined()) {
-                depInfo = DepInfo(DepInfo::INPUT_DEP);
-            }
-            updateInstructionDependencies(getElPtr, depInfo);
-            return;
+    auto compositeValue = getElPtr->getOperand(0);
+    auto depInfo = getCompositeValueDependencies(compositeValue, getElPtr);
+    if (!depInfo.isDefined()) {
+        auto memory_value = getMemoryValue(compositeValue);
+        if (memory_value) {
+            depInfo = getCompositeValueDependencies(memory_value, getElPtr);
+        }
+    }
+    if (!depInfo.isDefined()) {
+        if (auto instr = llvm::dyn_cast<llvm::Instruction>(compositeValue)) {
+            depInfo = ValueDepInfo(compositeValue, getInstructionDependencies(instr));
+        } else {
+            depInfo = ValueDepInfo(compositeValue, DepInfo(DepInfo::INPUT_DEP));
         }
     }
 
-    const auto& elDepInfo = getCompositeValueDependencies(value, getElPtr);
-    if (elDepInfo.isDefined()) {
-        updateInstructionDependencies(getElPtr, elDepInfo);
-        return;
-    }
-    auto instr = llvm::dyn_cast<llvm::Instruction>(value);
-    if (!instr) {
-        updateInstructionDependencies(getElPtr, DepInfo(DepInfo::INPUT_DEP));
-    }
-    const auto& instrDeps = getInstructionDependencies(instr);
-    // While being safe, this might not always be an accurate decision. 
-    updateInstructionDependencies(getElPtr, instrDeps);
+    updateInstructionDependencies(getElPtr, depInfo.getValueDep());
+    updateValueDependencies(getElPtr, depInfo); // add getElPtr as value
 }
 
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
@@ -332,25 +325,25 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto op = storeInst->getOperand(0);
-    DepInfo info;
+    ValueDepInfo info; // the value here is not important, could be null
     if (llvm::dyn_cast<llvm::Constant>(op)) {
-        info = DepInfo(DepInfo::INPUT_INDEP);
+        info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
     } else {
-        info = getValueDependencies(op).getValueDep();
+        info.mergeDependencies(getValueDependencies(op));
         if (!info.isDefined()) {
             if (auto* opInstr = llvm::dyn_cast<llvm::Instruction>(op)) {
                 // will always take this branch?
-                info = getInstructionDependencies(opInstr);
+                info.mergeDependencies(getInstructionDependencies(opInstr));
             } else {
                 auto args = isInput(op);
                 if (!args.empty()) {
-                    info = DepInfo(DepInfo::INPUT_ARGDEP, args);
+                    info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_ARGDEP, args));
                 }
             }
         }
     }
     if (!info.isDefined()) {
-        info = DepInfo(DepInfo::INPUT_DEP);
+        info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_DEP));
         InputDepInstructionsRecorder::get().record(storeInst);
     }
     assert(info.isDefined());
@@ -358,15 +351,13 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
         m_modifiedGlobals.insert(global);
     }
-    updateInstructionDependencies(storeInst, info);
+    updateInstructionDependencies(storeInst, info.getValueDep());
     // Whatever storeTo is (value or instruction) is going to be collected in value list. 
     if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(storeTo)) {
-        llvm::Value* compositeValue = getElPtr->getOperand(0);
-        updateCompositeValueDependencies(compositeValue, getElPtr, info);
+        updateDependencyForGetElementPtr(getElPtr, info);
     } else {
-        ValueDepInfo valDepInfo(storeTo, info);
-        updateValueDependencies(storeTo, valDepInfo);
-        updateModAliasesDependencies(storeInst, valDepInfo);
+        updateValueDependencies(storeTo, info);
+        updateModAliasesDependencies(storeInst, info);
     }
 }
 
@@ -603,7 +594,7 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
-        updateValueDependencies(callInst, ValueDepInfo(callInst, DepInfo(DepInfo::INPUT_INDEP)));
+        updateValueDependencies(callInst, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
         return;
     }
     auto retDeps = FA->getRetValueDependencies();
@@ -629,7 +620,7 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
-        updateValueDependencies(invokeInst, ValueDepInfo(invokeInst, DepInfo(DepInfo::INPUT_INDEP)));
+        updateValueDependencies(invokeInst, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
         return;
     }
     auto retDeps = FA->getRetValueDependencies();
@@ -819,7 +810,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
         if (val == nullptr) {
             continue;
         }
-        updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
+        updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
     }
     // TODO: add this for all call instruction processors
     if (F->isVarArg()) {
@@ -835,7 +826,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
                 break;
                 //continue;
             }
-            updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
+            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
             actualArg = argumentValueGetter(index++);
         }
     }
@@ -879,7 +870,7 @@ void DependencyAnaliser::finalizeValues(const GlobalVariableDependencyMap& globa
             if (!el_info.isValueDep()) {
                 continue;
             }
-            finalizeValueDependencies(globalDeps, el_info);
+            finalizeValueDependencies(globalDeps, el_info.getValueDep());
         }
     }
 }
@@ -917,6 +908,16 @@ void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependenc
     }
     toFinalize.mergeDependencies(newInfo);
     valueDependencies.clear();
+}
+
+void DependencyAnaliser::updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info)
+{
+    llvm::Value* value = getElPtr->getOperand(0);
+    assert(value);
+    updateCompositeValueDependencies(value, getElPtr, info);
+    if (auto* value_getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
+        updateDependencyForGetElementPtr(value_getElPtr, info);
+    }
 }
 
 DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F)
@@ -1099,19 +1100,7 @@ void DependencyAnaliser::resolveReturnedValueDependencies(ValueDepInfo& valueDep
     valueDeps.updateValueDep(resolvedDep);
 
     for (auto& elDep : valueDeps.getCompositeValueDeps()) {
-        DepInfo resolvedElDep;
-        if (elDep.isInputDep()) {
-            resolvedElDep = DepInfo(DepInfo::INPUT_DEP);
-        } else if (elDep.isInputIndep()) {
-            resolvedElDep = DepInfo(DepInfo::INPUT_INDEP);
-        } else {
-            if (elDep.isValueDep()) {
-                resolvedElDep = getArgumentActualValueDependencies(elDep.getValueDependencies()).getValueDep();
-            }
-            resolvedElDep.mergeDependencies(getArgumentActualDependencies(elDep.getArgumentDependencies(),
-                                                                          argDepInfo).getValueDep());
-        }
-        elDep = resolvedElDep;
+        resolveReturnedValueDependencies(elDep, argDepInfo);
     }
 }
 

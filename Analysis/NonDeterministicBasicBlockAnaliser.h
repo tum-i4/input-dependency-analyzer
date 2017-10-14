@@ -33,11 +33,12 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
-    DepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
+    ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
     void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) override;
     void updateCompositeValueDependencies(llvm::Value* value,
                                           llvm::Instruction* elInstr,
-                                          const DepInfo& info) override;
+                                          const ValueDepInfo& info) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;

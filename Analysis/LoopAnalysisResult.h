@@ -71,7 +71,7 @@ public:
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
-    const ValueDepInfo& getValueDependencyInfo(llvm::Value* val) override;
+    ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
     const ValueDepInfo& getReturnValueDependencies() const override;

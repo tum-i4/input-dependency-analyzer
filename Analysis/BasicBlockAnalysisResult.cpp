@@ -344,6 +344,9 @@ const ValueDepInfo& BasicBlockAnalysisResult::getValueDependencyInfo(llvm::Value
     }
     auto initial_val_pos = m_initialDependencies.find(val);
     // This is from external usage, through DependencyAnalysisResult interface
+    if (initial_val_pos == m_initialDependencies.end()) {
+        return ValueDepInfo();
+    }
     assert(initial_val_pos != m_initialDependencies.end());
     // add referenced value
     const auto& info = initial_val_pos->second;
@@ -488,8 +491,8 @@ long unsigned BasicBlockAnalysisResult::get_input_unknowns_count() const
 
 DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr)
 {
-    DepInfo info;
     auto* loadOp = instr->getPointerOperand();
+    DepInfo info;
     if (auto opinstr = llvm::dyn_cast<llvm::Instruction>(loadOp)) {
         if (!llvm::dyn_cast<llvm::AllocaInst>(opinstr)) {
             info = getInstructionDependencies(opinstr);

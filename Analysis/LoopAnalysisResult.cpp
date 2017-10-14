@@ -423,7 +423,9 @@ const ValueDepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
         return pos->second;		
     }		
     auto initial_val_pos = m_initialDependencies.find(val);		
-    assert(initial_val_pos != m_initialDependencies.end());		
+    if (initial_val_pos == m_initialDependencies.end()) {
+        return ValueDepInfo();
+    }
     // add referenced value		
     DepInfo info = initial_val_pos->second.getValueDep();		
     auto insert_res = m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val, info)));		

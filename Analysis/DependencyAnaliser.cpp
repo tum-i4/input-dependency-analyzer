@@ -206,8 +206,12 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
             assert(selfF != nullptr);
             auto selfFunctionResults = m_FAG(selfF);
             assert(selfFunctionResults);
-            info.mergeDependencies(selfFunctionResults->getDependencyInfoFromBlock(val,
-                        phi->getIncomingBlock(i)).getValueDep());
+            const auto& depInfofromBlock = selfFunctionResults->getDependencyInfoFromBlock(val,
+                                                    phi->getIncomingBlock(i)).getValueDep();
+            if (!depInfofromBlock.isDefined()) {
+                continue;
+            }
+            info.mergeDependencies(depInfofromBlock);
         }
         if (info.isInputDep()) {
             break;
@@ -248,8 +252,20 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     // p.x where x is the second field of struct p
     // %x = getelementptr inbounds %struct.point, %struct.point* %p, i32 0, i32 1
     // for int *p; p[0]
-    // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where 0 is load of p
-    auto value = getElPtr->getOperand(0);
+    // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where %0 is load of p
+    auto value = getMemoryValue(getElPtr->getOperand(0));
+    if (!value) {
+        value = getElPtr->getOperand(0);
+        if (auto instr = llvm::dyn_cast<llvm::Instruction>(value)) {
+            auto depInfo = getInstructionDependencies(instr);
+            if (!depInfo.isDefined()) {
+                depInfo = DepInfo(DepInfo::INPUT_DEP);
+            }
+            updateInstructionDependencies(getElPtr, depInfo);
+            return;
+        }
+    }
+
     const auto& elDepInfo = getCompositeValueDependencies(value, getElPtr);
     if (elDepInfo.isDefined()) {
         updateInstructionDependencies(getElPtr, elDepInfo);
@@ -670,6 +686,9 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
         }
         llvm::Value* val = llvm::dyn_cast<llvm::Value>(global);
         assert(val != nullptr);
+        if (!depInfo.isDefined()) {
+            continue;
+        }
         if (!depInfo.isInputArgumentDep() && !depInfo.isValueDep()) {
             updateValueDependencies(val, depInfo);
             continue;
@@ -1127,12 +1146,6 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     if (auto* globalVal = llvm::dyn_cast<llvm::GlobalValue>(instrOp)) {
         return globalVal;
     }
-    if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(instrOp)) {
-        // creating array in a heap (new).
-        // Operand 0 is a malloc call, which is marked as input dependent as calls external function.
-        // return instruction for now
-        return bitcast;
-    }
     if (auto* constVal = llvm::dyn_cast<llvm::Constant>(instrOp)) {
         return nullptr;
     }
@@ -1140,6 +1153,13 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     if (!instr) {
         return instrOp;
     }
+    if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(instrOp)) {
+        // creating array in a heap (new).
+        // Operand 0 is a malloc call, which is marked as input dependent as calls external function.
+        // return instruction for now
+        return bitcast;
+    }
+
     auto alloca = llvm::dyn_cast<llvm::AllocaInst>(instrOp);
     if (alloca) {
         return alloca;

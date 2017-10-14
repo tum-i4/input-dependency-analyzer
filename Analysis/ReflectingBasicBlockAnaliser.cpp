@@ -486,6 +486,13 @@ void ReflectingBasicBlockAnaliser::reflect(llvm::Value* value, const ValueDepInf
 {
     assert(deps.isDefined());
     if (deps.isValueDep()) {
+        if (!deps.isOnlyGlobalValueDependent()) {
+            llvm::dbgs() << m_BB->getName() << "\n";
+            llvm::dbgs() << *value << "\n";
+            for (const auto& val : deps.getValueDependencies()) {
+                llvm::dbgs() << "   " << *val << "\n";
+            }
+        }
         assert(deps.isOnlyGlobalValueDependent());
     }
     reflectOnInstructions(value, deps); // need to go trough instructions one more time and add to correspoinding set

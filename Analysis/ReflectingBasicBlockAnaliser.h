@@ -49,9 +49,9 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
+    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
 
 private:
-    void processInstrForOutputArgs(llvm::Instruction* I) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr);
     void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F) override;
     void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F) override;

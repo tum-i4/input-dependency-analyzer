@@ -483,33 +483,6 @@ void DependencyAnaliser::processInvokeSiteWithMultipleTargets(llvm::InvokeInst* 
     }
 }
 
-void DependencyAnaliser::processInstrForOutputArgs(llvm::Instruction* I)
-{
-    if (m_outArgDependencies.empty()) {
-        return;
-    }
-    const auto& DL = I->getModule()->getDataLayout();
-    auto item = m_outArgDependencies.begin();
-    while (item != m_outArgDependencies.end()) {
-        llvm::Value* val = llvm::dyn_cast<llvm::Value>(item->first);
-        // If DepInfo::INPUT_DEP instruction modifies given output argument, this argument depends on the same inputs as the instruction.
-        const auto& info = m_AAR.getModRefInfo(I, val, DL.getTypeStoreSize(val->getType()));
-        if (info != llvm::ModRefInfo::MRI_Mod && info != llvm::ModRefInfo::MRI_ModRef) {
-            ++item;
-            continue;
-        }
-        auto depInfo = getInstructionDependencies(I);
-        // TODO: what can go wrong for argument dep case?
-        if (depInfo.isInputDep() || depInfo.isInputArgumentDep()) {
-            item->second.updateValueDep(depInfo);
-            //item->second.mergeDependencies(pos->second);
-        } else {
-            item->second.updateValueDep(DepInfo(DepInfo::INPUT_INDEP));
-        }
-        ++item;
-    }
-}
-    
 void DependencyAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F)
 {
     auto pos = m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
@@ -914,7 +887,13 @@ void DependencyAnaliser::updateDependencyForGetElementPtr(llvm::GetElementPtrIns
 {
     llvm::Value* value = getElPtr->getOperand(0);
     assert(value);
+    if (m_valueDependencies.find(value) == m_valueDependencies.end()
+        && m_initialDependencies.find(value) == m_initialDependencies.end()) {
+        value = getMemoryValue(getElPtr);
+    }
+    updateValueDependencies(getElPtr, info);
     updateCompositeValueDependencies(value, getElPtr, info);
+    updateValueDependencies(getElPtr->getOperand(0), getValueDependencies(value));
     if (auto* value_getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
         updateDependencyForGetElementPtr(value_getElPtr, info);
     }
@@ -1011,7 +990,6 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         llvm::Value* val = getFunctionOutArgumentValue(actualArg);
         auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
-
         if (FA->isOutArgInputIndependent(&arg)) {
             if (val) {
                 updateValueDependencies(val, ValueDepInfo(val, DepInfo::INPUT_INDEP));

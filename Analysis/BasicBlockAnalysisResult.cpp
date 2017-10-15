@@ -79,7 +79,6 @@ void BasicBlockAnalysisResult::analize()
         } else {
             processInstruction(&I);
         }
-        processInstrForOutputArgs(&I);
     }
 }
 
@@ -121,6 +120,7 @@ ValueDepInfo BasicBlockAnalysisResult::getCompositeValueDependencies(llvm::Value
         return ValueDepInfo();
     }
     const auto& elDeps = valueDepInfo.getValueDep(element_instr);
+    updateValueDependencies(value, valueDepInfo);
     return elDeps;
 }
 
@@ -147,7 +147,10 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     if (!res.second) {
         res.first->second.updateCompositeValueDep(info);
     }
-    updateAliasesDependencies(value, res.first->second);
+    if (!llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
+        updateAliasesDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second);
+    }
 }
 
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
@@ -157,7 +160,10 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     if (!res.second) {
         res.first->second.updateValueDep(info);
     }
-    updateAliasesDependencies(value, res.first->second);
+    if (!llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
+        updateAliasesDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second);
+    }
 }
 
 void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* value,
@@ -166,10 +172,9 @@ void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* val
 {
     assert(info.isDefined());
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
-    if (!res.second) {
-        res.first->second.updateValueDep(elInstr, info);
-    }
+    res.first->second.updateValueDep(elInstr, info);
     updateAliasesDependencies(value, res.first->second);
+    updateAliasingOutArgDependencies(value, info);
 }
 
 void BasicBlockAnalysisResult::updateReturnValueDependencies(const ValueDepInfo& info)
@@ -225,6 +230,16 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias != llvm::AliasResult::NoAlias) {
             m_valueDependencies.insert(std::make_pair(valDep.first, info));
+        }
+    }
+}
+
+void BasicBlockAnalysisResult::updateAliasingOutArgDependencies(llvm::Value* value, const ValueDepInfo& info)
+{
+    for (auto& arg : m_outArgDependencies) {
+        auto alias = m_AAR.alias(value, arg.first);
+        if (alias != llvm::AliasResult::NoAlias) {
+            arg.second.updateValueDep(info);
         }
     }
 }

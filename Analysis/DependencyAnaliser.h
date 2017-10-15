@@ -63,7 +63,6 @@ protected:
     virtual void processStoreInst(llvm::StoreInst* storeInst);
     virtual void processCallInst(llvm::CallInst* callInst);
     virtual void processInvokeInst(llvm::InvokeInst* invokeInst);
-    virtual void processInstrForOutputArgs(llvm::Instruction* I);
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
     virtual ValueDepInfo getValueDependencies(llvm::Value* value) = 0;
@@ -78,6 +77,7 @@ protected:
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
+    virtual void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
     virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) = 0;
     virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;
 

@@ -99,7 +99,7 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
-            m_elementDeps.resize(idx, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+            m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
         }
         m_elementDeps[idx] = depInfo;
         // input dependency of composite type depends on input dep of each element

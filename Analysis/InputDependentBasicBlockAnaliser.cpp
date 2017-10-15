@@ -65,12 +65,22 @@ DepInfo InputDependentBasicBlockAnaliser::getInstructionDependencies(llvm::Instr
 
 ValueDepInfo InputDependentBasicBlockAnaliser::getValueDependencies(llvm::Value* value)
 {
-    return ValueDepInfo(value, DepInfo(DepInfo::INPUT_DEP));
+    auto depInfo = BasicBlockAnalysisResult::getValueDependencies(value);
+    if (!depInfo.isDefined()) {
+        return ValueDepInfo(value, DepInfo(DepInfo::INPUT_DEP));
+    }
+    depInfo.updateCompositeValueDep(DepInfo(DepInfo::INPUT_DEP));
+    return depInfo;
 }
 
 ValueDepInfo InputDependentBasicBlockAnaliser::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
 {
-    return ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+    auto depInfo = BasicBlockAnalysisResult::getCompositeValueDependencies(value, element_instr);
+    if (!depInfo.isDefined()) {
+        return ValueDepInfo(value, DepInfo(DepInfo::INPUT_DEP));
+    }
+    depInfo.updateCompositeValueDep(DepInfo(DepInfo::INPUT_DEP));
+    return depInfo;
 }
 
 void InputDependentBasicBlockAnaliser::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)

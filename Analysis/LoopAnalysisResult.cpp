@@ -735,15 +735,14 @@ void LoopAnalysisResult::updateReturnValueDependencies()
 
 void LoopAnalysisResult::updateOutArgumentDependencies()
 {
-    // Out args are the same for all blocks,
-    // after reflection all blocks will contains same information for out args.
-    // So just pick one of blocks (say header) and get dep info from it
-    auto BB = m_L.getHeader();
-    const auto& outArgs = m_BBAnalisers[BB]->getOutParamsDependencies();
-    for (const auto& item : outArgs) {
-        auto pos = m_outArgDependencies.find(item.first);
-        assert(pos != m_outArgDependencies.end());
-        pos->second = item.second;
+    // latches should contain all the info
+    for (const auto& latch : m_latches) {
+        const auto& outArgs = m_BBAnalisers[latch]->getOutParamsDependencies();
+        for (const auto& item : outArgs) {
+            auto pos = m_outArgDependencies.find(item.first);
+            assert(pos != m_outArgDependencies.end());
+            pos->second.mergeDependencies(item.second);
+        }
     }
 }
 

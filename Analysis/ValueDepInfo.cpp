@@ -118,8 +118,7 @@ void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
 
     const ValueDeps& valueDeps = depInfo.getCompositeValueDeps();
     const auto& el_size = m_elementDeps.size();
-    assert(el_size == valueDeps.size());
-    m_elementDeps.resize(std::max(el_size, valueDeps.size()), ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+    m_elementDeps.resize(std::min(el_size, valueDeps.size()), ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
     for (unsigned i = 0; i < std::min(el_size, valueDeps.size()); ++i) {
         m_elementDeps[i].mergeDependencies(valueDeps[i]);
     }

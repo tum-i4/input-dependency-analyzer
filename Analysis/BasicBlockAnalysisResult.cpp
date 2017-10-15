@@ -200,6 +200,9 @@ DepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
     //llvm::dbgs() << *loadInst << "\n";
     const auto& DL = loadInst->getModule()->getDataLayout();
     for (const auto& dep : m_valueDependencies) {
+        if (!dep.first->getType()->isSized()) {
+            continue;
+        }
         auto modRef = m_AAR.getModRefInfo(loadInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Ref) {
             info.mergeDependencies(dep.second.getValueDep());
@@ -248,6 +251,9 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
 {
     const auto& DL = storeInst->getModule()->getDataLayout();
     for (auto& dep : m_valueDependencies) {
+        if (!dep.first->getType()->isSized()) {
+            continue;
+        }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Mod) {
             updateValueDependencies(dep.first, info);
@@ -255,6 +261,9 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
     }
     for (auto& dep : m_initialDependencies) {
         if (m_valueDependencies.find(dep.first) != m_valueDependencies.end()) {
+            continue;
+        }
+        if (!dep.first->getType()->isSized()) {
             continue;
         }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
@@ -268,6 +277,9 @@ void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* i
 {
     const auto& DL = instr->getModule()->getDataLayout();
     for (auto& dep : m_valueDependencies) {
+        if (!dep.first->getType()->isSized()) {
+            continue;
+        }
         auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Ref) {
             updateValueDependencies(dep.first, info);

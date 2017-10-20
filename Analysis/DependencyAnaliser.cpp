@@ -358,6 +358,10 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     } else {
         updateValueDependencies(storeTo, info);
         updateModAliasesDependencies(storeInst, info);
+        llvm::Value* memoryValue = getMemoryValue(storeTo);
+        if (memoryValue && memoryValue != storeTo) {
+            updateValueDependencies(memoryValue, info);
+        }
     }
 }
 

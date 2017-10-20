@@ -17,7 +17,6 @@ namespace input_dependency {
  * \brief Represents input dependency information for a value
  * For composite values, such as structs, arrays, etc., has info for each element
  * TODO: see if DepInfo is necessary
- * TODO: consider having elements' dependency info type ValueDepInfo instead of DepInfo
  */
 class ValueDepInfo
 {
@@ -60,6 +59,7 @@ public:
     void updateValueDep(llvm::Instruction* el_instr,
                         const ValueDepInfo& depInfo);
     void mergeDependencies(const ValueDepInfo& depInfo);
+    void mergeDependencies(llvm::Instruction* el_instr, const ValueDepInfo& depInfo);
 
 // interface of DepInfo. Eventually DepInfo may be removed altogether
 public:
@@ -167,6 +167,7 @@ public:
 private:
     DepInfo m_depInfo;
     ValueDeps m_elementDeps;
+    bool m_isComposite;
 }; // class ValueDepInfo
 
 } // namespace input_dependency

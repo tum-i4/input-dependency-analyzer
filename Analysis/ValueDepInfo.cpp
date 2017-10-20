@@ -8,8 +8,9 @@
 
 namespace input_dependency {
 
-ValueDepInfo::ValueDepInfo(llvm::Value* value)
-    : m_depInfo(DepInfo::INPUT_INDEP)
+namespace {
+
+int64_t get_composite_type_elements_num(llvm::Value* value)
 {
     int64_t el_num = -1;
     llvm::Type* value_type = value->getType();
@@ -24,7 +25,17 @@ ValueDepInfo::ValueDepInfo(llvm::Value* value)
         // at this point don't know if pointer is heap applocated array or not.
         el_num = 0;
     }
+    return el_num;
+}
+
+}
+
+ValueDepInfo::ValueDepInfo(llvm::Value* value)
+    : m_depInfo(DepInfo::INPUT_INDEP)
+{
+    int64_t el_num = get_composite_type_elements_num(value);
     if (el_num != -1) {
+        m_isComposite = true;
         m_elementDeps.resize(el_num, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
     }
 }
@@ -37,12 +48,20 @@ ValueDepInfo::ValueDepInfo(const DepInfo& depInfo)
 ValueDepInfo::ValueDepInfo(llvm::Value* val, const DepInfo& depInfo)
     : m_depInfo(depInfo)
 {
+    int64_t el_num = get_composite_type_elements_num(val);
+    if (el_num != -1) {
+        m_isComposite = true;
+        m_elementDeps.resize(el_num, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+    }
 }
 
 const ValueDepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr) const
 {
     //llvm::dbgs() << "Element " << *el_instr << "\n";
     // assuming only way to get access to composite type element is with GetElementPtrInst instruction
+    if (!m_isComposite) {
+        return *this;
+    }
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         return *this;
@@ -89,12 +108,17 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
                                   const ValueDepInfo& depInfo)
 {
     //llvm::dbgs() << "Element: " << *el_instr << "\n";
+    if (!m_isComposite) {
+        m_depInfo = depInfo.getValueDep();
+        return;
+    }
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         m_depInfo = depInfo.getValueDep();
         return;
     }
     // get element index
+    m_depInfo.mergeDependencies(depInfo.getValueDep());
     auto idx_op = get_el_instr->getOperand(get_el_instr->getNumIndices());
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
@@ -103,13 +127,15 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
         }
         m_elementDeps[idx] = depInfo;
         // input dependency of composite type depends on input dep of each element
-        m_depInfo.mergeDependencies(depInfo.getValueDep());
         return;
     }
     // If the index is not constant, assign given input dep info to every element
     std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (ValueDepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
-    // make composite type dependent on both given depInfo and dep info of the index
-    m_depInfo.mergeDependencies(depInfo.getValueDep());
+    m_depInfo = DepInfo(DepInfo::INPUT_INDEP);
+    // this will increase runtime, but is the correct way to process
+    std::for_each(m_elementDeps.begin(), m_elementDeps.end(),
+                  [this] (ValueDepInfo& el_dep) {
+                      this->m_depInfo.mergeDependencies(el_dep.getValueDep());});
 }
 
 void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
@@ -122,6 +148,30 @@ void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
     for (unsigned i = 0; i < std::min(el_size, valueDeps.size()); ++i) {
         m_elementDeps[i].mergeDependencies(valueDeps[i]);
     }
+}
+
+void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDepInfo& depInfo)
+{
+    if (!m_isComposite) {
+        mergeDependencies(depInfo);
+        return;
+    }
+    auto* get_el_instr =  llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
+    if (!get_el_instr) {
+        mergeDependencies(depInfo);
+        return;
+    }
+    m_depInfo.mergeDependencies(depInfo.getValueDep());
+    auto idx_op = get_el_instr->getOperand(get_el_instr->getNumIndices());
+    if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
+        uint64_t idx = const_idx->getZExtValue();
+        if (m_elementDeps.size() <= idx)  {
+            m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo::INPUT_INDEP));
+        }
+        m_elementDeps[idx].mergeDependencies(depInfo.getValueDep());
+        return;
+    }
+    std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (ValueDepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
 }
 
 } // namespace input_dependency

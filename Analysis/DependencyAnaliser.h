@@ -77,6 +77,7 @@ protected:
     virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
     virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
     virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
+    virtual void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info) = 0;
     virtual void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
     virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) = 0;
     virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;

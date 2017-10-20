@@ -598,7 +598,7 @@ void FunctionAnaliser::Impl::collectArguments()
                 llvm::Value* val = llvm::dyn_cast<llvm::Value>(&arg);
                 if (val->getType()->isPointerTy()) {
                     m_outArgDependencies.insert(
-                            std::make_pair(&arg, ValueDepInfo(&arg, DepInfo(DepInfo::INPUT_ARGDEP, ArgumentSet{&arg}))));
+                            std::make_pair(&arg, ValueDepInfo(arg.getType(), DepInfo(DepInfo::INPUT_ARGDEP, ArgumentSet{&arg}))));
                 }
             });
 }

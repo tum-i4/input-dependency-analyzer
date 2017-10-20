@@ -240,6 +240,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                 , m_FAG(Fgetter)
                                 , m_L(L)
                                 , m_LI(LI)
+                                , m_returnValueDependencies(F->getReturnType())
                                 , m_globalsUpdated(false)
                                 , m_isReflected(false)
                                 , m_is_inputDep(false)
@@ -428,7 +429,7 @@ ValueDepInfo LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
     }
     // add referenced value		
     DepInfo info = initial_val_pos->second.getValueDep();		
-    auto insert_res = m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val, info)));		
+    auto insert_res = m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val->getType(), info)));		
     return insert_res.first->second;
 }
 

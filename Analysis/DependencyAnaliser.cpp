@@ -34,7 +34,6 @@ DepInfo getFinalizedDepInfo(const ValueSet& values,
     for (auto& item : values) {
         auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
         if (global == nullptr) {
-            //llvm::dbgs() << *item << "\n";
             continue;
         }
         assert(global != nullptr);
@@ -78,6 +77,7 @@ DependencyAnaliser::DependencyAnaliser(llvm::Function* F,
                                 , m_FAG(Fgetter)
                                 , m_finalized(false)
                                 , m_globalsFinalized(false)
+                                , m_returnValueDependencies(F->getReturnType())
 {
 }
 
@@ -263,9 +263,9 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     }
     if (!depInfo.isDefined()) {
         if (auto instr = llvm::dyn_cast<llvm::Instruction>(compositeValue)) {
-            depInfo = ValueDepInfo(compositeValue, getInstructionDependencies(instr));
+            depInfo = ValueDepInfo(compositeValue->getType(), getInstructionDependencies(instr));
         } else {
-            depInfo = ValueDepInfo(compositeValue, DepInfo(DepInfo::INPUT_DEP));
+            depInfo = ValueDepInfo(compositeValue->getType(), DepInfo(DepInfo::INPUT_DEP));
         }
     }
 
@@ -287,11 +287,11 @@ void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
     ValueDepInfo retDepInfo = getValueDependencies(retValue);
     if (!retDepInfo.isDefined()) {
         if (auto* retValInst = llvm::dyn_cast<llvm::Instruction>(retValue)) {
-            retDepInfo = ValueDepInfo(retValue, getInstructionDependencies(retValInst));
+            retDepInfo = ValueDepInfo(retValue->getType(), getInstructionDependencies(retValInst));
         }
     }
     if (!retDepInfo.isDefined()) {
-        retDepInfo = ValueDepInfo(retValue, DepInfo(DepInfo::INPUT_INDEP));
+        retDepInfo = ValueDepInfo(retValue->getType(), DepInfo(DepInfo::INPUT_INDEP));
     }
     updateInstructionDependencies(retInst, retDepInfo.getValueDep());
     updateReturnValueDependencies(retDepInfo);
@@ -641,7 +641,7 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
     m_modifiedGlobals.insert(modGlobals.begin(), modGlobals.end());
 
     for (const auto& global : modGlobals) {
-        ValueDepInfo depInfo(global);
+        ValueDepInfo depInfo(global->getType());
         if (is_recurs) {
             depInfo = getValueDependencies(global);
         } else {
@@ -688,7 +688,7 @@ void DependencyAnaliser::updateFunctionInputDepOutArgDependencies(llvm::Function
         if (val == nullptr) {
             continue;
         }
-        updateValueDependencies(val, ValueDepInfo(val, DepInfo(DepInfo::INPUT_DEP)));
+        updateValueDependencies(val, ValueDepInfo(val->getType(), DepInfo(DepInfo::INPUT_DEP)));
     }
 }
 
@@ -885,15 +885,27 @@ void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependenc
 
 void DependencyAnaliser::updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info)
 {
+    llvm::Value* memory_value = getMemoryValue(getElPtr);
     llvm::Value* value = getElPtr->getOperand(0);
     assert(value);
     if (m_valueDependencies.find(value) == m_valueDependencies.end()
         && m_initialDependencies.find(value) == m_initialDependencies.end()) {
-        value = getMemoryValue(getElPtr);
+        value = memory_value;
+        memory_value = nullptr; // just not to process the same twice
+    }
+    if (!value) {
+        updateValueDependencies(getElPtr, info);
+        return;
     }
     updateValueDependencies(getElPtr, info);
     updateCompositeValueDependencies(value, getElPtr, info);
-    updateValueDependencies(getElPtr->getOperand(0), getValueDependencies(value));
+    if (memory_value) {
+        updateCompositeValueDependencies(memory_value, getElPtr, info);
+        updateValueDependencies(memory_value, getValueDependencies(value));
+    }
+    if (!memory_value) {
+        updateValueDependencies(getElPtr->getOperand(0), getValueDependencies(value));
+    }
     if (auto* value_getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
         updateDependencyForGetElementPtr(value_getElPtr, info);
     }
@@ -968,11 +980,11 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
         return depInfo;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
-        return ValueDepInfo(argVal, getInstructionDependencies(argInst));
+        return ValueDepInfo(argVal->getType(), getInstructionDependencies(argInst));
     }
     auto args = isInput(argVal);
     if (!args.empty()) {
-        return ValueDepInfo(argVal, DepInfo(DepInfo::INPUT_ARGDEP, args));
+        return ValueDepInfo(argVal->getType(), DepInfo(DepInfo::INPUT_ARGDEP, args));
     }
     return ValueDepInfo();
 }
@@ -992,7 +1004,7 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
         auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
         if (FA->isOutArgInputIndependent(&arg)) {
             if (val) {
-                updateValueDependencies(val, ValueDepInfo(val, DepInfo::INPUT_INDEP));
+                updateValueDependencies(val, ValueDepInfo(val->getType(), DepInfo::INPUT_INDEP));
             }
             if (instr) {
                 updateRefAliasesDependencies(instr, ValueDepInfo(DepInfo::INPUT_INDEP));
@@ -1075,7 +1087,7 @@ void DependencyAnaliser::resolveReturnedValueDependencies(ValueDepInfo& valueDep
     if (!valueDeps.isInputDep()) {
         resolvedDep.mergeDependencies(getArgumentActualDependencies(valueDeps.getArgumentDependencies(), argDepInfo));
     }
-    valueDeps.updateValueDep(resolvedDep);
+    valueDeps.updateValueDep(resolvedDep.getValueDep());
 
     for (auto& elDep : valueDeps.getCompositeValueDeps()) {
         resolveReturnedValueDependencies(elDep, argDepInfo);

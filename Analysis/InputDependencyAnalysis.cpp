@@ -183,7 +183,7 @@ void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepRe
         auto& arguments = F->getArgumentList();
         DependencyAnaliser::ArgumentDependenciesMap arg_deps;
         for (auto& arg : arguments) {
-            arg_deps.insert(std::make_pair(&arg, ValueDepInfo(&arg, DepInfo(DepInfo::INPUT_DEP))));
+            arg_deps.insert(std::make_pair(&arg, ValueDepInfo(arg.getType(), DepInfo(DepInfo::INPUT_DEP))));
         }
         f_analiser->finalizeArguments(arg_deps);
         return;
@@ -297,7 +297,7 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
                 continue;
             }
         }
-        globalDeps[global] = ValueDepInfo(global, DepInfo(DepInfo::INPUT_INDEP));
+        globalDeps[global] = ValueDepInfo(global->getType(), DepInfo(DepInfo::INPUT_INDEP));
     }
 }
 

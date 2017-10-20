@@ -6,8 +6,8 @@
 #include <functional>
 
 namespace llvm {
-class AllocaInst;
 class Instruction;
+class Type;
 }
 
 namespace input_dependency {
@@ -26,9 +26,9 @@ public:
 public:
     ValueDepInfo() = default;
 
-    explicit ValueDepInfo(llvm::Value* value);
+    explicit ValueDepInfo(llvm::Type* type);
     explicit ValueDepInfo(const DepInfo& depInfo);
-    ValueDepInfo(llvm::Value* val, const DepInfo& depInfo);
+    ValueDepInfo(llvm::Type* type, const DepInfo& depInfo);
 
 public:
     const DepInfo& getValueDep() const

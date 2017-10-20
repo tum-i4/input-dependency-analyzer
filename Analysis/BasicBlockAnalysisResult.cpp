@@ -54,7 +54,7 @@ void BasicBlockAnalysisResult::analize()
 {
     //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {
-        llvm::dbgs() << "Instruction " << I << "\n";
+        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // Note alloc instructions are at the begining of the function
             // Here just collect them with input indep state

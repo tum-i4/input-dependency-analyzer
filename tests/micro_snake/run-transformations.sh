@@ -17,7 +17,7 @@ rm extract*
 rm clone_on_extract*
 rm extract_on_clone*
 
-clang snake.c -c -emit-llvm
+clang snake.c -DVERSION=\"1.0.1\" -c -emit-llvm
 
 
 #clone
@@ -31,17 +31,17 @@ opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransform
 
 #clone on extract
 #fails on input dep analysis
-#opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransforms.so extract.bc -clone-functions -o clone_on_extract.bc
+opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransforms.so extract.bc -clone-functions -o clone_on_extract.bc
 
 
 llvm-dis snake.bc
 llvm-dis clone.bc
 llvm-dis extract_on_clone.bc
-#llvm-dis clone_on_extract.bc
+llvm-dis clone_on_extract.bc
 
 clang snake.bc -lncurses -o snake
 clang clone.bc -lncurses -o clone
 clang extract.bc -lncurses -o extract
 clang extract_on_clone.bc -lncurses -o extract_on_clone
-#clang clone_on_extract.bc -lncurses -o clone_on_extract
+clang clone_on_extract.bc -lncurses -o clone_on_extract
 

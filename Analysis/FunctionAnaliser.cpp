@@ -10,6 +10,7 @@
 #include "Utils.h"
 #include "ClonedFunctionAnalysisResult.h"
 
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -24,8 +25,8 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
-
 #include <chrono>
+#include <forward_list>
 
 namespace input_dependency {
 
@@ -115,7 +116,7 @@ public:
 private:
     using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
     using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
-    using DependencyAnalysisResultT = std::unique_ptr<DependencyAnalysisResult>;
+    using DependencyAnalysisResultT = std::shared_ptr<DependencyAnalysisResult>;
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, ArgumentDependenciesMap>;
     using FunctionGlobalsDependencies = std::unordered_map<llvm::Function*, GlobalVariableDependencyMap>;
 
@@ -165,8 +166,12 @@ public:
     }
 
 private:
+    using BlocksInTraversalOrder = std::forward_list<std::pair<llvm::BasicBlock*, llvm::Loop*>>;
+    BlocksInTraversalOrder collectBlocksInTraversalOrder();
     void collectArguments();
-    DependencyAnalysisResultT createBasicBlockAnalysisResult(llvm::BasicBlock* B);
+    DependencyAnalysisResultT createBasicBlockAnalysisResult(llvm::BasicBlock* B,
+                                                             const DepInfo& depInfo);
+    LoopAnalysisResult* createLoopAnalysisResult(const DepInfo& depInfo, llvm::Loop* loop);
     DepInfo getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const;
 
     void updateFunctionCallInfo(llvm::Function* F);
@@ -185,7 +190,7 @@ private:
     void updateModifiedGlobals();
     DependencyAnaliser::ValueDependencies getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
-    const DependencyAnalysisResultT& getAnalysisResult(llvm::BasicBlock* B) const;
+    DependencyAnalysisResultT getAnalysisResult(llvm::BasicBlock* B) const;
 
 private:
     llvm::Function* m_F;
@@ -210,21 +215,27 @@ private:
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
     std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*> m_loopBlocks;
-
-    llvm::Loop* m_currentLoop;
+    // last block of a function is not always the exit block, as it may be unreachable from entry
+    llvm::BasicBlock* m_exit_block;
 }; // class FunctionAnaliser::Impl
 
 
 bool FunctionAnaliser::Impl::isInputDependent(llvm::Instruction* instr) const
 {
     const auto& analysisRes = getAnalysisResult(instr->getParent());
-    return analysisRes->isInputDependent(instr);
+    if (analysisRes) {
+        return analysisRes->isInputDependent(instr);
+    }
+    return true;
 }
 
 bool FunctionAnaliser::Impl::isInputIndependent(llvm::Instruction* instr) const
 {
     const auto& analysisRes = getAnalysisResult(instr->getParent());
-    return analysisRes->isInputIndependent(instr);
+    if (analysisRes) {
+        return analysisRes->isInputIndependent(instr);
+    }
+    return false;
 }
 
 bool FunctionAnaliser::Impl::isInputIndependent(llvm::Value* val) const
@@ -239,7 +250,10 @@ bool FunctionAnaliser::Impl::isInputIndependent(llvm::Value* val) const
 bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) const
 {
     const auto& analysisRes = getAnalysisResult(block);
-    return analysisRes->isInputDependent(block);
+    if (analysisRes) {
+        return analysisRes->isInputDependent(block);
+    }
+    return true;
 }
 
 bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
@@ -272,8 +286,7 @@ const DepInfo& FunctionAnaliser::Impl::getRetValueDependencies() const
  
 bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const
 {
-    auto& lastBB = m_F->back();
-    const auto& pos = m_BBAnalysisResults.find(&lastBB);
+    const auto& pos = m_BBAnalysisResults.find(m_exit_block);
     assert(pos != m_BBAnalysisResults.end());
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
     assert(val != nullptr);
@@ -282,8 +295,7 @@ bool FunctionAnaliser::Impl::hasGlobalVariableDepInfo(llvm::GlobalVariable* glob
 
 const DepInfo& FunctionAnaliser::Impl::getGlobalVariableDependencies(llvm::GlobalVariable* global) const
 {
-    auto& lastBB = m_F->back();
-    const auto& pos = m_BBAnalysisResults.find(&lastBB);
+    const auto& pos = m_BBAnalysisResults.find(m_exit_block);
     assert(pos != m_BBAnalysisResults.end());
     llvm::Value* val = llvm::dyn_cast<llvm::GlobalVariable>(global);
     assert(val != nullptr);
@@ -299,6 +311,9 @@ DepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val, llv
         return getGlobalVariableDependencies(global);
     }
     const auto& analysisRes = getAnalysisResult(block);
+    if (!analysisRes) {
+        return DepInfo();
+    }
     if (analysisRes->hasValueDependencyInfo(val)) {
         return analysisRes->getValueDependencyInfo(val);
     }
@@ -337,7 +352,7 @@ FunctionCallDepInfo FunctionAnaliser::Impl::getFunctionCallDepInfo(llvm::Functio
 bool FunctionAnaliser::Impl::changeFunctionCall(llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF)
 {
     llvm::BasicBlock* block = callInstr->getParent();
-    auto& analysisRes = getAnalysisResult(block);
+    auto analysisRes = getAnalysisResult(block);
     if (!analysisRes) {
         //llvm::dbgs() << "Did not find parent block of call " << *callInstr << "\n";
         return false;
@@ -387,48 +402,17 @@ void FunctionAnaliser::Impl::analize()
     typedef std::chrono::high_resolution_clock Clock;
     auto tic = Clock::now();
     collectArguments();
-    auto it = m_F->begin();
-    for (; it != m_F->end(); ++it) {
-        auto bb = &*it;
-        if (m_LI.isLoopHeader(bb)) {
-            auto loop = m_LI.getLoopFor(bb);
-            if (loop->getParentLoop() != nullptr) {
-                m_loopBlocks[bb] = m_currentLoop->getHeader();
-                continue;
-            }
-            m_currentLoop = loop;
-            // One option is having one loop analiser, mapped to the header of the loop.
-            // Another opetion is mapping all blocks of the loop to the same analiser.
-            // this is implementatin of the first option.
-            const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
-            LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR,
-                                                               m_postDomTree,
-                                                               m_virtualCallsInfo,
-                                                               m_indirectCallsInfo,
-                                                               m_inputs,
-                                                               m_FAGetter,
-                                                               *m_currentLoop,
-                                                               m_LI);
-            if (depInfo.isDefined()) {
-                loopA->setLoopDependencies(depInfo);
-            }
-            m_BBAnalysisResults[bb].reset(loopA);
-        } else if (auto loop = m_LI.getLoopFor(bb)) {
-            // For irregular loops a random block from a loop can come before loop header in a bitcode.
-            // If this is the case, skip this block here, it will be analyzed later when analysing the loop
-            if (m_currentLoop == nullptr) {
-                m_loopBlocks[bb] = Utils::getTopLevelLoop(loop)->getHeader();
-                continue;
-            }
-            // there are cases when blocks of two not nested loops are processed in mixed order
-            if (!m_currentLoop->contains(loop)) {
-                m_currentLoop = loop;
-            }
-            m_loopBlocks[bb] = m_currentLoop->getHeader();
-            continue;
+
+    const auto& blocks_in_traversal_order = collectBlocksInTraversalOrder();
+    llvm::BasicBlock* bb;
+    for (auto& block : blocks_in_traversal_order) {
+        bb = block.first;
+        //llvm::dbgs() << "   Analyzing block " << bb->getName() << "\n";
+        const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
+        if (block.second) {
+            m_BBAnalysisResults[bb].reset(createLoopAnalysisResult(depInfo, block.second));
         } else {
-            //m_currentLoop = nullptr;
-            m_BBAnalysisResults[bb] = createBasicBlockAnalysisResult(bb);
+            m_BBAnalysisResults[bb] = createBasicBlockAnalysisResult(bb, depInfo);
         }
         m_BBAnalysisResults[bb]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(bb));
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
@@ -439,6 +423,7 @@ void FunctionAnaliser::Impl::analize()
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
     }
+    m_exit_block = bb;
     m_inputs.clear();
     auto toc = Clock::now();
     if (getenv("INPUT_DEP_TIME")) {
@@ -510,8 +495,9 @@ InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const Dependenc
     std::unordered_set<llvm::BasicBlock*> inputDepBlocks;
     std::unordered_map<llvm::Instruction*, llvm::Instruction*> local_instr_map;
     for (auto& B : *m_F) {
-        auto& analysisRes = getAnalysisResult(&B);
-        if (analysisRes->isInputDependent(&B, inputDepArgs)) {
+        auto analysisRes = getAnalysisResult(&B);
+        // if analysisRes is null, consider input dependent
+        if (!analysisRes || analysisRes->isInputDependent(&B, inputDepArgs)) {
             llvm::Value* block_val = get_mapped_value(&B, VMap);
             if (!block_val) {
                 continue;
@@ -529,9 +515,9 @@ InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const Dependenc
             if (!mapped_instr) {
                 continue;
             }
-            if (analysisRes->isInputDependent(&I, inputDepArgs)) {
+            if (!analysisRes || analysisRes->isInputDependent(&I, inputDepArgs)) {
                 inputDeps.insert(mapped_instr);
-            } else if (analysisRes->isInputIndependent(&I, inputDepArgs)) {
+            } else if (analysisRes && analysisRes->isInputIndependent(&I, inputDepArgs)) {
                 inputIndeps.insert(mapped_instr);
             } else {
                 llvm::dbgs() << "No information for instruction " << I << "\n";
@@ -589,6 +575,54 @@ void FunctionAnaliser::Impl::dump() const
     }
 }
 
+FunctionAnaliser::Impl::BlocksInTraversalOrder
+FunctionAnaliser::Impl::collectBlocksInTraversalOrder()
+{
+    typedef llvm::scc_iterator<llvm::BasicBlock*> BB_scc_iterator;;
+    BlocksInTraversalOrder blocks_in_order;
+    llvm::BasicBlock* block = &m_F->front();
+    auto it = BB_scc_iterator::begin(block);
+    llvm::BasicBlock* bb = nullptr;
+    llvm::Loop* currentLoop;
+    while (it != BB_scc_iterator::end(block)) {
+        const auto& scc_blocks = *it;
+        bool is_loop_block = false;
+        bb = *scc_blocks.begin();
+        if (scc_blocks.size() > 1) {
+            is_loop_block = true;
+            llvm::Loop* bb_loop = m_LI.getLoopFor(bb);
+            if (bb_loop->getLoopDepth() > 1) {
+                bb_loop = Utils::getTopLevelLoop(bb_loop);
+            }
+            if (currentLoop == nullptr) {
+                currentLoop = bb_loop;
+            } else if (currentLoop == bb_loop || currentLoop->contains(bb_loop)) {
+                ++it;
+                continue;
+            } else {
+                currentLoop = bb_loop;
+            }
+            if (currentLoop == nullptr) {
+                llvm::dbgs() << "Error: expecting loop for " << bb->getName() << "\n";
+                llvm::dbgs() << "skipping block\n";
+                ++it;
+                continue;
+            } else {
+                bb = currentLoop->getHeader();
+            }
+        }
+        if (is_loop_block) {
+            for (auto& scc_b : scc_blocks) {
+                m_loopBlocks[scc_b] = bb;
+            }
+        }
+        blocks_in_order.push_front(std::make_pair(bb, is_loop_block ? currentLoop : nullptr));
+        ++it;
+    }
+    return blocks_in_order;
+
+}
+
 void FunctionAnaliser::Impl::collectArguments()
 {
     auto& arguments = m_F->getArgumentList();
@@ -603,9 +637,8 @@ void FunctionAnaliser::Impl::collectArguments()
 }
 
 FunctionAnaliser::Impl::DependencyAnalysisResultT
-FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
+FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B, const DepInfo& depInfo)
 {
-    const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(B);
     if (depInfo.isInputDep()) {
         return DependencyAnalysisResultT(
                     new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
@@ -615,6 +648,22 @@ FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B)
     }
     return DependencyAnalysisResultT(
             new BasicBlockAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
+}
+
+LoopAnalysisResult* FunctionAnaliser::Impl::createLoopAnalysisResult(const DepInfo& depInfo, llvm::Loop* loop)
+{
+    LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR,
+                                                       m_postDomTree,
+                                                       m_virtualCallsInfo,
+                                                       m_indirectCallsInfo,
+                                                       m_inputs,
+                                                       m_FAGetter,
+                                                       *loop,
+                                                       m_LI);
+    if (depInfo.isDefined()) {
+        loopA->setLoopDependencies(depInfo);
+    }
+    return loopA;
 }
 
 DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const
@@ -639,7 +688,8 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         }
         auto pos = m_BBAnalysisResults.find(pb);
         if (pos == m_BBAnalysisResults.end()) {
-            // mean block is in a loop or has not been analysed yet.
+            llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
+            // means block is in a loop or has not been analysed yet.
             // This happens for functions with irregular CFGs, where predecessor block comes after the current
             // block. TODO: for this case see if can be fixed by employing different CFG traversal approach
             ++pred;
@@ -872,7 +922,7 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
     return deps;
 }
 
-const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl::getAnalysisResult(llvm::BasicBlock* bb) const
+FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAnalysisResult(llvm::BasicBlock* bb) const
 {
     assert(bb->getParent() == m_F);
     auto pos = m_BBAnalysisResults.find(bb);
@@ -890,7 +940,12 @@ const FunctionAnaliser::Impl::DependencyAnalysisResultT& FunctionAnaliser::Impl:
     }
     pos = m_BBAnalysisResults.find(bb);
     if (pos == m_BBAnalysisResults.end()) {
-        llvm::dbgs() << "No analysis result for BB in function: " << m_F->getName() << "   " << bb->getName() << "\n";
+        const auto& bb_node = m_postDomTree[bb];
+        llvm::dbgs() << "No analysis result for " << bb->getName() << " in function " << m_F->getName() << "\n";
+        if (!m_postDomTree.isReachableFromEntry(bb_node)) {
+            llvm::dbgs() << "block is not reachable from entry, and is not analyzed.\n";
+        }
+        return nullptr;
     }
     assert(pos != m_BBAnalysisResults.end());
     return pos->second;

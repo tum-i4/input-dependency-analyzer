@@ -80,14 +80,14 @@ ValueDepInfo NonDeterministicBasicBlockAnaliser::getCompositeValueDependencies(l
     return depInfo;
 }
 
-void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info)
+void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
 {
-    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info));
+    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
 }
 
-void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
+void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
 {
-    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info));
+    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
 }
 
 void NonDeterministicBasicBlockAnaliser::updateCompositeValueDependencies(llvm::Value* value,

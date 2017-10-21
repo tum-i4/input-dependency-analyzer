@@ -270,7 +270,7 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     }
 
     updateInstructionDependencies(getElPtr, depInfo.getValueDep());
-    updateValueDependencies(getElPtr, depInfo); // add getElPtr as value
+    updateValueDependencies(getElPtr, depInfo, false); // add getElPtr as value
 }
 
 void DependencyAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
@@ -325,7 +325,7 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto op = storeInst->getOperand(0);
-    ValueDepInfo info; // the value here is not important, could be null
+    ValueDepInfo info(op->getType(), DepInfo()); // the value here is not important, could be null
     if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
     } else {
@@ -356,11 +356,11 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(storeTo)) {
         updateDependencyForGetElementPtr(getElPtr, info);
     } else {
-        updateValueDependencies(storeTo, info);
+        updateValueDependencies(storeTo, info, true);
         updateModAliasesDependencies(storeInst, info);
         llvm::Value* memoryValue = getMemoryValue(storeTo);
         if (memoryValue && memoryValue != storeTo) {
-            updateValueDependencies(memoryValue, info);
+            updateValueDependencies(memoryValue, info, true);
         }
     }
 }
@@ -381,6 +381,7 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
                 updateCallInputDependentOutArgDependencies(callInst);
                 // make return value input dependent
                 updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+                updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
                 InputDepInstructionsRecorder::get().record(callInst);
                 // make all globals input dependent?
             }
@@ -400,6 +401,7 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         if (m_FAG(F) == nullptr) {
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+            updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
         } else {
             updateCallSiteOutArgDependencies(callInst, F);
             updateCallInstructionDependencies(callInst, F);
@@ -425,6 +427,7 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
                 updateInvokeInputDependentOutArgDependencies(invokeInst);
                 // make return value input dependent
                 updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+                updateValueDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP), false);
                 InputDepInstructionsRecorder::get().record(invokeInst);
                 // make all globals input dependent?
             }
@@ -443,6 +446,7 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
         if (m_FAG(F) == nullptr) {
             updateInvokeInputDependentOutArgDependencies(invokeInst);
             updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+            updateValueDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP), false);
         } else {
             updateInvokeSiteOutArgDependencies(invokeInst, F);
             updateInvokeInstructionDependencies(invokeInst, F);
@@ -459,6 +463,7 @@ void DependencyAnaliser::processCallSiteWithMultipleTargets(llvm::CallInst* call
             //llvm::dbgs() << "Analysis results not available for indirect call target: " << F->getName() << "\n";
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+            updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
             InputDepInstructionsRecorder::get().record(callInst);
             // update globals??? May result to inaccuracies 
         } else {
@@ -477,6 +482,7 @@ void DependencyAnaliser::processInvokeSiteWithMultipleTargets(llvm::InvokeInst* 
         if (m_FAG(F) == nullptr) {
             updateInvokeInputDependentOutArgDependencies(invokeInst);
             updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+            updateValueDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP), false);
             InputDepInstructionsRecorder::get().record(invokeInst);
             // update globals??? May result to inaccuracies 
         } else {
@@ -571,7 +577,8 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
-        updateValueDependencies(callInst, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+        // just adding a value. in fact should not alias with any other value
+        updateValueDependencies(callInst, ValueDepInfo(callInst->getType(), DepInfo(DepInfo::INPUT_INDEP)), false);
         return;
     }
     auto retDeps = FA->getRetValueDependencies();
@@ -584,7 +591,7 @@ void DependencyAnaliser::updateCallInstructionDependencies(llvm::CallInst* callI
     assert(pos != m_functionCallInfo.end());
     resolveReturnedValueDependencies(retDeps, pos->second.getArgumentDependenciesForCall(callInst));
     updateInstructionDependencies(callInst, retDeps.getValueDep());
-    updateValueDependencies(callInst, retDeps);
+    updateValueDependencies(callInst, retDeps, false);
 }
 
 void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, llvm::Function* F)
@@ -597,7 +604,7 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     assert(FA != nullptr);
     if (FA->isReturnValueInputIndependent()) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
-        updateValueDependencies(invokeInst, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+        updateValueDependencies(invokeInst, ValueDepInfo(invokeInst->getType(), DepInfo(DepInfo::INPUT_INDEP)), false);
         return;
     }
     auto retDeps = FA->getRetValueDependencies();
@@ -610,7 +617,7 @@ void DependencyAnaliser::updateInvokeInstructionDependencies(llvm::InvokeInst* i
     assert(pos != m_functionCallInfo.end());
     resolveReturnedValueDependencies(retDeps, pos->second.getArgumentDependenciesForInvoke(invokeInst));
     updateInstructionDependencies(invokeInst, retDeps.getValueDep());
-    updateValueDependencies(invokeInst, retDeps);
+    updateValueDependencies(invokeInst, retDeps, false);
 }
 
 void DependencyAnaliser::updateGlobalsAfterFunctionCall(llvm::CallInst* callInst, llvm::Function* F)
@@ -658,11 +665,11 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
             continue;
         }
         if (!depInfo.isInputArgumentDep() && !depInfo.isValueDep()) {
-            updateValueDependencies(val, depInfo);
+            updateValueDependencies(val, depInfo, true);
             continue;
         }
         resolveReturnedValueDependencies(depInfo, functionArgDeps);
-        updateValueDependencies(val, depInfo);
+        updateValueDependencies(val, depInfo, true);
     }
 }
 
@@ -688,11 +695,39 @@ void DependencyAnaliser::updateFunctionInputDepOutArgDependencies(llvm::Function
             continue;
         }
         auto argVal = actualArgumentGetter(i);
-        llvm::Value* val = getFunctionOutArgumentValue(argVal);
-        if (val == nullptr) {
-            continue;
+        updateOutArgumentDependencies(argVal,  ValueDepInfo(argVal->getType(), DepInfo(DepInfo::INPUT_DEP)));
+    }
+}
+
+void DependencyAnaliser::updateOutArgumentDependencies(llvm::Value* val, const ValueDepInfo& depInfo)
+{
+    // val is the value passed as argument
+    updateValueDependencies(val, depInfo, true);
+
+    // if it's a global variable
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
+        m_modifiedGlobals.insert(global);
+        return;
+    }
+    // see if needs to update dependencies of underlying types
+    llvm::Value* memory_value = getFunctionOutArgumentValue(val);
+    if (!memory_value) {
+        return;
+    }
+    if (auto load_inst = llvm::dyn_cast<llvm::LoadInst>(val)) {
+        llvm::Value* loaded_val = load_inst->getPointerOperand();
+        if (loaded_val != memory_value) {
+            if (auto* loaded_inst = llvm::dyn_cast<llvm::Instruction>(loaded_val)) {
+                // in case if loaded_val is getElementPtr this will updte corresponding element of memory_value
+                // if it's not, will update memory_value
+                updateCompositeValueDependencies(memory_value, loaded_inst, depInfo);
+            }
         }
-        updateValueDependencies(val, ValueDepInfo(val->getType(), DepInfo(DepInfo::INPUT_DEP)));
+    } else if (auto* inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+        updateCompositeValueDependencies(memory_value, inst, depInfo);
+    }
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(memory_value)) {
+        m_modifiedGlobals.insert(global);
     }
 }
 
@@ -737,6 +772,7 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
         InputDepInstructionsRecorder::get().record(callInst);
         return;
     }
@@ -745,7 +781,7 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
     assert(libFInfo.isResolved());
     auto libFuncRetDeps = libFInfo.getResolvedReturnDependency();
     resolveReturnedValueDependencies(libFuncRetDeps, argDepMap);
-    updateValueDependencies(callInst, libFuncRetDeps);
+    updateValueDependencies(callInst, libFuncRetDeps, false);
     updateInstructionDependencies(callInst, libFuncRetDeps.getValueDep());
 }
 
@@ -762,6 +798,7 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
+        updateValueDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP), false);
         InputDepInstructionsRecorder::get().record(invokeInst);
         return;
     }
@@ -770,7 +807,7 @@ void DependencyAnaliser::updateLibFunctionInvokeInstructionDependencies(llvm::In
     assert(libFInfo.isResolved());
     auto libFuncRetDeps = libFInfo.getResolvedReturnDependency();
     resolveReturnedValueDependencies(libFuncRetDeps, argDepMap);
-    updateValueDependencies(invokeInst, libFuncRetDeps);
+    updateValueDependencies(invokeInst, libFuncRetDeps, false);
     updateInstructionDependencies(invokeInst, libFuncRetDeps.getValueDep());
 }
 
@@ -783,11 +820,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
-        llvm::Value* val = getFunctionOutArgumentValue(actualArg);
-        if (val == nullptr) {
-            continue;
-        }
-        updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+        updateOutArgumentDependencies(actualArg, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)));
     }
     // TODO: add this for all call instruction processors
     if (F->isVarArg()) {
@@ -798,12 +831,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
                 actualArg = argumentValueGetter(index++);
                 continue;
             }
-            llvm::Value* val = getFunctionOutArgumentValue(actualArg);
-            if (val == nullptr) {
-                break;
-                //continue;
-            }
-            updateValueDependencies(val, DepInfo(DepInfo::INPUT_DEP));
+            updateOutArgumentDependencies(actualArg, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)));
             actualArg = argumentValueGetter(index++);
         }
     }
@@ -897,18 +925,17 @@ void DependencyAnaliser::updateDependencyForGetElementPtr(llvm::GetElementPtrIns
         value = memory_value;
         memory_value = nullptr; // just not to process the same twice
     }
+    updateValueDependencies(getElPtr, info, true);
     if (!value) {
-        updateValueDependencies(getElPtr, info);
         return;
     }
-    updateValueDependencies(getElPtr, info);
     updateCompositeValueDependencies(value, getElPtr, info);
-    if (memory_value) {
+    if (memory_value && memory_value != value) {
         updateCompositeValueDependencies(memory_value, getElPtr, info);
-        updateValueDependencies(memory_value, getValueDependencies(value));
+        updateValueDependencies(memory_value, getValueDependencies(value), true);
     }
     if (!memory_value) {
-        updateValueDependencies(getElPtr->getOperand(0), getValueDependencies(value));
+        updateValueDependencies(getElPtr->getOperand(0), getValueDependencies(value), true);
     }
     if (auto* value_getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(value)) {
         updateDependencyForGetElementPtr(value_getElPtr, info);
@@ -1004,22 +1031,17 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
             continue;
         }
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
-        llvm::Value* val = getFunctionOutArgumentValue(actualArg);
         auto* instr = llvm::dyn_cast<llvm::Instruction>(actualArg);
         if (FA->isOutArgInputIndependent(&arg)) {
-            if (val) {
-                updateValueDependencies(val, ValueDepInfo(val->getType(), DepInfo::INPUT_INDEP));
-            }
+            updateOutArgumentDependencies(actualArg, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
             if (instr) {
-                updateRefAliasesDependencies(instr, ValueDepInfo(DepInfo::INPUT_INDEP));
+                updateRefAliasesDependencies(instr, ValueDepInfo(instr->getType(), DepInfo::INPUT_INDEP));
             }
             continue;
         }
         auto argDeps = FA->getOutArgDependencies(&arg);
         resolveReturnedValueDependencies(argDeps, callArgDeps);
-        if (val) {
-            updateValueDependencies(val, argDeps);
-        }
+        updateOutArgumentDependencies(actualArg, argDeps);
         if (instr) {
             updateRefAliasesDependencies(instr, argDeps);
         }
@@ -1049,16 +1071,12 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
             continue;
         }
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
-        llvm::Value* val = getFunctionOutArgumentValue(actualArg);
-        if (val == nullptr) {
-            continue;
-        }
         if (!libFInfo.hasResolvedArgument(&arg)) {
             continue;
         }
         auto libArgDeps = libFInfo.getResolvedArgumentDependencies(&arg);
         resolveReturnedValueDependencies(libArgDeps, callArgDeps);
-        updateValueDependencies(val, libArgDeps);
+        updateOutArgumentDependencies(actualArg, libArgDeps);
     }
 }
 

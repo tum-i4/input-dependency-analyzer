@@ -1,0 +1,78 @@
+_ZN9rectangleC2Eiiii
+----------------------
+Input Dependent instructions: 18
+Input Independent instructions: 6
+Unknown instructions: 0
+Input dependent instructions' percent: 75%
+_ZN9rectangle5set_xEi
+----------------------
+Input Dependent instructions: 3
+Input Independent instructions: 6
+Unknown instructions: 0
+Input dependent instructions' percent: 33%
+_ZN9rectangle5set_yEi
+----------------------
+Input Dependent instructions: 6
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
+_ZN9rectangle10set_heightEi
+----------------------
+Input Dependent instructions: 6
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
+_ZN9rectangle9set_widthEi
+----------------------
+Input Dependent instructions: 6
+Input Independent instructions: 3
+Unknown instructions: 0
+Input dependent instructions' percent: 66%
+_ZNK9rectangle5get_xEv
+----------------------
+Input Dependent instructions: 5
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 83%
+_ZNK9rectangle5get_yEv
+----------------------
+Input Dependent instructions: 5
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 83%
+_ZNK9rectangle10get_heightEv
+----------------------
+Input Dependent instructions: 5
+Input Independent instructions: 1
+Unknown instructions: 0
+Input dependent instructions' percent: 83%
+_ZNK9rectangle9get_widthEv
+----------------------
+Input Dependent instructions: 0
+Input Independent instructions: 6
+Unknown instructions: 0
+Input dependent instructions' percent: 0%
+_ZN9rectangle12compute_areaEv
+----------------------
+Input Dependent instructions: 9
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 81%
+_ZNK9rectangle5printEv
+----------------------
+Input Dependent instructions: 17
+Input Independent instructions: 2
+Unknown instructions: 0
+Input dependent instructions' percent: 89%
+main
+----------------------
+Input Dependent instructions: 5
+Input Independent instructions: 25
+Unknown instructions: 1
+Input dependent instructions' percent: 16%
+classes.bc
+----------------------
+Input Dependent instructions: 85
+Input Independent instructions: 59
+Unknown instructions: 1
+Input dependent instructions' percent: 58%

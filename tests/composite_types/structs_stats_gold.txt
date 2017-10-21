@@ -1,0 +1,12 @@
+main
+----------------------
+Input Dependent instructions: 7
+Input Independent instructions: 19
+Unknown instructions: 0
+Input dependent instructions' percent: 26%
+structs.bc
+----------------------
+Input Dependent instructions: 7
+Input Independent instructions: 19
+Unknown instructions: 0
+Input dependent instructions' percent: 26%

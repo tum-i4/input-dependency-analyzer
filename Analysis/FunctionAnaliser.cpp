@@ -103,6 +103,7 @@ public:
         , m_virtualCallsInfo(virtualCallsInfo)
         , m_indirectCallsInfo(indirectCallsInfo)
         , m_FAGetter(getter)
+        , m_returnValueDependencies(F->getReturnType())
         , m_globalsUpdated(false)
     {
     }
@@ -305,7 +306,7 @@ ValueDepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val
     auto instr = llvm::dyn_cast<llvm::Instruction>(val);
     assert(instr != nullptr);
     if (instr->getParent() == block) {
-        return ValueDepInfo(analysisRes->getInstructionDependencies(instr));
+        return ValueDepInfo(val->getType(), analysisRes->getInstructionDependencies(instr));
     }
     return ValueDepInfo();
 }

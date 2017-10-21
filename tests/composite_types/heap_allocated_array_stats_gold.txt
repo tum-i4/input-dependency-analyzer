@@ -1,0 +1,18 @@
+create_array
+----------------------
+Input Dependent instructions: 4
+Input Independent instructions: 29
+Unknown instructions: 0
+Input dependent instructions' percent: 12%
+main
+----------------------
+Input Dependent instructions: 12
+Input Independent instructions: 21
+Unknown instructions: 0
+Input dependent instructions' percent: 36%
+heap_allocated_array.bc
+----------------------
+Input Dependent instructions: 16
+Input Independent instructions: 50
+Unknown instructions: 0
+Input dependent instructions' percent: 24%

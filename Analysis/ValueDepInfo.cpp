@@ -68,7 +68,7 @@ const ValueDepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr) const
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
-            const_cast<ValueDepInfo*>(this)->m_elementDeps.resize(idx + 1, ValueDepInfo(m_depInfo));
+            return *this;
         }
         return m_elementDeps[idx];
     }
@@ -83,7 +83,17 @@ void ValueDepInfo::updateValueDep(const ValueDepInfo& valueDepInfo)
     if (valueDepInfo.getCompositeValueDeps().empty()) {
         updateCompositeValueDep(valueDepInfo.getValueDep());
     } else {
-        m_elementDeps = valueDepInfo.getCompositeValueDeps();
+        // update element dependencies existing in valueDepInfo, keep the others the same
+        const auto& valueElementsInfo = valueDepInfo.getCompositeValueDeps();
+        m_elementDeps.reserve(std::max(m_elementDeps.size(), valueElementsInfo.size()));
+        for (unsigned i = 0; i < std::min(m_elementDeps.size(), valueElementsInfo.size()); ++i) {
+            m_elementDeps[i] = valueElementsInfo[i];
+        }
+        if (m_elementDeps.size() < valueElementsInfo.size()) {
+            for (unsigned i = m_elementDeps.size(); i < valueElementsInfo.size(); ++i) {
+                m_elementDeps.push_back(valueElementsInfo[i]);
+            }
+        }
     }
 }
 
@@ -118,7 +128,7 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
         uint64_t idx = const_idx->getZExtValue();
         if (m_elementDeps.size() <= idx) {
-            m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+            m_elementDeps.resize(idx + 1, ValueDepInfo(m_depInfo));
         }
         m_elementDeps[idx] = depInfo;
     } else {
@@ -136,6 +146,9 @@ void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
 {
     m_depInfo.mergeDependencies(depInfo.getValueDep());
 
+    if (!m_isComposite) {
+        return;
+    }
     const ValueDeps& valueDeps = depInfo.getCompositeValueDeps();
     const auto& el_size = m_elementDeps.size();
     m_elementDeps.reserve(std::max(el_size, valueDeps.size()));
@@ -152,12 +165,12 @@ void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
 void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDepInfo& depInfo)
 {
     if (!m_isComposite) {
-        mergeDependencies(depInfo);
+        m_depInfo.mergeDependencies(depInfo.getValueDep());
         return;
     }
     auto* get_el_instr =  llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
-        mergeDependencies(depInfo);
+        m_depInfo.mergeDependencies(depInfo.getValueDep());
         return;
     }
     m_depInfo.mergeDependencies(depInfo.getValueDep());

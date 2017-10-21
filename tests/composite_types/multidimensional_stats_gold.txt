@@ -1,0 +1,12 @@
+main
+----------------------
+Input Dependent instructions: 7
+Input Independent instructions: 34
+Unknown instructions: 0
+Input dependent instructions' percent: 17%
+multidimensional_array.bc
+----------------------
+Input Dependent instructions: 7
+Input Independent instructions: 34
+Unknown instructions: 0
+Input dependent instructions' percent: 17%

@@ -119,9 +119,7 @@ ValueDepInfo BasicBlockAnalysisResult::getCompositeValueDependencies(llvm::Value
     if (!valueDepInfo.isDefined()) {
         return ValueDepInfo();
     }
-    const auto& elDeps = valueDepInfo.getValueDep(element_instr);
-    updateValueDependencies(value, valueDepInfo);
-    return elDeps;
+    return valueDepInfo.getValueDep(element_instr);
 }
 
 void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
@@ -142,26 +140,30 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
 
 // updates value dependency.
 // Note if value is of composite type, no element of that value is going to be updated
-void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info)
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
 {
     assert(info.isDefined());
-    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
+    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value->getType(), info)));
     if (!res.second) {
         res.first->second.updateCompositeValueDep(info);
     }
-    updateAliasesDependencies(value, res.first->second);
-    updateAliasingOutArgDependencies(value, res.first->second);
+    if (update_aliases) {
+        updateAliasesDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second);
+    }
 }
 
-void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
 {
     assert(info.isDefined());
     auto res = m_valueDependencies.insert(std::make_pair(value, info));
     if (!res.second) {
         res.first->second.updateValueDep(info);
     }
-    updateAliasesDependencies(value, res.first->second);
-    updateAliasingOutArgDependencies(value, res.first->second);
+    if (update_aliases) {
+        updateAliasesDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second);
+    }
 }
 
 void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* value,
@@ -200,16 +202,20 @@ ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
 
 void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info)
 {
+    //llvm::dbgs() << "updateAliasesDependencies1 " << *val << "\n";
     llvm::Instruction* value_instr = llvm::dyn_cast<llvm::Instruction>(val);
     for (auto& valDep : m_valueDependencies) {
         if (valDep.first == val) {
             continue;
         }
         auto alias = m_AAR.alias(val, valDep.first);
-        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::PartialAlias) {
+        // what about partial alias
+        if (alias == llvm::AliasResult::MayAlias) {
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
         } else if (alias == llvm::AliasResult::MustAlias) {
+            //llvm::dbgs() << "Must aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.updateValueDep(value_instr, info)
                         : valDep.second.updateValueDep(info);
         }
@@ -222,7 +228,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
             continue;
         }
         auto alias = m_AAR.alias(value_instr, valDep.first);
-        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::PartialAlias) {
+        if (alias == llvm::AliasResult::MayAlias) {
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
         } else if (alias == llvm::AliasResult::MustAlias) {
@@ -234,14 +240,17 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
 
 void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info)
 {
+    //llvm::dbgs() << "updateAliasesDependencies2 " << *val << "  " << *elInstr << "\n";
     for (auto& valDep : m_valueDependencies) {
         if (valDep.first == val) {
             continue;
         }
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::PartialAlias) {
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
             valDep.second.mergeDependencies(elInstr, info);
         } else if (alias == llvm::AliasResult::MustAlias) {
+            //llvm::dbgs() << "Must aliases " << *valDep.first << "\n";
             valDep.second.updateValueDep(elInstr, info);
         }
     }
@@ -287,7 +296,8 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
         }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Mod) {
-            updateValueDependencies(dep.first, info);
+            // if modifies given value should modify other aliases too, thus no need to set update_aliases flag
+            updateValueDependencies(dep.first, info, false);
         }
     }
     for (auto& dep : m_initialDependencies) {
@@ -299,7 +309,7 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
         }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Mod) {
-            updateValueDependencies(dep.first, info);
+            updateValueDependencies(dep.first, info, false);
         }
     }
 }
@@ -313,13 +323,13 @@ void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* i
         }
         auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Ref) {
-            updateValueDependencies(dep.first, info);
+            updateValueDependencies(dep.first, info, false);
         }
         auto alias = m_AAR.alias(instr, dep.first);
         if (alias == llvm::AliasResult::NoAlias) {
             continue;
         } else {
-            updateValueDependencies(dep.first, info);
+            updateValueDependencies(dep.first, info, false);
         }
     }
 }
@@ -561,32 +571,32 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
     DepInfo instrDepInfo;
     ValueDepInfo valueDepInfo = getValueDependencies(loadOp);
     if (valueDepInfo.isDefined()) {
-        updateValueDependencies(instr, valueDepInfo);
+        updateValueDependencies(instr, valueDepInfo, false);
         return valueDepInfo.getValueDep();
     }
     if (auto opinstr = llvm::dyn_cast<llvm::Instruction>(loadOp)) {
         if (!llvm::dyn_cast<llvm::AllocaInst>(opinstr)) {
             instrDepInfo = getInstructionDependencies(opinstr);
             if (instrDepInfo.isDefined()) {
-                updateValueDependencies(instr, instrDepInfo);
+                updateValueDependencies(instr, instrDepInfo, false);
                 return instrDepInfo;
             }
         }
     }
     valueDepInfo = getRefInfo(instr);
     if (!valueDepInfo.isDefined()) {
-        updateValueDependencies(instr, valueDepInfo);
+        updateValueDependencies(instr, valueDepInfo, false);
         return valueDepInfo.getValueDep();
     }
 
     llvm::Value* loadedValue = getMemoryValue(loadOp);
     if (loadedValue == nullptr) {
         if (llvm::dyn_cast<llvm::Constant>(loadOp)) {
-            updateValueDependencies(instr, DepInfo(DepInfo::INPUT_INDEP));
+            updateValueDependencies(instr, DepInfo(DepInfo::INPUT_INDEP), false);
             return DepInfo(DepInfo::INPUT_INDEP);
         }
         instrDepInfo = getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
-        updateValueDependencies(instr, instrDepInfo);
+        updateValueDependencies(instr, instrDepInfo, false);
         return instrDepInfo;
     }
     valueDepInfo = getValueDependencies(loadedValue);
@@ -594,17 +604,17 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         // might be unnecessary
         if (auto loadedValInstr = llvm::dyn_cast<llvm::Instruction>(loadedValue)) {
             instrDepInfo =  getInstructionDependencies(loadedValInstr);
-            updateValueDependencies(instr, instrDepInfo);
+            updateValueDependencies(instr, instrDepInfo, false);
             return instrDepInfo;
         }
         auto globalVal = llvm::dyn_cast<llvm::GlobalVariable>(loadedValue);
         assert(globalVal != nullptr);
         m_referencedGlobals.insert(globalVal);
-        updateValueDependencies(instr, DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal}));
+        updateValueDependencies(instr, DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal}), false);
         return DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal});
     }
     assert(valueDepInfo.isDefined());
-    updateValueDependencies(instr, valueDepInfo);
+    updateValueDependencies(instr, valueDepInfo, false);
     return valueDepInfo.getValueDep();
 }
 

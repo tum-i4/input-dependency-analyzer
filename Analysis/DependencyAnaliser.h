@@ -70,8 +70,8 @@ protected:
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
-    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
-    virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info) = 0;
+    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) = 0;
+    virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) = 0;
     virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const ValueDepInfo& info) = 0;
     virtual void updateReturnValueDependencies(const ValueDepInfo& info) = 0;
     virtual ValueDepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
@@ -128,6 +128,7 @@ private:
     using ArgumentValueGetterByIndex = std::function<llvm::Value* (unsigned index)>;
     void updateFunctionInputDepOutArgDependencies(llvm::FunctionType* FType,
                                                   const ArgumentValueGetterByIndex& actualArgumentGetter);
+    void updateOutArgumentDependencies(llvm::Value* val, const ValueDepInfo& depInfo);
 
     ValueDepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
     void resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo);

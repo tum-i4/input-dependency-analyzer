@@ -49,7 +49,7 @@ void InputDependentBasicBlockAnaliser::processStoreInst(llvm::StoreInst* storeIn
     DepInfo info(DepInfo::INPUT_DEP);
     updateInstructionDependencies(storeInst, info);
     ValueDepInfo valueDepInfo(storeTo->getType(), info);
-    updateValueDependencies(storeTo, valueDepInfo);
+    updateValueDependencies(storeTo, valueDepInfo, true);
     updateModAliasesDependencies(storeInst, valueDepInfo);
 }
 
@@ -88,16 +88,16 @@ void InputDependentBasicBlockAnaliser::updateInstructionDependencies(llvm::Instr
     BasicBlockAnalysisResult::updateInstructionDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
 }
 
-void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info)
+void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
 {
-    BasicBlockAnalysisResult::updateValueDependencies(value, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)));
+    BasicBlockAnalysisResult::updateValueDependencies(value, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)), update_aliases);
 }
 
-void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info)
+void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
 {
     ValueDepInfo newInfo = info;
     newInfo.updateCompositeValueDep(DepInfo(DepInfo::INPUT_DEP));
-    BasicBlockAnalysisResult::updateValueDependencies(value, newInfo);
+    BasicBlockAnalysisResult::updateValueDependencies(value, newInfo, update_aliases);
 }
 
 void InputDependentBasicBlockAnaliser::updateReturnValueDependencies(const ValueDepInfo& info)

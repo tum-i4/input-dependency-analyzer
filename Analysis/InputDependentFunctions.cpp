@@ -213,7 +213,7 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
     for (auto& F : M) {
         if (functions_called_in_non_det_blocks.find(&F) == functions_called_in_non_det_blocks.end()
             && functions_called_in_det_blocks.find(&F) == functions_called_in_det_blocks.end()) {
-            llvm::dbgs() << "   " << F.getName() << "\n";
+            llvm::dbgs() << "No info for function " << F.getName() << "\n";
         }
     }
     //for (const auto& f : functions_called_in_det_blocks) {

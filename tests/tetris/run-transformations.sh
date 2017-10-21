@@ -31,17 +31,17 @@ opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransform
 
 #clone on extract
 #fails on input dep analysis
-#opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransforms.so extract.bc -clone-functions -o clone_on_extract.bc
+opt -load $LOCAL_LIB_LOC/libInputDependency.so -load $LOCAL_LIB_LOC/libTransforms.so extract.bc -clone-functions -o clone_on_extract.bc
 
 
 llvm-dis tetris.bc
 llvm-dis clone.bc
 llvm-dis extract_on_clone.bc
-#llvm-dis clone_on_extract.bc
+llvm-dis clone_on_extract.bc
 
 clang tetris.bc -lncurses -o tetris
 clang clone.bc -lncurses -o clone
 clang extract.bc -lncurses -o extract
 clang extract_on_clone.bc -lncurses -o extract_on_clone
-#clang clone_on_extract.bc -lncurses -o clone_on_extract
+clang clone_on_extract.bc -lncurses -o clone_on_extract
 

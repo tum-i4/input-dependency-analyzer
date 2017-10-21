@@ -313,7 +313,7 @@ ValueDepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val
     }
     const auto& analysisRes = getAnalysisResult(block);
     if (!analysisRes) {
-        return DepInfo();
+        return ValueDepInfo();
     }
     if (analysisRes->hasValueDependencyInfo(val)) {
         return analysisRes->getValueDependencyInfo(val);

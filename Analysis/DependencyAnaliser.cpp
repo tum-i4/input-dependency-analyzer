@@ -722,6 +722,8 @@ void DependencyAnaliser::updateOutArgumentDependencies(llvm::Value* val, const V
                 // if it's not, will update memory_value
                 updateCompositeValueDependencies(memory_value, loaded_inst, depInfo);
             }
+        } else {
+            updateValueDependencies(memory_value, depInfo, true);
         }
     } else if (auto* inst = llvm::dyn_cast<llvm::Instruction>(val)) {
         updateCompositeValueDependencies(memory_value, inst, depInfo);
@@ -1004,7 +1006,7 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
 ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
-        return ValueDepInfo();
+        return ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP));
     }
     auto depInfo = getValueDependencies(argVal);
     if (depInfo.isDefined()) {

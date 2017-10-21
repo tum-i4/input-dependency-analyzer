@@ -662,6 +662,9 @@ void ReflectingBasicBlockAnaliser::reflectOnDepInfo(llvm::Value* value,
                                                     bool eraseAfterReflection)
 {
     // note: this won't change pos dependency, if it is of maximum value input_dep
+    if (!depInfoTo.isValueDep()) {
+        return;
+    }
     assert(depInfoTo.isValueDep());
     if (depInfoTo.getDependency() == DepInfo::VALUE_DEP) {
         depInfoTo.setDependency(depInfoFrom.getDependency());

@@ -227,7 +227,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         if (valDep.first == val) {
             continue;
         }
-        auto alias = m_AAR.alias(value_instr, valDep.first);
+        auto alias = m_AAR.alias(val, valDep.first);
         if (alias == llvm::AliasResult::MayAlias) {
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
@@ -584,7 +584,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         }
     }
     valueDepInfo = getRefInfo(instr);
-    if (!valueDepInfo.isDefined()) {
+    if (valueDepInfo.isDefined()) {
         updateValueDependencies(instr, valueDepInfo, false);
         return valueDepInfo.getValueDep();
     }

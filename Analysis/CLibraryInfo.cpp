@@ -29,6 +29,7 @@ const std::string& strlen = "strlen";
 
 const std::string& malloc = "malloc";
 const std::string& calloc = "calloc";
+const std::string& memcpy = "memcpy";
 const std::string& new_operator = "operator new(unsigned long)";
 
 const std::string& exit = "exit";
@@ -77,6 +78,7 @@ void CLibraryInfo::setup()
     add_strlen();
     add_malloc();
     add_calloc();
+    add_memcpy();
 
     add_new_operator();
 
@@ -301,6 +303,17 @@ void CLibraryInfo::add_calloc()
                                LibFunctionInfo::LibArgumentDependenciesMap(),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
     m_libFunctionInfoProcessor(std::move(callocInfo));
+}
+
+void CLibraryInfo::add_memcpy()
+{
+    // void * memcpy ( void * destination, const void * source, size_t num );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1, 2}, argDeps);
+    LibFunctionInfo memcpy(C_library::memcpy,
+                           argDeps,
+                           LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(memcpy));
 }
 
 void CLibraryInfo::add_new_operator()

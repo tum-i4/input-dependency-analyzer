@@ -1,9 +1,9 @@
 place_tile
 ----------------------
-Input Dependent instructions: 59
-Input Independent instructions: 22
+Input Dependent instructions: 62
+Input Independent instructions: 19
 Unknown instructions: 0
-Input dependent instructions' percent: 72%
+Input dependent instructions' percent: 76%
 print_tile
 ----------------------
 Input Dependent instructions: 33
@@ -12,22 +12,22 @@ Unknown instructions: 0
 Input dependent instructions' percent: 91%
 print_game
 ----------------------
-Input Dependent instructions: 18
-Input Independent instructions: 34
+Input Dependent instructions: 19
+Input Independent instructions: 33
 Unknown instructions: 0
-Input dependent instructions' percent: 34%
+Input dependent instructions' percent: 36%
 combine_left
 ----------------------
-Input Dependent instructions: 6
-Input Independent instructions: 61
+Input Dependent instructions: 48
+Input Independent instructions: 19
 Unknown instructions: 0
-Input dependent instructions' percent: 8%
+Input dependent instructions' percent: 71%
 deflate_left
 ----------------------
-Input Dependent instructions: 46
-Input Independent instructions: 13
+Input Dependent instructions: 36
+Input Independent instructions: 23
 Unknown instructions: 0
-Input dependent instructions' percent: 77%
+Input dependent instructions' percent: 61%
 rotate_clockwise
 ----------------------
 Input Dependent instructions: 9
@@ -36,10 +36,10 @@ Unknown instructions: 0
 Input dependent instructions' percent: 17%
 move_left
 ----------------------
-Input Dependent instructions: 24
-Input Independent instructions: 22
+Input Dependent instructions: 27
+Input Independent instructions: 19
 Unknown instructions: 0
-Input dependent instructions' percent: 52%
+Input dependent instructions' percent: 58%
 move_right
 ----------------------
 Input Dependent instructions: 6
@@ -72,10 +72,10 @@ Unknown instructions: 0
 Input dependent instructions' percent: 91%
 max_tile
 ----------------------
-Input Dependent instructions: 29
-Input Independent instructions: 6
+Input Dependent instructions: 18
+Input Independent instructions: 17
 Unknown instructions: 0
-Input dependent instructions' percent: 82%
+Input dependent instructions' percent: 51%
 fopen_or_die
 ----------------------
 Input Dependent instructions: 13
@@ -84,25 +84,25 @@ Unknown instructions: 0
 Input dependent instructions' percent: 72%
 get_input
 ----------------------
-Input Dependent instructions: 32
-Input Independent instructions: 8
-Unknown instructions: 0
-Input dependent instructions' percent: 80%
-record
-----------------------
-Input Dependent instructions: 12
+Input Dependent instructions: 36
 Input Independent instructions: 4
 Unknown instructions: 0
-Input dependent instructions' percent: 75%
-main
+Input dependent instructions' percent: 90%
+record
 ----------------------
-Input Dependent instructions: 127
-Input Independent instructions: 29
+Input Dependent instructions: 13
+Input Independent instructions: 3
 Unknown instructions: 0
 Input dependent instructions' percent: 81%
+main
+----------------------
+Input Dependent instructions: 139
+Input Independent instructions: 17
+Unknown instructions: 0
+Input dependent instructions' percent: 89%
 2048_game.bc
 ----------------------
-Input Dependent instructions: 468
-Input Independent instructions: 278
+Input Dependent instructions: 513
+Input Independent instructions: 233
 Unknown instructions: 0
-Input dependent instructions' percent: 62%
+Input dependent instructions' percent: 68%

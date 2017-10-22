@@ -1016,9 +1016,10 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
     }
-    llvm::BasicBlock* header = m_L.getHeader();
-    auto header_node = m_postDomTree[header];
-    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
+    // for a normal loops this will never be true, as there always is another path from loop header to exit block
+    //llvm::BasicBlock* header = m_L.getHeader();
+    //auto header_node = m_postDomTree[header];
+    //postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }

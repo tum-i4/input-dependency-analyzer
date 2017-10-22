@@ -25,5 +25,5 @@ else
 fi
 
 cd -
-rm -rf $PROJ_PATH
+#rm -rf $PROJ_PATH
 

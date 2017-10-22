@@ -42,6 +42,7 @@ private:
 
     void add_malloc();
     void add_calloc();
+    void add_memcpy();
 
     // not sure if this should be here
     void add_new_operator();

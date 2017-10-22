@@ -644,7 +644,7 @@ FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B, cons
     if (depInfo.isInputDep()) {
         return DependencyAnalysisResultT(
                     new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
-    } else if (depInfo.isInputArgumentDep()) {
+    } else if (depInfo.isInputArgumentDep() || depInfo.isValueDep()) {
         return DependencyAnalysisResultT(
            new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
     }
@@ -684,12 +684,12 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         // predecessor is in loop
         // We assume loops are not infinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
         //TODO: this is not necessarily the case for goto-s
-        if (m_LI.getLoopFor(pb) != nullptr) {
-            ++pred;
-            continue;
-        }
-        auto pos = m_BBAnalysisResults.find(pb);
-        if (pos == m_BBAnalysisResults.end()) {
+        //if (m_LI.getLoopFor(pb) != nullptr) {
+        //    ++pred;
+        //    continue;
+        //}
+        const auto& BBA = getAnalysisResult(pb);
+        if (BBA == nullptr) {
             llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
             // means block is in a loop or has not been analysed yet.
             // This happens for functions with irregular CFGs, where predecessor block comes after the current
@@ -698,8 +698,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
             continue;
         }
-        assert(pos != m_BBAnalysisResults.end());
-        dep.mergeDependencies(pos->second->getInstructionDependencies(termInstr));
+        dep.mergeDependencies(BBA->getInstructionDependencies(termInstr));
         auto pred_node = m_postDomTree[*pred];
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
@@ -711,6 +710,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
+
     return dep;
 }
 

@@ -66,11 +66,13 @@ const ValueDepInfo& ValueDepInfo::getValueDep(llvm::Instruction* el_instr) const
     unsigned last_index = get_el_instr->getNumIndices();
     auto idx_op = get_el_instr->getOperand(last_index);
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
-        uint64_t idx = const_idx->getZExtValue();
-        if (m_elementDeps.size() <= idx) {
-            return *this;
+        int64_t idx = const_idx->getSExtValue();
+        if (idx >= 0) {
+            if (m_elementDeps.size() <= idx) {
+                return *this;
+            }
+            return m_elementDeps[idx];
         }
-        return m_elementDeps[idx];
     }
     // element accessed with non-const index may be any of the elements,
     // m_depInfo contains info for all elements, thus returning it is safe
@@ -124,17 +126,20 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
         return;
     }
     // get element index
+    int64_t idx = -1;
     auto idx_op = get_el_instr->getOperand(get_el_instr->getNumIndices());
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
-        uint64_t idx = const_idx->getZExtValue();
-        if (m_elementDeps.size() <= idx) {
-            m_elementDeps.resize(idx + 1, ValueDepInfo(m_depInfo));
-        }
-        m_elementDeps[idx] = depInfo;
-    } else {
-    // If the index is not constant, assign given input dep info to every element
-        std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (ValueDepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
+        idx = const_idx->getSExtValue();
     }
+   if (idx >= 0) {
+       if (m_elementDeps.size() <= idx) {
+           m_elementDeps.resize(idx + 1, ValueDepInfo(m_depInfo));
+       }
+       m_elementDeps[idx] = depInfo;
+   } else {
+       // If the index is not constant, assign given input dep info to every element
+       std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (ValueDepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
+   }
     m_depInfo = DepInfo(DepInfo::INPUT_INDEP);
     // this will increase runtime, but is the correct way to process
     std::for_each(m_elementDeps.begin(), m_elementDeps.end(),
@@ -176,12 +181,14 @@ void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDep
     m_depInfo.mergeDependencies(depInfo.getValueDep());
     auto idx_op = get_el_instr->getOperand(get_el_instr->getNumIndices());
     if (auto* const_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_op)) {
-        uint64_t idx = const_idx->getZExtValue();
-        if (m_elementDeps.size() <= idx)  {
-            m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo::INPUT_INDEP));
+        int64_t idx = const_idx->getSExtValue();
+        if (idx >= 0) {
+            if (m_elementDeps.size() <= idx)  {
+                m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo::INPUT_INDEP));
+            }
+            m_elementDeps[idx].mergeDependencies(depInfo.getValueDep());
+            return;
         }
-        m_elementDeps[idx].mergeDependencies(depInfo.getValueDep());
-        return;
     }
     std::for_each(m_elementDeps.begin(), m_elementDeps.end(), [&depInfo] (ValueDepInfo& el_dep) {el_dep.mergeDependencies(depInfo);});
 }

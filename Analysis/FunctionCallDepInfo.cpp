@@ -1,4 +1,3 @@
-#include "FunctionCallDepInfo.h"
 #include "Utils.h"
 
 #include "llvm/IR/Function.h"
@@ -342,7 +341,10 @@ void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, ValueDep
 {
     DepInfo info(DepInfo::INPUT_DEP);
     for (auto& item : argDeps) {
-        item.second.updateCompositeValueDep(info);
+        // if argument is input indep, do not make it input dependent
+        if (!item.second.isInputIndep()) {
+            item.second.updateCompositeValueDep(info);
+        }
     }
 }
 

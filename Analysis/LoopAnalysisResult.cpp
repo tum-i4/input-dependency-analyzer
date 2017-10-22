@@ -947,6 +947,15 @@ bool LoopAnalysisResult::checkForLoopDependencies(llvm::BasicBlock* B)
     if (!isSpecialLoopBlock(B)) {
         return false;
     }
+    const auto& termInstr = B->getTerminator();
+    if (termInstr) {
+        auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(termInstr);
+        if (branchInst && !branchInst->isUnconditional()) {
+            if (m_BBAnalisers[B]->isInputDependent(termInstr)) {
+                return true;
+            }
+        }
+    }
     if (checkForLoopDependencies(m_BBAnalisers[B]->getValuesDependencies())) {
         return true;
     }

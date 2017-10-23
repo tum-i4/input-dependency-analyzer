@@ -15,6 +15,7 @@ class Value;
 namespace input_dependency {
 
 class FunctionAnaliser;
+class InputDependentFunctionAnalysisResult;
 
 /// Defines interface to request for input dependency information
 class InputDependencyResult
@@ -47,6 +48,11 @@ public:
 
     // cast interface
     virtual FunctionAnaliser* toFunctionAnalysisResult()
+    {
+        return nullptr;
+    }
+
+    virtual InputDependentFunctionAnalysisResult* toInputDependentFunctionAnalysisResult()
     {
         return nullptr;
     }

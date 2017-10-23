@@ -60,6 +60,11 @@ public:
     {
     }
 
+    InputDependentFunctionAnalysisResult* toInputDependentFunctionAnalysisResult() override
+    {
+        return this;
+    }
+
     // for debug only
     virtual long unsigned get_input_dep_count() const override
     {

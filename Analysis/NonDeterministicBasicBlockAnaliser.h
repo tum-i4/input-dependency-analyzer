@@ -25,6 +25,8 @@ public:
     NonDeterministicBasicBlockAnaliser& operator =(NonDeterministicBasicBlockAnaliser&&) = delete;
 
 public:
+    DepInfo getBlockDependencies() const override;
+
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
 

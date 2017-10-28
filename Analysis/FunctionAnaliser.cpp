@@ -134,6 +134,7 @@ public:
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     ValueDepInfo getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     ValueDepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
+    DepInfo getBlockDependencyInfo(llvm::BasicBlock* block) const;
     // Returns collected data for function calls in this function
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const;
@@ -324,6 +325,15 @@ ValueDepInfo FunctionAnaliser::Impl::getDependencyInfoFromBlock(llvm::Value* val
         return ValueDepInfo(val->getType(), analysisRes->getInstructionDependencies(instr));
     }
     return ValueDepInfo();
+}
+
+DepInfo FunctionAnaliser::Impl::getBlockDependencyInfo(llvm::BasicBlock* block) const
+{
+    const auto& analysisRes = getAnalysisResult(block);
+    if (!analysisRes) {
+        return DepInfo();
+    }
+    return analysisRes->getBlockDependencies();
 }
 
 const DependencyAnaliser::ArgumentDependenciesMap&
@@ -1069,6 +1079,11 @@ ValueDepInfo FunctionAnaliser::getGlobalVariableDependencies(llvm::GlobalVariabl
 ValueDepInfo FunctionAnaliser::getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const
 {
     return m_analiser->getDependencyInfoFromBlock(val, block);
+}
+
+DepInfo FunctionAnaliser::getBlockDependencyInfo(llvm::BasicBlock* block) const
+{
+    return m_analiser->getBlockDependencyInfo(block);
 }
 
 const GlobalsSet& FunctionAnaliser::getReferencedGlobals() const

@@ -29,6 +29,11 @@ BasicBlockAnalysisResult::BasicBlockAnalysisResult(llvm::Function* F,
 {
 }
 
+DepInfo BasicBlockAnalysisResult::getBlockDependencies() const
+{
+    return DepInfo(DepInfo::INPUT_INDEP);
+}
+
 void BasicBlockAnalysisResult::gatherResults()
 {
     analize();

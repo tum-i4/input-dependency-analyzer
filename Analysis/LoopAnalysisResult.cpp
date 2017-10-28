@@ -252,6 +252,11 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
     loop_latches.clear();
 }
 
+DepInfo LoopAnalysisResult::getBlockDependencies() const
+{
+    return m_loopDependencies;
+}
+
 void LoopAnalysisResult::gatherResults()
 {
     typedef std::chrono::high_resolution_clock Clock;

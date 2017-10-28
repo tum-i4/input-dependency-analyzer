@@ -194,18 +194,24 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
         if (val == nullptr) {
             continue;
         }
+        auto selfF = phi->getParent()->getParent();
+        assert(selfF != nullptr);
+        auto selfFunctionResults = m_FAG(selfF);
+        assert(selfFunctionResults);
         if (llvm::dyn_cast<llvm::Constant>(val)) {
-            info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
+            llvm::BasicBlock* incommingBlock = phi->getIncomingBlock(i);
+            const auto& blockDep = selfFunctionResults->getBlockDependencyInfo(incommingBlock);
+            if (blockDep.isDefined()) {
+                info.mergeDependencies(blockDep);
+            } else {
+                info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
+            }
             continue;
         }
         const auto& valDeps = getValueDependencies(val);
         if (valDeps.isDefined()) {
             info.mergeDependencies(valDeps.getValueDep());
         } else {
-            auto selfF = phi->getParent()->getParent();
-            assert(selfF != nullptr);
-            auto selfFunctionResults = m_FAG(selfF);
-            assert(selfFunctionResults);
             const auto& depInfofromBlock = selfFunctionResults->getDependencyInfoFromBlock(val,
                                                     phi->getIncomingBlock(i)).getValueDep();
             if (!depInfofromBlock.isDefined()) {
@@ -387,6 +393,9 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
             }
         }
         return;
+    }
+    if (callInst->getParent()->getParent()->getName() == "main") {
+        llvm::dbgs() << "Called function " << F->getName() << "\n";
     }
     if (F->isIntrinsic()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));

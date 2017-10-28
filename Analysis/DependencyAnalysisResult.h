@@ -35,6 +35,7 @@ public:
     /// \name Interface to start analysis
     /// \{
 public:
+    virtual DepInfo getBlockDependencies() const = 0;
     virtual void gatherResults() = 0;
     virtual void finalizeResults(const ArgumentDependenciesMap& dependentArgs) = 0;
     virtual void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) = 0;

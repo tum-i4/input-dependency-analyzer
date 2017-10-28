@@ -184,7 +184,9 @@ void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDep
         int64_t idx = const_idx->getSExtValue();
         if (idx >= 0) {
             if (m_elementDeps.size() <= idx)  {
-                m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo::INPUT_INDEP));
+                //m_elementDeps.resize(idx + 1, ValueDepInfo(DepInfo::INPUT_INDEP));
+                // TODO: try to decide finally, what should happen here.
+                m_elementDeps.resize(idx + 1, ValueDepInfo(m_depInfo));
             }
             m_elementDeps[idx].mergeDependencies(depInfo.getValueDep());
             return;

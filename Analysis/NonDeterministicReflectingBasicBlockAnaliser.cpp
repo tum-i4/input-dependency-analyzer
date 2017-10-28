@@ -34,6 +34,11 @@ NonDeterministicReflectingBasicBlockAnaliser::NonDeterministicReflectingBasicBlo
 {
 }
 
+DepInfo NonDeterministicReflectingBasicBlockAnaliser::getBlockDependencies() const
+{
+    return m_nonDeterministicDeps;
+}
+
 void NonDeterministicReflectingBasicBlockAnaliser::finalizeResults(const ArgumentDependenciesMap& dependentArgs)
 {
     ReflectingBasicBlockAnaliser::finalizeResults(dependentArgs);
@@ -112,8 +117,10 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateReturnValueDependencies
 ValueDepInfo NonDeterministicReflectingBasicBlockAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
     auto depInfo = ReflectingBasicBlockAnaliser::getArgumentValueDependecnies(argVal);
-    addOnDependencyInfo(depInfo);
-    return depInfo;
+    if (depInfo.isInputIndep()) {
+        return depInfo;
+    }
+    return addOnDependencyInfo(depInfo);
 }
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::addOnDependencyInfo(const DepInfo& info)

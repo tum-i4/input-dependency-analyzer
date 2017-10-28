@@ -50,6 +50,7 @@ public:
     /// \name Interface to start analysis
     /// \{
 public:
+    DepInfo getBlockDependencies() const override;
     void gatherResults() override;
     void finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps) override;

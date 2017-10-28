@@ -27,6 +27,7 @@ public:
     NonDeterministicReflectingBasicBlockAnaliser& operator =(NonDeterministicReflectingBasicBlockAnaliser&&) = delete;
 
 public:
+    DepInfo getBlockDependencies() const override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
 
 public:

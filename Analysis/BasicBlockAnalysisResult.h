@@ -45,6 +45,8 @@ public:
     virtual ~BasicBlockAnalysisResult() = default;
 
 public:
+    DepInfo getBlockDependencies() const override;
+
     void gatherResults() override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;

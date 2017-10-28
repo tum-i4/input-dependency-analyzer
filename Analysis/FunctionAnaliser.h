@@ -97,6 +97,7 @@ public:
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
     ValueDepInfo getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
     ValueDepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
+    DepInfo getBlockDependencyInfo(llvm::BasicBlock* block) const;
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
     /// \}

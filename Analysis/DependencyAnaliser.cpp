@@ -394,9 +394,6 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         }
         return;
     }
-    if (callInst->getParent()->getParent()->getName() == "main") {
-        llvm::dbgs() << "Called function " << F->getName() << "\n";
-    }
     if (F->isIntrinsic()) {
         updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
     } else if (Utils::isLibraryFunction(F, m_F->getParent())) {
@@ -713,7 +710,7 @@ void DependencyAnaliser::updateOutArgumentDependencies(llvm::Value* val, const V
     // val is the value passed as argument
     updateValueDependencies(val, depInfo, true);
 
-    // if it's a global variable
+    // if it's a global snake_move_player
     if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
         m_modifiedGlobals.insert(global);
         return;
@@ -1001,10 +998,11 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
     GlobalVariableDependencyMap globalsDepMap;
     for (auto& global : callRefGlobals) {
         llvm::Value* globalVal = llvm::dyn_cast<llvm::Value>(global);
+        m_referencedGlobals.insert(global);
         assert(globalVal != nullptr);
         auto depInfo = getValueDependencies(globalVal);
         if (!depInfo.isDefined()) {
-            continue;
+            depInfo = ValueDepInfo(DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal}));
         }
         globalsDepMap[global] = depInfo;
     }
@@ -1014,6 +1012,13 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
 
 ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVal)
 {
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(argVal)) {
+        auto depInfo = getValueDependencies(argVal);
+        if (!depInfo.isDefined()) {
+            depInfo = ValueDepInfo(argVal->getType(), DepInfo(DepInfo::VALUE_DEP, ValueSet{global}));
+        }
+        return depInfo;
+    }
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
         return ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP));
     }
@@ -1158,11 +1163,15 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     if (auto* globalVal = llvm::dyn_cast<llvm::GlobalValue>(instrOp)) {
         return globalVal;
     }
-    if (auto* constVal = llvm::dyn_cast<llvm::Constant>(instrOp)) {
-        return nullptr;
-    }
+
     auto instr = llvm::dyn_cast<llvm::Instruction>(instrOp);
     if (!instr) {
+        if (auto* constExpr = llvm::dyn_cast<llvm::ConstantExpr>(instrOp)) {
+            auto constInstr = constExpr->getAsInstruction();
+            auto memVal = getMemoryValue(constInstr->getOperand(0));
+            delete constInstr;
+            return memVal;
+        }
         return instrOp;
     }
     if (auto* bitcast = llvm::dyn_cast<llvm::BitCastInst>(instrOp)) {
@@ -1179,6 +1188,9 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     auto load = llvm::dyn_cast<llvm::LoadInst>(instrOp);
     if (load) {
         return getMemoryValue(load->getPointerOperand());
+    }
+    if (auto* constVal = llvm::dyn_cast<llvm::Constant>(instrOp)) {
+        return nullptr;
     }
     llvm::GlobalValue* global = nullptr;
     bool clean = false;
@@ -1198,15 +1210,15 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
         return getMemoryValue(instr->getOperand(0));
     }
     auto* op = elPtrInst->getPointerOperand();
-    global = llvm::dyn_cast<llvm::GlobalValue>(op);
+    //global = llvm::dyn_cast<llvm::GlobalValue>(op);
     if (clean) {
         // Deleting as does not belong to any basic block. 
         delete elPtrInst;
     }
-    if (global == nullptr) {
+    if (op == nullptr) {
         return getMemoryValue(op);
     }
-    return global;
+    return op;
 }
 
 } // namespace input_dependency

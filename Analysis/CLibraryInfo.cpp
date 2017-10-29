@@ -63,7 +63,7 @@ void CLibraryInfo::setup()
     add_fwrite();
     add_fputc();
     add_snprintf();
-    add_sprintf();
+    //add_sprintf();
     add_sscanf();
     add_puts();
     //<cstdlib>

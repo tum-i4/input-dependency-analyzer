@@ -68,7 +68,7 @@ protected:
                                           llvm::Instruction* elInstr,
                                           const ValueDepInfo& info) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
-    ValueDepInfo getRefInfo(llvm::LoadInst* loadInst) override;
+    ValueDepInfo getRefInfo(llvm::Instruction* instr) override;
     void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
     void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info) override;
     void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;

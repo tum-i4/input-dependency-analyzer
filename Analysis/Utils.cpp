@@ -47,6 +47,11 @@ ValueSet Utils::dissolveInstruction(llvm::Instruction* instr)
 {
     ValueSet values;
     for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
+        // make sure this comes before constant check, as global variable inherits from constant
+        if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(op)) {
+            values.insert(global);
+            continue;
+        }
         if (auto constop = llvm::dyn_cast<llvm::Constant>(op)) {
             continue;
         }

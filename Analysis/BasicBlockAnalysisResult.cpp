@@ -188,16 +188,16 @@ void BasicBlockAnalysisResult::updateReturnValueDependencies(const ValueDepInfo&
     m_returnValueDependencies.updateValueDep(info);
 }
 
-ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::LoadInst* loadInst)
+ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::Instruction* instr)
 {
     ValueDepInfo info;
-    //llvm::dbgs() << *loadInst << "\n";
-    const auto& DL = loadInst->getModule()->getDataLayout();
+    //llvm::dbgs() << *instr << "\n";
+    const auto& DL = instr->getModule()->getDataLayout();
     for (const auto& dep : m_valueDependencies) {
         if (!dep.first->getType()->isSized()) {
             continue;
         }
-        auto modRef = m_AAR.getModRefInfo(loadInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
+        auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
         if (modRef == llvm::ModRefInfo::MRI_Ref) {
             info.mergeDependencies(dep.second);
         }
@@ -588,6 +588,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
             }
         }
     }
+
     valueDepInfo = getRefInfo(instr);
     if (valueDepInfo.isDefined()) {
         updateValueDependencies(instr, valueDepInfo, false);

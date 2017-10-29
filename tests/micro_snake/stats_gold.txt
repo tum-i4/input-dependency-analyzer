@@ -1,15 +1,15 @@
 sigsetup
 ----------------------
-Input Dependent instructions: 4
-Input Independent instructions: 25
+Input Dependent instructions: 3
+Input Independent instructions: 26
 Unknown instructions: 0
-Input dependent instructions' percent: 13%
+Input dependent instructions' percent: 10%
 sig_handler
 ----------------------
 Input Dependent instructions: 8
-Input Independent instructions: 6
+Input Independent instructions: 5
 Unknown instructions: 0
-Input dependent instructions' percent: 57%
+Input dependent instructions' percent: 61%
 alarm_handler
 ----------------------
 Input Dependent instructions: 5
@@ -54,10 +54,10 @@ Unknown instructions: 0
 Input dependent instructions' percent: 81%
 collide_self
 ----------------------
-Input Dependent instructions: 44
-Input Independent instructions: 13
+Input Dependent instructions: 50
+Input Independent instructions: 7
 Unknown instructions: 0
-Input dependent instructions' percent: 77%
+Input dependent instructions' percent: 87%
 collision
 ----------------------
 Input Dependent instructions: 18
@@ -66,19 +66,19 @@ Unknown instructions: 0
 Input dependent instructions' percent: 90%
 eat_gold
 ----------------------
-Input Dependent instructions: 49
-Input Independent instructions: 21
+Input Dependent instructions: 66
+Input Independent instructions: 4
 Unknown instructions: 0
-Input dependent instructions' percent: 70%
+Input dependent instructions' percent: 94%
 main
 ----------------------
-Input Dependent instructions: 89
-Input Independent instructions: 13
+Input Dependent instructions: 91
+Input Independent instructions: 11
 Unknown instructions: 0
-Input dependent instructions' percent: 87%
+Input dependent instructions' percent: 89%
 snake.bc
 ----------------------
-Input Dependent instructions: 859
-Input Independent instructions: 220
+Input Dependent instructions: 883
+Input Independent instructions: 195
 Unknown instructions: 0
-Input dependent instructions' percent: 79%
+Input dependent instructions' percent: 81%

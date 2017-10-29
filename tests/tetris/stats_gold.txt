@@ -1,9 +1,9 @@
 update
 ----------------------
-Input Dependent instructions: 41
-Input Independent instructions: 43
+Input Dependent instructions: 51
+Input Independent instructions: 33
 Unknown instructions: 0
-Input dependent instructions' percent: 48%
+Input dependent instructions' percent: 60%
 fits_in
 ----------------------
 Input Dependent instructions: 44
@@ -54,10 +54,10 @@ Unknown instructions: 0
 Input dependent instructions' percent: 30%
 alarm_handler
 ----------------------
-Input Dependent instructions: 1
-Input Independent instructions: 17
+Input Dependent instructions: 8
+Input Independent instructions: 10
 Unknown instructions: 0
-Input dependent instructions' percent: 5%
+Input dependent instructions' percent: 44%
 exit_handler
 ----------------------
 Input Dependent instructions: 3
@@ -78,7 +78,7 @@ Unknown instructions: 0
 Input dependent instructions' percent: 88%
 tetris.bc
 ----------------------
-Input Dependent instructions: 486
-Input Independent instructions: 150
+Input Dependent instructions: 503
+Input Independent instructions: 133
 Unknown instructions: 0
-Input dependent instructions' percent: 76%
+Input dependent instructions' percent: 79%

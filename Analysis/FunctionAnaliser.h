@@ -37,6 +37,9 @@ public:
     llvm::Function* getFunction() override;
     const llvm::Function* getFunction() const override;
 
+    bool areArgumentsFinalized() const;
+    bool areGlobalsFinalized() const;
+
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(const llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;

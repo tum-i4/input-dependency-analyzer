@@ -12,8 +12,9 @@ namespace {
 
 // Note, only the dependency info of a global value is going to be finalized, the dependencies of elements are not
 ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, ValueDepInfo>& actualDeps,
-                                 const ValueSet& valueDeps)
+                                 ValueSet& valueDeps)
 {
+    std::vector<llvm::Value*> values_to_erase;
     ValueDepInfo resultInfo;
     for (auto& dep : valueDeps) {
         auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
@@ -22,8 +23,12 @@ ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*,
         }
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {
+            llvm::dbgs() << "Function call info finalization. "
+            << "Function argument depends on global for which no input dep info is known. Global is: " << *global <<
+            "\n";
             continue;
         }
+        values_to_erase.push_back(global);
         assert(pos->second.isDefined());
         ValueDepInfo global_depInfo = pos->second;
         ValueSet& globalDependencies = global_depInfo.getValueDependencies();
@@ -68,6 +73,8 @@ ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*,
         //assert(!global_depInfo.isValueDep());
         resultInfo.mergeDependencies(global_depInfo);
     }
+    std::for_each(values_to_erase.begin(), values_to_erase.end(), [&valueDeps] (llvm::Value* val)
+    {valueDeps.erase(val);});
     return resultInfo;
 }
 
@@ -102,6 +109,9 @@ void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap&
         //assert(!finalDeps.isValueDep());
         if (item.second.getDependency() == DepInfo::VALUE_DEP) {
             item.second.setDependency(finalDeps.getDependency());
+        }
+        if (item.second.getDependency() == DepInfo::VALUE_DEP && item.second.getValueDependencies().empty()) {
+            item.second.setDependency(DepInfo::INPUT_INDEP);
         }
         item.second.mergeDependencies(finalDeps);
     }

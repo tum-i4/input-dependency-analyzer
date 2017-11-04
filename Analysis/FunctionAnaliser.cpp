@@ -105,6 +105,8 @@ public:
         , m_indirectCallsInfo(indirectCallsInfo)
         , m_FAGetter(getter)
         , m_returnValueDependencies(F->getReturnType())
+        , m_argumentsFinalized(false)
+        , m_globalsFinalized(false)
         , m_globalsUpdated(false)
     {
     }
@@ -167,6 +169,16 @@ public:
         return m_F;
     }
 
+    bool areArgumentsFinalized() const
+    {
+        return m_argumentsFinalized;
+    }
+
+    bool areGlobalsFinalized() const
+    {
+        return m_globalsFinalized;
+    }
+
 private:
     using BlocksInTraversalOrder = std::forward_list<std::pair<llvm::BasicBlock*, llvm::Loop*>>;
     BlocksInTraversalOrder collectBlocksInTraversalOrder();
@@ -212,6 +224,8 @@ private:
     FunctionSet m_calledFunctions;
     GlobalsSet m_referencedGlobals;
     GlobalsSet m_modifiedGlobals;
+    bool m_argumentsFinalized;
+    bool m_globalsFinalized;
     bool m_globalsUpdated;
 
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
@@ -456,6 +470,7 @@ void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& de
         updateFunctionCallsInfo(item.first);
         updateFunctionCallsGlobalsInfo(item.first);
     }
+    m_argumentsFinalized = true;
 }
 
 void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
@@ -463,6 +478,7 @@ void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& 
     for (auto& item : m_BBAnalysisResults) {
         item.second->finalizeGlobals(globalsDeps);
     }
+    m_globalsFinalized = true;
 }
 
 long unsigned FunctionAnaliser::Impl::get_input_dep_count() const
@@ -602,6 +618,14 @@ FunctionAnaliser::Impl::collectBlocksInTraversalOrder()
         if (scc_blocks.size() > 1) {
             is_loop_block = true;
             llvm::Loop* bb_loop = m_LI.getLoopFor(bb);
+            //if (!bb_loop) {
+            //    llvm::dbgs() << "SCC node with multiple blocks, not constructing a loop\n";
+            //    std::for_each(scc_blocks.begin(), scc_blocks.end(), [&blocks_in_order] (llvm::BasicBlock* b)
+            //    {blocks_in_order.push_front(std::make_pair(b, nullptr));});
+            //    ++it;
+            //    continue;
+
+            //}
             if (bb_loop->getLoopDepth() > 1) {
                 bb_loop = Utils::getTopLevelLoop(bb_loop);
             }
@@ -700,7 +724,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         //}
         const auto& BBA = getAnalysisResult(pb);
         if (BBA == nullptr) {
-            llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
+            //llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
             // means block is in a loop or has not been analysed yet.
             // This happens for functions with irregular CFGs, where predecessor block comes after the current
             // block. TODO: for this case see if can be fixed by employing different CFG traversal approach
@@ -953,10 +977,11 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAna
     pos = m_BBAnalysisResults.find(bb);
     if (pos == m_BBAnalysisResults.end()) {
         const auto& bb_node = m_postDomTree[bb];
-        llvm::dbgs() << "No analysis result for " << bb->getName() << " in function " << m_F->getName() << "\n";
-        if (!m_postDomTree.isReachableFromEntry(bb_node)) {
-            llvm::dbgs() << "block is not reachable from entry, and is not analyzed.\n";
-        }
+        // TODO: commented so that the log is not a mess. uncomment later
+        //llvm::dbgs() << "No analysis result for " << bb->getName() << " in function " << m_F->getName() << "\n";
+        //if (!m_postDomTree.isReachableFromEntry(bb_node)) {
+        //    llvm::dbgs() << "block is not reachable from entry, and is not analyzed.\n";
+        //}
         return nullptr;
     }
     assert(pos != m_BBAnalysisResults.end());
@@ -1130,6 +1155,17 @@ const llvm::Function* FunctionAnaliser::getFunction() const
 {
     return m_analiser->getFunction();
 }
+
+bool FunctionAnaliser::areArgumentsFinalized() const
+{
+    return m_analiser->areArgumentsFinalized();
+}
+
+bool FunctionAnaliser::areGlobalsFinalized() const
+{
+    return m_analiser->areGlobalsFinalized();
+}
+
 
 } // namespace input_dependency
 

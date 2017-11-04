@@ -143,11 +143,13 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
-// updates value dependency.
-// Note if value is of composite type, no element of that value is going to be updated
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
 {
     assert(info.isDefined());
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+        m_referencedGlobals.insert(global);
+        m_modifiedGlobals.insert(global);
+    }
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(value->getType(), info)));
     if (!res.second) {
         res.first->second.updateCompositeValueDep(info);
@@ -161,6 +163,10 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
 void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
 {
     assert(info.isDefined());
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+        m_referencedGlobals.insert(global);
+        m_modifiedGlobals.insert(global);
+    }
     auto res = m_valueDependencies.insert(std::make_pair(value, info));
     if (!res.second) {
         res.first->second.updateValueDep(info);
@@ -176,6 +182,10 @@ void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* val
                                                                 const ValueDepInfo& info)
 {
     assert(info.isDefined());
+    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+        m_referencedGlobals.insert(global);
+        m_modifiedGlobals.insert(global);
+    }
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
     res.first->second.updateValueDep(elInstr, info);
     updateAliasesDependencies(value, elInstr, res.first->second);

@@ -223,7 +223,17 @@ DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunction
             // assert?
             continue;
         }
-        const auto& callInfo = f_analiser->getCallArgumentInfo(F);
+        auto callInfo = f_analiser->getCallArgumentInfo(F);
+        if (!f_analiser->areArgumentsFinalized()) {
+            // if callee is finalized before caller, means caller was analized before callee.
+            // this on its turn means callee callArgumentDeps should be input dep.
+            // proper fix would be making sure caller is finalized before callee
+            for (auto& item : callInfo) {
+                if (item.second.isValueDep() || item.second.isInputArgumentDep()) {
+                    item.second = ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+                }
+            }
+        }
         mergeDependencyMaps(argDeps, callInfo);
     }
     return argDeps;
@@ -247,7 +257,13 @@ DependencyAnaliser::GlobalVariableDependencyMap InputDependencyAnalysis::getFunc
         if (!f_analiser) {
             continue;
         }
-        const auto& globalsInfo = f_analiser->getCallGlobalsInfo(F);
+        auto globalsInfo = f_analiser->getCallGlobalsInfo(F);
+        if (!f_analiser->areGlobalsFinalized()) {
+            // See comment in getFunctionCallInfo
+            for (auto& item : globalsInfo) {
+                item.second = ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+            }
+        }
         mergeDependencyMaps(globalDeps, globalsInfo);
     }
     addMissingGlobalsInfo(F, globalDeps);
@@ -266,7 +282,7 @@ void InputDependencyAnalysis::mergeDependencyMaps(DependencyMapType& mergeTo, co
             continue;
         }
         res.first->second.mergeDependencies(item.second);
-        assert(res.first->second.isInputDep() || res.first->second.isInputArgumentDep());
+        assert(!res.first->second.isValueDep());
     }
 }
 

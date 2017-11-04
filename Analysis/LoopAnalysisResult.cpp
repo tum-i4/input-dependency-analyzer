@@ -110,25 +110,12 @@ bool LoopTraversalPathCreator::add_predecessors(llvm::BasicBlock* block,
             ++pred;
             continue;
         }
-        if (pred_loop != &m_L) {
-            // predecessor is in outer loop, outer loops are already processed
-            if (pred_loop->contains(&m_L)) {
-                ++pred;
-                assert(m_L.getHeader() == block);
-                continue;
-            }
-            auto pred_loop_head = pred_loop->getHeader();
-            if (m_uniquify_map.find(pred_loop_head) != m_uniquify_map.end()) {
-                ++pred;
-                continue;
-            } else {
-                preds_added = false;
-                blocks.push_back(pred_loop_head);
-            }
-        } else {
-            preds_added = false;
-            blocks.push_back(*pred);
+        if (pred_loop != &m_L && !m_L.contains(pred_loop)) {
+            ++pred;
+            continue;
         }
+        preds_added = false;
+        blocks.push_back(*pred);
         ++pred;
     }
     return preds_added;
@@ -158,24 +145,7 @@ void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
             continue;
         }
         if (succ_loop != &m_L) {
-            if (succ_loop->getHeader() != *succ) {
-                if (succ_loop->contains(&m_L)) {
-                    // is_loopExiting is not constant
-                    //assert(m_L.isLoopExiting(block));
-                } else if (m_L.contains(succ_loop)) {
-                    // assert block is subloop head
-                    if (succ_loop->getHeader() != block) {
-                        //llvm::dbgs() << "bo " << block->getName() << "\n";
-                        //llvm::dbgs() << m_L.getHeader()->getName() << " "
-                        //             << succ_loop->getHeader()->getName() << "\n";
-                        bool is_valid = succ_loop->isLoopExiting(block);
-                        is_valid |= block_loop->getParentLoop()->isLoopExiting(block);
-                        assert(is_valid);
-                        ++succ;
-                        continue;
-                    }
-                    assert(succ_loop->getHeader() == block);
-                }
+            if (succ_loop->getLoopDepth() - m_L.getLoopDepth() > 1) {
                 ++succ;
                 continue;
             }
@@ -183,28 +153,7 @@ void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
         blocks.push_front(*succ);
         ++succ;
     }
-    if (block_loop != &m_L && block_loop->getHeader() == block && m_L.contains(block_loop)
-        && block_loop->getLoopDepth() - m_L.getLoopDepth() == 1) {
-        llvm::SmallVector<llvm::BasicBlock*, 10> exit_blocks;
-        block_loop->getExitingBlocks(exit_blocks);
-        for (const auto& exit_b : exit_blocks) {
-            //llvm::dbgs() << "   " << exit_b->getName() << "\n";
-            // With using evil goto statements, it is possible to exit a loop at any level from a loop at any inner level.
-            // E.g. the inner most loop may exit the outer most loop.
-            // Of course, still the exiting loop should be contained in a loop which will exit
-            // we are not adding exit blocks, which are not directly contained by a current loop,
-            // or any loop which is directly contained in by a current loop.
-            auto exitLoop = m_LI.getLoopFor(exit_b);
-            if (exitLoop == nullptr || Utils::getLoopDepthDiff(exitLoop, &m_L) != 1) {
-                llvm::dbgs() << "Skipping exit block " << exit_b->getName() << "\n";
-                continue;
-            }
-            blocks.push_front(exit_b);
-        }
-        //blocks.insert(blocks.begin(), exit_blocks.begin(), exit_blocks.end());
-    }
 }
-
 
 void LoopTraversalPathCreator::add_to_path(llvm::BasicBlock* block)
 {
@@ -213,9 +162,17 @@ void LoopTraversalPathCreator::add_to_path(llvm::BasicBlock* block)
     // comparing header is cheaper than isLoopHeader
     if (block_loop != &m_L && block_loop->getHeader() != block) {
         // assume the header of loop has been processed, hence is in m_uniquify_map
-        assert(m_uniquify_map.find(block_loop->getHeader()) != m_uniquify_map.end());
+        //assert(m_uniquify_map.find(block_loop->getHeader()) != m_uniquify_map.end());
         return;
     }
+    if (block_loop->contains(&m_L) && block_loop != &m_L) {
+        return;
+    } else if (block_loop->getLoopDepth() - m_L.getLoopDepth() > 1) {
+        return;
+    } else if (block_loop != &m_L && block_loop->getLoopDepth() == m_L.getLoopDepth()) {
+        return;
+    }
+    
     m_path.push_back(block);
     m_uniquify_map.insert(block);
 }
@@ -631,19 +588,21 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
         auto pos = m_BBAnalisers.find(*pred);
         if (pos == m_BBAnalisers.end()) {
             auto pred_loop = m_LI.getLoopFor(*pred);
-            if (pred_loop == &m_L) {
+            if (!pred_loop || pred_loop == &m_L) {
                 // predecessor is latch
                 ++pred;
                 continue;
             }
-            if (pred_loop == nullptr) {
-                //llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
-                ++pred;
+            // predecessor is in another loop (nested loop)
+            // in case if pred_loop is not direct child of m_L go up in loop hierarchy until reaches to direct child
+            auto pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
+            while (pred_loop && pred_pos == m_BBAnalisers.end()) {
+                pred_loop = pred_loop->getParentLoop();
+                pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
+            }
+            if (!pred_loop || pred_pos == m_BBAnalisers.end()) {
                 continue;
             }
-            // predecessor is in another loop (nested loop)
-            auto pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
-            assert(pred_pos != m_BBAnalisers.end());
             valueDeps = pred_pos->second->getValuesDependencies();
         } else {
             valueDeps = pos->second->getValuesDependencies();
@@ -810,6 +769,9 @@ void LoopAnalysisResult::reflect()
             if (latch_loop == &m_L) {
                 llvm::dbgs() << "Can't find loop for latch " << latch->getName() << "\n";
             }
+        }
+        if (pos == m_BBAnalisers.end()) {
+            llvm::dbgs() << "blah " << latch->getName() << "\n";
         }
         assert(pos != m_BBAnalisers.end());
         auto valueDeps = pos->second->getValuesDependencies();

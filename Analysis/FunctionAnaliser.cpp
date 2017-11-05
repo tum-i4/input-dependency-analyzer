@@ -9,6 +9,7 @@
 #include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
 #include "ClonedFunctionAnalysisResult.h"
+#include "CFGTraversalPath.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -27,6 +28,7 @@
 
 #include <chrono>
 #include <forward_list>
+#include <list>
 
 namespace input_dependency {
 
@@ -180,8 +182,7 @@ public:
     }
 
 private:
-    using BlocksInTraversalOrder = std::forward_list<std::pair<llvm::BasicBlock*, llvm::Loop*>>;
-    BlocksInTraversalOrder collectBlocksInTraversalOrder();
+    using BlocksInTraversalOrder = std::list<std::pair<llvm::BasicBlock*, llvm::Loop*>>;
     void collectArguments();
     DependencyAnalysisResultT createBasicBlockAnalysisResult(llvm::BasicBlock* B,
                                                              const DepInfo& depInfo);
@@ -428,11 +429,13 @@ void FunctionAnaliser::Impl::analize()
     auto tic = Clock::now();
     collectArguments();
 
-    const auto& blocks_in_traversal_order = collectBlocksInTraversalOrder();
+    CFGTraversalPathCreator traversalPath(m_F, &m_LI);
+    traversalPath.construct(CFGTraversalPathCreator::CFG);
+    const auto& blocks_in_traversal_order = traversalPath.getBlocksInOrder();
+    m_loopBlocks= traversalPath.getBlocksLoops();
     llvm::BasicBlock* bb;
     for (auto& block : blocks_in_traversal_order) {
         bb = block.first;
-        //llvm::dbgs() << "   Analyzing block " << bb->getName() << "\n";
         const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
         if (block.second) {
             m_BBAnalysisResults[bb].reset(createLoopAnalysisResult(depInfo, block.second));
@@ -602,62 +605,6 @@ void FunctionAnaliser::Impl::dump() const
     }
 }
 
-FunctionAnaliser::Impl::BlocksInTraversalOrder
-FunctionAnaliser::Impl::collectBlocksInTraversalOrder()
-{
-    typedef llvm::scc_iterator<llvm::BasicBlock*> BB_scc_iterator;;
-    BlocksInTraversalOrder blocks_in_order;
-    llvm::BasicBlock* block = &m_F->front();
-    auto it = BB_scc_iterator::begin(block);
-    llvm::BasicBlock* bb = nullptr;
-    llvm::Loop* currentLoop;
-    while (it != BB_scc_iterator::end(block)) {
-        const auto& scc_blocks = *it;
-        bool is_loop_block = false;
-        bb = *scc_blocks.begin();
-        if (scc_blocks.size() > 1) {
-            is_loop_block = true;
-            llvm::Loop* bb_loop = m_LI.getLoopFor(bb);
-            //if (!bb_loop) {
-            //    llvm::dbgs() << "SCC node with multiple blocks, not constructing a loop\n";
-            //    std::for_each(scc_blocks.begin(), scc_blocks.end(), [&blocks_in_order] (llvm::BasicBlock* b)
-            //    {blocks_in_order.push_front(std::make_pair(b, nullptr));});
-            //    ++it;
-            //    continue;
-
-            //}
-            if (bb_loop->getLoopDepth() > 1) {
-                bb_loop = Utils::getTopLevelLoop(bb_loop);
-            }
-            if (currentLoop == nullptr) {
-                currentLoop = bb_loop;
-            } else if (currentLoop == bb_loop || currentLoop->contains(bb_loop)) {
-                ++it;
-                continue;
-            } else {
-                currentLoop = bb_loop;
-            }
-            if (currentLoop == nullptr) {
-                llvm::dbgs() << "Error: expecting loop for " << bb->getName() << "\n";
-                llvm::dbgs() << "skipping block\n";
-                ++it;
-                continue;
-            } else {
-                bb = currentLoop->getHeader();
-            }
-        }
-        if (is_loop_block) {
-            for (auto& scc_b : scc_blocks) {
-                m_loopBlocks[scc_b] = bb;
-            }
-        }
-        blocks_in_order.push_front(std::make_pair(bb, is_loop_block ? currentLoop : nullptr));
-        ++it;
-    }
-    return blocks_in_order;
-
-}
-
 void FunctionAnaliser::Impl::collectArguments()
 {
     auto& arguments = m_F->getArgumentList();
@@ -715,21 +662,13 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             dep.setDependency(DepInfo::DepInfo::INPUT_ARGDEP);
             break;
         }
-        // predecessor is in loop
-        // We assume loops are not infinite, and all exit blocks lead to the same block, thus this basic block will be reached no mater if loop condition is input dep or not.
-        //TODO: this is not necessarily the case for goto-s
-        //if (m_LI.getLoopFor(pb) != nullptr) {
-        //    ++pred;
-        //    continue;
-        //}
         const auto& BBA = getAnalysisResult(pb);
         if (BBA == nullptr) {
-            //llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
+            llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
             // means block is in a loop or has not been analysed yet.
             // This happens for functions with irregular CFGs, where predecessor block comes after the current
             // block. TODO: for this case see if can be fixed by employing different CFG traversal approach
             ++pred;
-            // We assume loops are not inifinite, this this basic block will be reached no mater if loop condition is input dep or not.
             continue;
         }
         dep.mergeDependencies(BBA->getInstructionDependencies(termInstr));

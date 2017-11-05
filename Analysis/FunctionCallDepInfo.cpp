@@ -23,9 +23,10 @@ ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*,
         }
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {
-            llvm::dbgs() << "Function call info finalization. "
-            << "Function argument depends on global for which no input dep info is known. Global is: " << *global <<
+            llvm::dbgs() << "Function call info finalization.\n"
+            << "    Function argument depends on global for which no input dep info is known. Global is: " << *global <<
             "\n";
+            values_to_erase.push_back(global);
             continue;
         }
         values_to_erase.push_back(global);

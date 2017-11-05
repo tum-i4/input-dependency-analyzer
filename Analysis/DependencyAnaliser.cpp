@@ -734,9 +734,6 @@ void DependencyAnaliser::updateOutArgumentDependencies(llvm::Value* val, const V
     } else if (auto* inst = llvm::dyn_cast<llvm::Instruction>(val)) {
         updateCompositeValueDependencies(memory_value, inst, depInfo);
     }
-    if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(memory_value)) {
-        m_modifiedGlobals.insert(global);
-    }
 }
 
 void DependencyAnaliser::updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst,

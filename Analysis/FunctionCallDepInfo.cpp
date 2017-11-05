@@ -19,6 +19,7 @@ ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*,
     for (auto& dep : valueDeps) {
         auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
         if (global == nullptr) {
+            values_to_erase.push_back(dep);
             continue;
         }
         auto pos = actualDeps.find(global);

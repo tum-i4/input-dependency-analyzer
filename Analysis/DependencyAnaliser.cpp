@@ -503,7 +503,6 @@ void DependencyAnaliser::updateFunctionCallSiteInfo(llvm::CallInst* callInst, ll
 {
     auto pos = m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
     m_calledFunctions.insert(F);
-
     const auto& argDepMap = gatherFunctionCallSiteInfo(callInst, F);
     const auto& globalsDepMap = gatherGlobalsForFunctionCall(F);
     pos.first->second.addCall(callInst, argDepMap);

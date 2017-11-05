@@ -278,11 +278,10 @@ void InputDependencyAnalysis::mergeDependencyMaps(DependencyMapType& mergeTo, co
         assert(item.second.isDefined());
         //assert(item.second.isInputDep() || item.second.isInputIndep() || item.second.isInputArgumentDep());
         auto res = mergeTo.insert(item);
-        assert(!res.first->second.isValueDep());
-        if (res.second) {
-            continue;
+        if (!res.second) {
+            res.first->second.mergeDependencies(item.second);
         }
-        res.first->second.mergeDependencies(item.second);
+        assert(!res.first->second.isValueDep());
     }
 }
 

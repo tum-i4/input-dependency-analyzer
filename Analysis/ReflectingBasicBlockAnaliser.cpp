@@ -412,7 +412,6 @@ void ReflectingBasicBlockAnaliser::updateValueDependentCallArguments(llvm::CallI
         // is this possible?
         return;
     }
-
     const auto& dependencies = pos->second.getArgumentDependenciesForCall(callInst);
     for (const auto& dep : dependencies) {
         if (!dep.second.isValueDep()) {
@@ -579,20 +578,38 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionReferencedGlobals(llvm
     if (valPos == m_valueDependentCallGlobals.end()) {
         return;
     }
-
+ 
     for (const auto& fargs : valPos->second) {
         auto callInst = fargs.first;
-        auto F = callInst->getCalledFunction();
-        auto Fpos = m_functionCallInfo.find(F);
-        if (Fpos == m_functionCallInfo.end()) {
-            continue;
+        FunctionSet targets;
+        auto calledF = callInst->getCalledFunction();
+        if (calledF == nullptr) {
+            if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
+                targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
+            } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
+                targets = m_indirectCallsInfo.getIndirectCallTargets(callInst);
+            } else {
+                continue;
+            }
+        } else {
+            targets.insert(calledF);
         }
-        assert(Fpos != m_functionCallInfo.end());
-        auto& callDeps = Fpos->second.getGlobalsDependenciesForCall(callInst);
-        for (auto& arg : fargs.second) {
-            auto argPos = callDeps.find(arg);
-            assert(argPos != callDeps.end());
-            reflectOnDepInfo(value, argPos->second, depInfo);
+
+        for (auto& F : targets) {
+            auto Fpos = m_functionCallInfo.find(F);
+            if (Fpos == m_functionCallInfo.end()) {
+                continue;
+            }
+            assert(Fpos != m_functionCallInfo.end());
+            auto& callDeps = Fpos->second.getGlobalsDependenciesForCall(callInst);
+            for (auto& global : fargs.second) {
+                auto globPos = callDeps.find(global);
+                if (globPos == callDeps.end()) {
+                    continue;
+                }
+                assert(globPos != callDeps.end());
+                reflectOnDepInfo(value, globPos->second, depInfo);
+            }
         }
     }
     m_valueDependentCallGlobals.erase(valPos);

@@ -1,7 +1,7 @@
 #include "CLibraryInfo.h"
 #include "LibFunctionInfo.h"
 
-namespace {
+namespace input_dependency {
 
 namespace C_library {
 
@@ -47,10 +47,6 @@ const std::string& rewind = "rewind";
 const std::string& fread = "fread";
 const std::string& fclose = "fclose";
 } // namespace C_library
-
-}
-
-namespace input_dependency {
 
 void CLibraryInfo::setup()
 {

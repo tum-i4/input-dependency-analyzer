@@ -394,9 +394,10 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         }
         return;
     }
-    if (F->isIntrinsic()) {
-        updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
-    } else if (Utils::isLibraryFunction(F, m_F->getParent())) {
+   // if (F->isIntrinsic()) {
+   //     updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
+   // } else
+    if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst, F);
         updateLibFunctionCallInstOutArgDependencies(callInst, argDepMap);
         updateLibFunctionCallInstructionDependencies(callInst, argDepMap);

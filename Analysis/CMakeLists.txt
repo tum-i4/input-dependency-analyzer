@@ -28,6 +28,10 @@ add_library(InputDependency MODULE
     value_dependence_graph.cpp
     InputDependentFunctions.cpp
     FunctionDominanceTree.cpp
+    ValueDepInfo.cpp
+    LoopTraversalPath.cpp
+    CFGTraversalPath.cpp
+    LLVMIntrinsicsInfo.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

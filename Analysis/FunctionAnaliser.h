@@ -37,6 +37,9 @@ public:
     llvm::Function* getFunction() override;
     const llvm::Function* getFunction() const override;
 
+    bool areArgumentsFinalized() const;
+    bool areGlobalsFinalized() const;
+
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(const llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
@@ -91,12 +94,13 @@ public:
     const DependencyAnaliser::ArgumentDependenciesMap& getCallArgumentInfo(llvm::Function* F) const;
     DependencyAnaliser::GlobalVariableDependencyMap getCallGlobalsInfo(llvm::Function* F) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
-    DepInfo getOutArgDependencies(llvm::Argument* arg) const;
+    ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
-    const DepInfo& getRetValueDependencies() const;
+    const ValueDepInfo& getRetValueDependencies() const;
     bool hasGlobalVariableDepInfo(llvm::GlobalVariable* global) const;
-    const DepInfo& getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
-    DepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
+    ValueDepInfo getGlobalVariableDependencies(llvm::GlobalVariable* global) const;
+    ValueDepInfo getDependencyInfoFromBlock(llvm::Value* val, llvm::BasicBlock* block) const;
+    DepInfo getBlockDependencyInfo(llvm::BasicBlock* block) const;
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
     /// \}

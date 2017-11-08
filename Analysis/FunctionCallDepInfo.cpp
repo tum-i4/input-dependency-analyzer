@@ -1,4 +1,3 @@
-#include "FunctionCallDepInfo.h"
 #include "Utils.h"
 
 #include "llvm/IR/Function.h"
@@ -11,23 +10,29 @@ namespace input_dependency {
 
 namespace {
 
-DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepInfo>& actualDeps,
-                            const ValueSet& valueDeps)
+// Note, only the dependency info of a global value is going to be finalized, the dependencies of elements are not
+ValueDepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, ValueDepInfo>& actualDeps,
+                                 ValueSet& valueDeps)
 {
-    DepInfo resultInfo;
+    std::vector<llvm::Value*> values_to_erase;
+    ValueDepInfo resultInfo;
     for (auto& dep : valueDeps) {
         auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
-        // ??????????????
         if (global == nullptr) {
+            values_to_erase.push_back(dep);
             continue;
         }
-        assert(global != nullptr);
         auto pos = actualDeps.find(global);
         if (pos == actualDeps.end()) {
+            llvm::dbgs() << "Function call info finalization.\n"
+            << "    Function argument depends on global for which no input dep info is known. Global is: " << *global <<
+            "\n";
+            values_to_erase.push_back(global);
             continue;
         }
+        values_to_erase.push_back(global);
         assert(pos->second.isDefined());
-        DepInfo global_depInfo = pos->second;
+        ValueDepInfo global_depInfo = pos->second;
         ValueSet& globalDependencies = global_depInfo.getValueDependencies();
         if (global_depInfo.getDependency() == DepInfo::VALUE_DEP && !globalDependencies.empty()) {
             ValueSet seen;
@@ -70,6 +75,8 @@ DepInfo getFinalizedDepInfo(const std::unordered_map<llvm::GlobalVariable*, DepI
         //assert(!global_depInfo.isValueDep());
         resultInfo.mergeDependencies(global_depInfo);
     }
+    std::for_each(values_to_erase.begin(), values_to_erase.end(), [&valueDeps] (llvm::Value* val)
+    {valueDeps.erase(val);});
     return resultInfo;
 }
 
@@ -80,8 +87,8 @@ void finalizeArgDeps(const FunctionCallDepInfo::ArgumentDependenciesMap& actualD
     auto it = toFinalize.begin();
     // TODO: what about don't erase, set to input indep?
     while (it != toFinalize.end()) {
-        if (it->second.isInputIndep() ||(
-            it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies()))) {
+        if (it->second.isInputIndep() ||
+            (it->second.isInputArgumentDep() && !Utils::haveIntersection(actualDeps, it->second.getArgumentDependencies()))) {
             auto old = it;
             ++it;
             toFinalize.erase(old);
@@ -104,6 +111,9 @@ void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap&
         //assert(!finalDeps.isValueDep());
         if (item.second.getDependency() == DepInfo::VALUE_DEP) {
             item.second.setDependency(finalDeps.getDependency());
+        }
+        if (item.second.getDependency() == DepInfo::VALUE_DEP && item.second.getValueDependencies().empty()) {
+            item.second.setDependency(DepInfo::INPUT_INDEP);
         }
         item.second.mergeDependencies(finalDeps);
     }
@@ -338,12 +348,15 @@ FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobal
     return pos->second;
 }
 
-template <class Key>
-void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps)
+template<class Key>
+void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, ValueDepInfo>& argDeps)
 {
     DepInfo info(DepInfo::INPUT_DEP);
     for (auto& item : argDeps) {
-        item.second = info;
+        // if argument is input indep, do not make it input dependent
+        if (!item.second.isInputIndep()) {
+            item.second.updateCompositeValueDep(info);
+        }
     }
 }
 

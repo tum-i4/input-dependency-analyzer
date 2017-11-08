@@ -2,6 +2,7 @@
 
 #include "definitions.h"
 #include "DependencyInfo.h"
+#include "ValueDepInfo.h"
 #include "FunctionCallDepInfo.h"
 
 namespace llvm {
@@ -20,7 +21,7 @@ class IndirectCallSitesAnalysisResult;
 class DependencyAnaliser
 {
 public:
-    using ValueDependencies = std::unordered_map<llvm::Value*, DepInfo>;
+    using ValueDependencies = std::unordered_map<llvm::Value*, ValueDepInfo>;
     using ArgumentDependenciesMap = FunctionCallDepInfo::ArgumentDependenciesMap;
     using GlobalVariableDependencyMap = FunctionCallDepInfo::GlobalVariableDependencyMap;
     using FunctionCallsArgumentDependencies = std::unordered_map<llvm::Function*, FunctionCallDepInfo>;
@@ -56,27 +57,31 @@ protected:
     virtual void processInstruction(llvm::Instruction* inst);
     virtual void processPhiNode(llvm::PHINode* phi);
     virtual void processBitCast(llvm::BitCastInst* bitcast);
+    virtual void processGetElementPtrInst(llvm::GetElementPtrInst* getElPtr);
     virtual void processReturnInstr(llvm::ReturnInst* retInst);
     virtual void processBranchInst(llvm::BranchInst* branchInst);
     virtual void processStoreInst(llvm::StoreInst* storeInst);
     virtual void processCallInst(llvm::CallInst* callInst);
     virtual void processInvokeInst(llvm::InvokeInst* invokeInst);
-    virtual void processInstrForOutputArgs(llvm::Instruction* I);
     
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) = 0;
-    virtual DepInfo getValueDependencies(llvm::Value* value) = 0;
+    virtual ValueDepInfo getValueDependencies(llvm::Value* value) = 0;
+    virtual ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) = 0;
     virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) = 0;
     virtual DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) = 0;
     virtual void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
-    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info) = 0;
-    virtual void updateReturnValueDependencies(const DepInfo& info) = 0;
-    virtual DepInfo getDependenciesFromAliases(llvm::Value* val) = 0;
-    virtual DepInfo getRefInfo(llvm::LoadInst* loadInst) = 0;
-    virtual void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) = 0;
-    virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) = 0;
-    virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info) = 0;
+    virtual void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) = 0;
+    virtual void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) = 0;
+    virtual void updateCompositeValueDependencies(llvm::Value* value, llvm::Instruction* elInstr, const ValueDepInfo& info) = 0;
+    virtual void updateReturnValueDependencies(const ValueDepInfo& info) = 0;
+    virtual ValueDepInfo getRefInfo(llvm::Instruction* instr) = 0;
+    virtual void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
+    virtual void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info) = 0;
+    virtual void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
+    virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) = 0;
+    virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;
 
-    virtual DepInfo getArgumentValueDependecnies(llvm::Value* argVal);
+    virtual ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal);
     virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
     virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);
     /// \}
@@ -104,6 +109,8 @@ protected:
     void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& argDepMap);
 
 private:
+    void updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info);
+
     //TODO: make const
     ArgumentDependenciesMap gatherFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
     ArgumentDependenciesMap gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);
@@ -121,15 +128,17 @@ private:
     using ArgumentValueGetterByIndex = std::function<llvm::Value* (unsigned index)>;
     void updateFunctionInputDepOutArgDependencies(llvm::FunctionType* FType,
                                                   const ArgumentValueGetterByIndex& actualArgumentGetter);
+    void updateOutArgumentDependencies(llvm::Value* val, const ValueDepInfo& depInfo);
 
-    DepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
+    ValueDepInfo getArgumentActualValueDependencies(const ValueSet& valueDeps);
+    void resolveReturnedValueDependencies(ValueDepInfo& valueDeps, const ArgumentDependenciesMap& argDepInfo);
 
     void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
     void finalizeInstructions(const GlobalVariableDependencyMap& globalDeps);
     void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
 
 protected:
-    static DepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
+    static ValueDepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                  const ArgumentDependenciesMap& argDepInfo);
     static llvm::Value* getFunctionOutArgumentValue(llvm::Value* actualArg);
     static llvm::Value* getMemoryValue(llvm::Value* instrOp);
@@ -145,12 +154,11 @@ protected:
     bool m_globalsFinalized;
 
     ArgumentDependenciesMap m_outArgDependencies;
-    DepInfo m_returnValueDependencies;
+    ValueDepInfo m_returnValueDependencies;
     FunctionSet m_calledFunctions;
     FunctionCallsArgumentDependencies m_functionCallInfo;
-    InstrSet m_inputIndependentInstrs; // for debug purposes only
+    InstrSet m_inputIndependentInstrs;
     InstrDependencyMap m_inputDependentInstrs;
-
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;
     ValueDependencies m_initialDependencies;

@@ -33,16 +33,18 @@ public:
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
-    virtual void processReturnInstr(llvm::ReturnInst* retInst) override;
-    virtual void processBranchInst(llvm::BranchInst* branchInst) override;
-    virtual void processStoreInst(llvm::StoreInst* storeInst) override;
-    virtual DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
-    virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
-    virtual DepInfo getValueDependencies(llvm::Value* value) override;
+    void processReturnInstr(llvm::ReturnInst* retInst) override;
+    void processBranchInst(llvm::BranchInst* branchInst) override;
+    void processStoreInst(llvm::StoreInst* storeInst) override;
+    DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
+    DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
+    ValueDepInfo getValueDependencies(llvm::Value* value) override;
+    ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
 
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) override;
+    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) override;
+    void updateReturnValueDependencies(const ValueDepInfo& info) override;
     /// \}
 };
 

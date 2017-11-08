@@ -1,0 +1,12 @@
+main
+----------------------
+Input Dependent instructions: 12
+Input Independent instructions: 23
+Unknown instructions: 0
+Input dependent instructions' percent: 34%
+array.bc
+----------------------
+Input Dependent instructions: 12
+Input Independent instructions: 23
+Unknown instructions: 0
+Input dependent instructions' percent: 34%

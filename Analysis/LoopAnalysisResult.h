@@ -50,6 +50,7 @@ public:
     /// \name Interface to start analysis
     /// \{
 public:
+    DepInfo getBlockDependencies() const override;
     void gatherResults() override;
     void finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps) override;
@@ -71,10 +72,10 @@ public:
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool hasValueDependencyInfo(llvm::Value* val) const override;
-    const DepInfo& getValueDependencyInfo(llvm::Value* val) override;
+    ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
-    const DepInfo& getReturnValueDependencies() const override;
+    const ValueDepInfo& getReturnValueDependencies() const override;
     const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FCallsArgDeps& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
@@ -141,7 +142,7 @@ private:
     std::unordered_set<llvm::BasicBlock*> m_latches;
 
     DependencyAnaliser::ArgumentDependenciesMap m_outArgDependencies;
-    DepInfo m_returnValueDependencies;
+    ValueDepInfo m_returnValueDependencies;
     FCallsArgDeps m_functionCallInfo;
     FunctionSet m_calledFunctions;
     DependencyAnaliser::ValueDependencies m_initialDependencies;

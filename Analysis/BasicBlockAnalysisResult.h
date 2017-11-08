@@ -23,6 +23,12 @@ class BasicBlockAnalysisResult : public virtual DependencyAnalysisResult
                                , public DependencyAnaliser
 {
 public:
+    using ArgumentDependenciesMap = DependencyAnaliser::ArgumentDependenciesMap;
+    using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
+    using ValueDependencies = DependencyAnaliser::ValueDependencies;
+    using FunctionCallsArgumentDependencies = DependencyAnaliser::FunctionCallsArgumentDependencies;
+
+public:
     BasicBlockAnalysisResult(llvm::Function* F,
                              llvm::AAResults& AAR,
                              const VirtualCallSiteAnalysisResult& virtualCallsInfo,
@@ -39,6 +45,8 @@ public:
     virtual ~BasicBlockAnalysisResult() = default;
 
 public:
+    DepInfo getBlockDependencies() const override;
+
     void gatherResults() override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
@@ -51,15 +59,21 @@ public:
     /// \{
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
-    DepInfo getValueDependencies(llvm::Value* value) override;
+    ValueDepInfo getValueDependencies(llvm::Value* value) override;
+    ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
-    DepInfo getDependenciesFromAliases(llvm::Value* val) override;
-    DepInfo getRefInfo(llvm::LoadInst* loadInst) override;
-    void updateAliasesDependencies(llvm::Value* val, const DepInfo& info) override;
-    void updateModAliasesDependencies(llvm::StoreInst* storeInst, const DepInfo& info) override;
-    void updateRefAliasesDependencies(llvm::Instruction* instr, const DepInfo& info);
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) override;
+    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) override;
+    void updateCompositeValueDependencies(llvm::Value* value,
+                                          llvm::Instruction* elInstr,
+                                          const ValueDepInfo& info) override;
+    void updateReturnValueDependencies(const ValueDepInfo& info) override;
+    ValueDepInfo getRefInfo(llvm::Instruction* instr) override;
+    void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
+    void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info) override;
+    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
+    void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) override;
+    void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info);
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
     /// \}
@@ -67,21 +81,21 @@ protected:
     /// \name Implementation of DependencyAnalysisResult interface
     /// \{
 public:
-    void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
-    void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
+    void setInitialValueDependencies(const ValueDependencies& valueDependencies) override;
+    void setOutArguments(const ArgumentDependenciesMap& outArgs) override;
 
     bool isInputDependent(llvm::BasicBlock* block) const override;
-    bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
+    bool isInputDependent(llvm::BasicBlock* block, const ArgumentDependenciesMap& depArgs) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;
-    bool isInputDependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
+    bool isInputDependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
-    bool isInputIndependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
+    bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override;
 
     bool hasValueDependencyInfo(llvm::Value* val) const override;
-    const DepInfo& getValueDependencyInfo(llvm::Value* val) override;
+    ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
-    const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
-    const DepInfo& getReturnValueDependencies() const override;
+    const ValueDependencies& getValuesDependencies() const override;
+    const ValueDepInfo& getReturnValueDependencies() const override;
     const ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;

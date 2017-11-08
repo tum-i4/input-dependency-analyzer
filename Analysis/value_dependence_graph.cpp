@@ -129,23 +129,24 @@ void value_dependence_graph::build(DependencyAnaliser::ValueDependencies& valueD
             valueDeps[process_val] = item->second;
             item = valueDeps.find(process_val);
         }
+        auto item_dep = item->second.getValueDep();
         auto res = nodes.insert(std::make_pair(item->first, nodeT(new node(item->first))));
         nodeT& item_node = res.first->second;
 
         root->add_depends_on_value(item_node);
         item_node->add_dependent_value(root);
 
-        if (!item->second.isValueDep()) {
-            if (item->second.isInputDep()) {
+        if (!item_dep.isValueDep()) {
+            if (item_dep.isInputDep()) {
                 m_inputdeps.insert(item_node);
-            } else if (item->second.isInputIndep()) {
+            } else if (item_dep.isInputIndep()) {
                 m_inputindeps.insert(item_node);
             }
             m_leaves.insert(item_node);
             continue;
         }
 
-        auto& value_deps = item->second.getValueDependencies();
+        auto& value_deps = item_dep.getValueDependencies();
         std::vector<llvm::Value*> values_to_erase;
         for (auto& val : value_deps) {
             if (val == item->first) {

@@ -183,7 +183,7 @@ void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepRe
         auto& arguments = F->getArgumentList();
         DependencyAnaliser::ArgumentDependenciesMap arg_deps;
         for (auto& arg : arguments) {
-            arg_deps.insert(std::make_pair(&arg, DepInfo(DepInfo::INPUT_DEP)));
+            arg_deps.insert(std::make_pair(&arg, ValueDepInfo(arg.getType(), DepInfo(DepInfo::INPUT_DEP))));
         }
         f_analiser->finalizeArguments(arg_deps);
         return;
@@ -223,7 +223,17 @@ DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunction
             // assert?
             continue;
         }
-        const auto& callInfo = f_analiser->getCallArgumentInfo(F);
+        auto callInfo = f_analiser->getCallArgumentInfo(F);
+        if (!f_analiser->areArgumentsFinalized()) {
+            // if callee is finalized before caller, means caller was analized before callee.
+            // this on its turn means callee callArgumentDeps should be input dep.
+            // proper fix would be making sure caller is finalized before callee
+            for (auto& item : callInfo) {
+                if (item.second.isValueDep() || item.second.isInputArgumentDep()) {
+                    item.second = ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+                }
+            }
+        }
         mergeDependencyMaps(argDeps, callInfo);
     }
     return argDeps;
@@ -247,7 +257,13 @@ DependencyAnaliser::GlobalVariableDependencyMap InputDependencyAnalysis::getFunc
         if (!f_analiser) {
             continue;
         }
-        const auto& globalsInfo = f_analiser->getCallGlobalsInfo(F);
+        auto globalsInfo = f_analiser->getCallGlobalsInfo(F);
+        if (!f_analiser->areGlobalsFinalized()) {
+            // See comment in getFunctionCallInfo
+            for (auto& item : globalsInfo) {
+                item.second = ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+            }
+        }
         mergeDependencyMaps(globalDeps, globalsInfo);
     }
     addMissingGlobalsInfo(F, globalDeps);
@@ -262,11 +278,10 @@ void InputDependencyAnalysis::mergeDependencyMaps(DependencyMapType& mergeTo, co
         assert(item.second.isDefined());
         //assert(item.second.isInputDep() || item.second.isInputIndep() || item.second.isInputArgumentDep());
         auto res = mergeTo.insert(item);
-        if (res.second) {
-            continue;
+        if (!res.second) {
+            res.first->second.mergeDependencies(item.second);
         }
-        res.first->second.mergeDependencies(item.second);
-        assert(res.first->second.isInputDep() || res.first->second.isInputArgumentDep());
+        assert(!res.first->second.isValueDep());
     }
 }
 
@@ -297,7 +312,7 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
                 continue;
             }
         }
-        globalDeps[global] = DepInfo(DepInfo::INPUT_INDEP);
+        globalDeps[global] = ValueDepInfo(global->getType(), DepInfo(DepInfo::INPUT_INDEP));
     }
 }
 

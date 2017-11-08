@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DependencyInfo.h"
+#include "ValueDepInfo.h"
 
 namespace llvm {
 
@@ -16,8 +16,8 @@ namespace input_dependency {
 class FunctionCallDepInfo
 {
 public:
-    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, DepInfo>;
-    using GlobalVariableDependencyMap = std::unordered_map<llvm::GlobalVariable*, DepInfo>;
+    using ArgumentDependenciesMap = std::unordered_map<llvm::Argument*, ValueDepInfo>;
+    using GlobalVariableDependencyMap = std::unordered_map<llvm::GlobalVariable*, ValueDepInfo>;
     using CallSiteArgumentsDependenciesMap = std::unordered_map<const llvm::Instruction*, ArgumentDependenciesMap>;
     using CallSiteGloblasDependenciesMap = std::unordered_map<const llvm::Instruction*, GlobalVariableDependencyMap>;
 
@@ -74,7 +74,7 @@ private:
     void addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps);
 
     template <class Key>
-    void markAllInputDependent(std::unordered_map<Key, DepInfo>& argDeps);
+    void markAllInputDependent(std::unordered_map<Key, ValueDepInfo>& argDeps);
 
 private:
     const llvm::Function* m_F;

@@ -1,7 +1,7 @@
 #include "CLibraryInfo.h"
 #include "LibFunctionInfo.h"
 
-namespace {
+namespace input_dependency {
 
 namespace C_library {
 
@@ -29,6 +29,7 @@ const std::string& strlen = "strlen";
 
 const std::string& malloc = "malloc";
 const std::string& calloc = "calloc";
+const std::string& memcpy = "memcpy";
 const std::string& new_operator = "operator new(unsigned long)";
 
 const std::string& exit = "exit";
@@ -47,10 +48,6 @@ const std::string& fread = "fread";
 const std::string& fclose = "fclose";
 } // namespace C_library
 
-}
-
-namespace input_dependency {
-
 void CLibraryInfo::setup()
 {
     add_printf();
@@ -62,7 +59,7 @@ void CLibraryInfo::setup()
     add_fwrite();
     add_fputc();
     add_snprintf();
-    add_sprintf();
+    //add_sprintf();
     add_sscanf();
     add_puts();
     //<cstdlib>
@@ -77,6 +74,7 @@ void CLibraryInfo::setup()
     add_strlen();
     add_malloc();
     add_calloc();
+    add_memcpy();
 
     add_new_operator();
 
@@ -301,6 +299,17 @@ void CLibraryInfo::add_calloc()
                                LibFunctionInfo::LibArgumentDependenciesMap(),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
     m_libFunctionInfoProcessor(std::move(callocInfo));
+}
+
+void CLibraryInfo::add_memcpy()
+{
+    // void * memcpy ( void * destination, const void * source, size_t num );
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1, 2}, argDeps);
+    LibFunctionInfo memcpy(C_library::memcpy,
+                           argDeps,
+                           LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(memcpy));
 }
 
 void CLibraryInfo::add_new_operator()

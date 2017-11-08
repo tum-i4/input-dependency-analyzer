@@ -43,16 +43,16 @@ public:
 
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     void markAllInputDependent() override;
+    void setOutArguments(const ArgumentDependenciesMap& outArgs) override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateReturnValueDependencies(const DepInfo& info) override;
+    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
 
 private:
-    void processInstrForOutputArgs(llvm::Instruction* I) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr);
     void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F) override;
     void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F) override;
@@ -65,9 +65,9 @@ private:
     void updateValueDependentCallReferencedGlobals(llvm::CallInst* callInst, llvm::Function* F);
     void updateValueDependentInvokeReferencedGlobals(llvm::InvokeInst* invokeInst, llvm::Function* F);
 
-    void reflect(llvm::Value* value, const DepInfo& deps);
+    void reflect(llvm::Value* value, const ValueDepInfo& deps);
     void reflectOnValues(llvm::Value* value, const DepInfo& depInfo);
-    void reflectOnInstructions(llvm::Value* value, const DepInfo& depInfo);
+    void reflectOnInstructions(llvm::Value* value, const ValueDepInfo& depInfo);
     void reflectOnOutArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionArguments(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnCalledFunctionReferencedGlobals(llvm::Value* value, const DepInfo& depInfo);
@@ -76,6 +76,10 @@ private:
     void reflectOnReturnValue(llvm::Value* value, const DepInfo& depInfo);
     void reflectOnDepInfo(llvm::Value* value,
                           DepInfo& depInfoTo,
+                          const DepInfo& depInfoFrom,
+                          bool eraseAfterReflection = true);
+    void reflectOnDepInfo(llvm::Value* value,
+                          ValueDepInfo& depInfoTo,
                           const DepInfo& depInfoFrom,
                           bool eraseAfterReflection = true);
     void resolveValueDependencies(const DependencyAnaliser::ValueDependencies& successorDependencies,

@@ -3,6 +3,7 @@
 #include "ReflectingBasicBlockAnaliser.h"
 #include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicReflectingBasicBlockAnaliser.h"
+#include "LoopTraversalPath.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
 
@@ -25,203 +26,6 @@
 
 namespace input_dependency {
 
-namespace {
-class LoopTraversalPathCreator
-{
-public:
-    using LoopPathType = std::list<llvm::BasicBlock*>;
-
-public:
-    LoopTraversalPathCreator(llvm::LoopInfo& LI,
-                             llvm::Loop& L);
-
-public:
-    LoopPathType& getPath()
-    {
-        return m_path;
-    }
-public:
-    void construct();
-
-private:
-    bool add_predecessors(llvm::BasicBlock* block, LoopPathType& blocks);
-    void add_successors(llvm::BasicBlock* block,
-                        const std::unordered_set<llvm::BasicBlock*>& seen_blocks,
-                        LoopPathType& blocks);
-    void add_to_path(llvm::BasicBlock* block);
-
-private:
-    llvm::LoopInfo& m_LI;
-    llvm::Loop& m_L;
-    std::unordered_set<llvm::BasicBlock*> m_uniquify_map;
-    LoopPathType m_path;
-};
-
-LoopTraversalPathCreator::LoopTraversalPathCreator(llvm::LoopInfo& LI, llvm::Loop& L)
-    : m_LI(LI)
-    , m_L(L)
-{
-}
-
-void LoopTraversalPathCreator::construct()
-{
-    std::list<llvm::BasicBlock*> blocks;
-    std::unordered_set<llvm::BasicBlock*> seen_blocks;
-
-    blocks.push_back(m_L.getHeader());
-    while (!blocks.empty()) {
-        auto block = blocks.back();
-        if (m_uniquify_map.find(block) != m_uniquify_map.end()) {
-            blocks.pop_back();
-            continue;
-        }
-        // if seen assume all predecessors has been added
-        if (seen_blocks.find(block) == seen_blocks.end()) {
-            bool preds_added = add_predecessors(block, blocks);
-            if (!preds_added) {
-                seen_blocks.insert(block);
-                continue;
-            }
-        }
-        add_to_path(block);
-        blocks.pop_back();
-        add_successors(block, seen_blocks, blocks);
-    }
-
-}
-
-bool LoopTraversalPathCreator::add_predecessors(llvm::BasicBlock* block,
-                                                LoopPathType& blocks)
-{
-    auto block_loop = m_LI.getLoopFor(block);
-    if (block_loop && block_loop->getHeader() == block && block_loop->getLoopDepth() == 1) {
-        return true;
-    }
-    auto pred = pred_begin(block);
-    bool preds_added = true;
-    // add notion of seen blocks, not to traverse pred's second time
-    while (pred != pred_end(block)) {
-        auto pred_loop = m_LI.getLoopFor(*pred);
-        if (pred_loop == nullptr) {
-            ++pred;
-            continue;
-        }
-        if (m_uniquify_map.find(*pred) != m_uniquify_map.end()) {
-            ++pred;
-            continue;
-        }
-        if (pred_loop != &m_L) {
-            // predecessor is in outer loop, outer loops are already processed
-            if (pred_loop->contains(&m_L)) {
-                ++pred;
-                assert(m_L.getHeader() == block);
-                continue;
-            }
-            auto pred_loop_head = pred_loop->getHeader();
-            if (m_uniquify_map.find(pred_loop_head) != m_uniquify_map.end()) {
-                ++pred;
-                continue;
-            } else {
-                preds_added = false;
-                blocks.push_back(pred_loop_head);
-            }
-        } else {
-            preds_added = false;
-            blocks.push_back(*pred);
-        }
-        ++pred;
-    }
-    return preds_added;
-}
-
-void LoopTraversalPathCreator::add_successors(llvm::BasicBlock* block,
-                                              const std::unordered_set<llvm::BasicBlock*>& seen_blocks,
-                                              LoopPathType& blocks)
-{
-    auto succ = succ_begin(block);
-    auto block_loop = m_LI.getLoopFor(block);
-    while (succ != succ_end(block)) {
-        if (seen_blocks.find(*succ) != seen_blocks.end()) {
-            ++succ;
-            continue;
-        }
-        if (m_uniquify_map.find(*succ) != m_uniquify_map.end()) {
-            ++succ;
-            continue;
-        }
-        auto succ_loop = m_LI.getLoopFor(*succ);
-        if (succ_loop == nullptr) {
-            // getLoopFor should be constant time, as denseMap is implemented as hash table 
-            // is_loopExiting is not constant
-            //assert(m_LI.getLoopFor(block)->isLoopExiting(block));
-            ++succ;
-            continue;
-        }
-        if (succ_loop != &m_L) {
-            if (succ_loop->getHeader() != *succ) {
-                if (succ_loop->contains(&m_L)) {
-                    // is_loopExiting is not constant
-                    //assert(m_L.isLoopExiting(block));
-                } else if (m_L.contains(succ_loop)) {
-                    // assert block is subloop head
-                    if (succ_loop->getHeader() != block) {
-                        //llvm::dbgs() << "bo " << block->getName() << "\n";
-                        //llvm::dbgs() << m_L.getHeader()->getName() << " "
-                        //             << succ_loop->getHeader()->getName() << "\n";
-                        bool is_valid = succ_loop->isLoopExiting(block);
-                        is_valid |= block_loop->getParentLoop()->isLoopExiting(block);
-                        assert(is_valid);
-                        ++succ;
-                        continue;
-                    }
-                    assert(succ_loop->getHeader() == block);
-                }
-                ++succ;
-                continue;
-            }
-        }
-        blocks.push_front(*succ);
-        ++succ;
-    }
-    if (block_loop != &m_L && block_loop->getHeader() == block && m_L.contains(block_loop)
-        && block_loop->getLoopDepth() - m_L.getLoopDepth() == 1) {
-        llvm::SmallVector<llvm::BasicBlock*, 10> exit_blocks;
-        block_loop->getExitingBlocks(exit_blocks);
-        for (const auto& exit_b : exit_blocks) {
-            //llvm::dbgs() << "   " << exit_b->getName() << "\n";
-            // With using evil goto statements, it is possible to exit a loop at any level from a loop at any inner level.
-            // E.g. the inner most loop may exit the outer most loop.
-            // Of course, still the exiting loop should be contained in a loop which will exit
-            // we are not adding exit blocks, which are not directly contained by a current loop,
-            // or any loop which is directly contained in by a current loop.
-            auto exitLoop = m_LI.getLoopFor(exit_b);
-            if (exitLoop == nullptr || Utils::getLoopDepthDiff(exitLoop, &m_L) != 1) {
-                llvm::dbgs() << "Skipping exit block " << exit_b->getName() << "\n";
-                continue;
-            }
-            blocks.push_front(exit_b);
-        }
-        //blocks.insert(blocks.begin(), exit_blocks.begin(), exit_blocks.end());
-    }
-}
-
-
-void LoopTraversalPathCreator::add_to_path(llvm::BasicBlock* block)
-{
-    auto block_loop = m_LI.getLoopFor(block);
-    assert(block_loop != nullptr);
-    // comparing header is cheaper than isLoopHeader
-    if (block_loop != &m_L && block_loop->getHeader() != block) {
-        // assume the header of loop has been processed, hence is in m_uniquify_map
-        assert(m_uniquify_map.find(block_loop->getHeader()) != m_uniquify_map.end());
-        return;
-    }
-    m_path.push_back(block);
-    m_uniquify_map.insert(block);
-}
-
-}
-
 LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                        llvm::AAResults& AAR,
                                        const llvm::PostDominatorTree& PDom,
@@ -240,6 +44,7 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
                                 , m_FAG(Fgetter)
                                 , m_L(L)
                                 , m_LI(LI)
+                                , m_returnValueDependencies(F->getReturnType())
                                 , m_globalsUpdated(false)
                                 , m_isReflected(false)
                                 , m_is_inputDep(false)
@@ -249,6 +54,11 @@ LoopAnalysisResult::LoopAnalysisResult(llvm::Function* F,
     m_L.getLoopLatches(loop_latches);
     m_latches.insert(loop_latches.begin(), loop_latches.end());
     loop_latches.clear();
+}
+
+DepInfo LoopAnalysisResult::getBlockDependencies() const
+{
+    return m_loopDependencies;
 }
 
 void LoopAnalysisResult::gatherResults()
@@ -416,17 +226,20 @@ bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
     return m_initialDependencies.find(val) != m_initialDependencies.end();
 }
 
-const DepInfo& LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
+ValueDepInfo LoopAnalysisResult::getValueDependencyInfo(llvm::Value* val)
 {
-    auto pos = m_valueDependencies.find(val);
-    if (pos != m_valueDependencies.end()) {
-        return pos->second;
+    auto pos = m_valueDependencies.find(val);		
+    if (pos != m_valueDependencies.end()) {		
+        return pos->second;		
+    }		
+    auto initial_val_pos = m_initialDependencies.find(val);		
+    if (initial_val_pos == m_initialDependencies.end()) {
+        return ValueDepInfo();
     }
-    auto initial_val_pos = m_initialDependencies.find(val);
-    assert(initial_val_pos != m_initialDependencies.end());
-    // add referenced value
-    m_valueDependencies[val] = initial_val_pos->second;
-    return initial_val_pos->second;
+    // add referenced value		
+    DepInfo info = initial_val_pos->second.getValueDep();		
+    auto insert_res = m_valueDependencies.insert(std::make_pair(val, ValueDepInfo(val->getType(), info)));		
+    return insert_res.first->second;
 }
 
 DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr) const
@@ -446,6 +259,9 @@ DepInfo LoopAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)
         }
     }
     pos = m_BBAnalisers.find(parentBB);
+    if (pos == m_BBAnalisers.end()) {
+        //return DepInfo();
+    }
     assert(pos != m_BBAnalisers.end());
     return pos->second->getInstructionDependencies(instr);
 }
@@ -455,7 +271,7 @@ const DependencyAnaliser::ValueDependencies& LoopAnalysisResult::getValuesDepend
     return m_valueDependencies;
 }
 
-const DepInfo& LoopAnalysisResult::getReturnValueDependencies() const
+const ValueDepInfo& LoopAnalysisResult::getReturnValueDependencies() const
 {
     return m_returnValueDependencies;
 }
@@ -622,19 +438,21 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
         auto pos = m_BBAnalisers.find(*pred);
         if (pos == m_BBAnalisers.end()) {
             auto pred_loop = m_LI.getLoopFor(*pred);
-            if (pred_loop == &m_L) {
+            if (!pred_loop || pred_loop == &m_L) {
                 // predecessor is latch
                 ++pred;
                 continue;
             }
-            if (pred_loop == nullptr) {
-                //llvm::dbgs() << "Block " << B->getName() << ". Null for pred " << (*pred)->getName() << "\n";
-                ++pred;
+            // predecessor is in another loop (nested loop)
+            // in case if pred_loop is not direct child of m_L go up in loop hierarchy until reaches to direct child
+            auto pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
+            while (pred_loop && pred_pos == m_BBAnalisers.end()) {
+                pred_loop = pred_loop->getParentLoop();
+                pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
+            }
+            if (!pred_loop || pred_pos == m_BBAnalisers.end()) {
                 continue;
             }
-            // predecessor is in another loop (nested loop)
-            auto pred_pos = m_BBAnalisers.find(pred_loop->getHeader());
-            assert(pred_pos != m_BBAnalisers.end());
             valueDeps = pred_pos->second->getValuesDependencies();
         } else {
             valueDeps = pos->second->getValuesDependencies();
@@ -642,7 +460,7 @@ DependencyAnaliser::ValueDependencies LoopAnalysisResult::getBasicBlockPredecess
         for (auto& dep : valueDeps) {
             auto pos = deps.insert(dep);
             if (!pos.second) {
-                pos.first->second.mergeDependencies(dep.second);
+                pos.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
             }
         }
         ++pred;
@@ -732,15 +550,14 @@ void LoopAnalysisResult::updateReturnValueDependencies()
 
 void LoopAnalysisResult::updateOutArgumentDependencies()
 {
-    // Out args are the same for all blocks,
-    // after reflection all blocks will contains same information for out args.
-    // So just pick one of blocks (say header) and get dep info from it
-    auto BB = m_L.getHeader();
-    const auto& outArgs = m_BBAnalisers[BB]->getOutParamsDependencies();
-    for (const auto& item : outArgs) {
-        auto pos = m_outArgDependencies.find(item.first);
-        assert(pos != m_outArgDependencies.end());
-        pos->second = item.second;
+    // latches should contain all the info
+    for (const auto& latch : m_latches) {
+        const auto& outArgs = m_BBAnalisers[latch]->getOutParamsDependencies();
+        for (const auto& item : outArgs) {
+            auto pos = m_outArgDependencies.find(item.first);
+            assert(pos != m_outArgDependencies.end());
+            pos->second.mergeDependencies(item.second);
+        }
     }
 }
 
@@ -750,7 +567,10 @@ void LoopAnalysisResult::updateValueDependencies()
     for (const auto& BB_analiser : m_BBAnalisers) {
         const auto& valuesDeps = BB_analiser.second->getValuesDependencies();
         for (const auto& item : valuesDeps) {
-            m_valueDependencies[item.first].mergeDependencies(item.second);
+            auto pos = m_valueDependencies.insert(item);
+            if (!pos.second) {
+                pos.first->second.mergeDependencies(item.second);
+            }
         }
     }
 }
@@ -759,7 +579,10 @@ void LoopAnalysisResult::updateValueDependencies(llvm::BasicBlock* B)
 {
     const auto& block_deps = m_BBAnalisers[B]->getValuesDependencies();
     for (const auto& val : block_deps) {
-        m_valueDependencies[val.first] = val.second;
+        auto pos = m_valueDependencies.insert(val);
+        if (!pos.second) {
+            pos.first->second = val.second;
+        }
     }
 }
 
@@ -797,12 +620,15 @@ void LoopAnalysisResult::reflect()
                 llvm::dbgs() << "Can't find loop for latch " << latch->getName() << "\n";
             }
         }
+        if (pos == m_BBAnalisers.end()) {
+            llvm::dbgs() << "blah " << latch->getName() << "\n";
+        }
         assert(pos != m_BBAnalisers.end());
         auto valueDeps = pos->second->getValuesDependencies();
         for (const auto& dep : valueDeps) {
             auto res = valueDependencies.insert(dep);
             if (!res.second) {
-                res.first->second.mergeDependencies(dep.second);
+                res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
             }
         }
     }
@@ -895,7 +721,7 @@ void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::Argu
         for (auto& loopDep : loop_dependencies) {
             auto dep = m_valueDependencies.find(loopDep);
             if (dep != m_valueDependencies.end()) {
-                m_loopDependencies.mergeDependencies(dep->second);
+                m_loopDependencies.mergeDependencies(dep->second.getValueDep());
             }
         }
     }
@@ -938,6 +764,15 @@ bool LoopAnalysisResult::checkForLoopDependencies(llvm::BasicBlock* B)
     if (!isSpecialLoopBlock(B)) {
         return false;
     }
+    const auto& termInstr = B->getTerminator();
+    if (termInstr) {
+        auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(termInstr);
+        if (branchInst && !branchInst->isUnconditional()) {
+            if (m_BBAnalisers[B]->isInputDependent(termInstr)) {
+                return true;
+            }
+        }
+    }
     if (checkForLoopDependencies(m_BBAnalisers[B]->getValuesDependencies())) {
         return true;
     }
@@ -949,7 +784,7 @@ bool LoopAnalysisResult::checkForLoopDependencies(const DependencyAnaliser::Valu
     for (const auto& loopDep : m_loopDependencies.getValueDependencies()) {
         auto pos = valuesDeps.find(loopDep);
         if (pos != valuesDeps.end()) {
-            if (pos->second.isInputDep()) {
+            if (pos->second.getValueDep().isInputDep()) {
                 return true;
             }
         }
@@ -998,9 +833,10 @@ DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const
         postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
         ++pred;
     }
-    llvm::BasicBlock* header = m_L.getHeader();
-    auto header_node = m_postDomTree[header];
-    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
+    // for a normal loops this will never be true, as there always is another path from loop header to exit block
+    //llvm::BasicBlock* header = m_L.getHeader();
+    //auto header_node = m_postDomTree[header];
+    //postdominates_all_predecessors &= m_postDomTree.dominates(b_node, header_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }

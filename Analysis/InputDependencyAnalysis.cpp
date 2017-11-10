@@ -3,6 +3,7 @@
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepInstructionsRecorder.h"
 #include "FunctionAnaliser.h"
+#include "InputDepConfig.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -26,13 +27,25 @@
 
 namespace input_dependency {
 
+static llvm::cl::opt<bool> goto_unsafe(
+    "goto-unsafe",
+    llvm::cl::desc("Process irregular CFG in an unsafe way"),
+    llvm::cl::value_desc("boolean flag"));
+
+void configure_run()
+{
+    InputDepInstructionsRecorder::get().set_record();
+    InputDepConfig().get().set_goto_unsafe(goto_unsafe);
+}
+
 char InputDependencyAnalysis::ID = 0;
 
 bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 {
+    InputDepConfig().get().set_goto_unsafe(goto_unsafe);
     // Disable later
     llvm::dbgs() << "Running input dependency analysis pass\n";
-    InputDepInstructionsRecorder::get().set_record();
+    configure_run();
 
     m_module = &M;
     llvm::Optional<llvm::BasicAAResult> BAR;

@@ -10,6 +10,8 @@
 #include "Utils.h"
 #include "ClonedFunctionAnalysisResult.h"
 #include "CFGTraversalPath.h"
+#include "InputDepConfig.h"
+#include "exception.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -429,13 +431,14 @@ void FunctionAnaliser::Impl::analize()
     auto tic = Clock::now();
     collectArguments();
 
-    CFGTraversalPathCreator traversalPath(m_F, &m_LI);
+    CFGTraversalPathCreator traversalPath(*m_F, m_LI);
     traversalPath.construct(CFGTraversalPathCreator::CFG);
     const auto& blocks_in_traversal_order = traversalPath.getBlocksInOrder();
     m_loopBlocks= traversalPath.getBlocksLoops();
     llvm::BasicBlock* bb;
     for (auto& block : blocks_in_traversal_order) {
         bb = block.first;
+        //llvm::dbgs() << "process block: " << bb->getName() << "\n";
         const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
         if (block.second) {
             m_BBAnalysisResults[bb].reset(createLoopAnalysisResult(depInfo, block.second));
@@ -664,10 +667,18 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
         }
         const auto& BBA = getAnalysisResult(pb);
         if (BBA == nullptr) {
-            llvm::dbgs() << "Warning: " << B->getName() << " predecessor " << pb->getName() << " has not been analized.\n";
-            // means block is in a loop or has not been analysed yet.
-            // This happens for functions with irregular CFGs, where predecessor block comes after the current
-            // block. TODO: for this case see if can be fixed by employing different CFG traversal approach
+            // means either block is in a loop, or cfg is broken. For the first case is safe to continue.
+            // For the second case throw exception or continue based on run configuration
+            // TODO: is it safe for loop case to assert that the loop of pred is the same as for B?
+            if (!m_LI.getLoopFor(pb) && !InputDepConfig::get().is_goto_unsafe()) {
+                // use stringstream to build message
+                std::string msg = B->getName();
+                msg += " predecessor ";
+                msg +=  pb->getName();
+                msg += " has not been analized.";
+                llvm::dbgs() << msg << "\n";
+                throw IrregularCFGException(msg);
+            }
             ++pred;
             continue;
         }

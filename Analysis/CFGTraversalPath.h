@@ -7,6 +7,7 @@ namespace llvm {
 class BasicBlock;
 class Loop;
 class LoopInfo;
+class PostDominatorTree;
 class Function;
 }
 
@@ -24,7 +25,8 @@ public:
     using BlockToLoopMap =  std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*>;
 
 public:
-    CFGTraversalPathCreator(llvm::Function* F, llvm::LoopInfo* LI);
+    CFGTraversalPathCreator(llvm::Function& F,
+                            llvm::LoopInfo& LI);
 
     const BlocksInTraversalOrder& getBlocksInOrder() const;
     BlocksInTraversalOrder& getBlocksInOrder();
@@ -37,8 +39,8 @@ private:
     void construct_with_cfg();
 
 private:
-    llvm::Function* m_F;
-    llvm::LoopInfo* m_LI;
+    llvm::Function& m_F;
+    llvm::LoopInfo& m_LI;
     BlocksInTraversalOrder m_blockOrder;
     BlockToLoopMap m_loopBlocks;
 

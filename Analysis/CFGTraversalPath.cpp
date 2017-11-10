@@ -14,7 +14,8 @@
 
 namespace input_dependency {
 
-CFGTraversalPathCreator::CFGTraversalPathCreator(llvm::Function* F, llvm::LoopInfo* LI)
+CFGTraversalPathCreator::CFGTraversalPathCreator(llvm::Function& F,
+                                                 llvm::LoopInfo& LI) 
     : m_F(F)
     , m_LI(LI)
 {
@@ -55,7 +56,7 @@ void CFGTraversalPathCreator::construct_with_scc()
 {
     typedef llvm::scc_iterator<llvm::BasicBlock*> BB_scc_iterator;;
     BlocksInTraversalOrder blocks_in_order;
-    llvm::BasicBlock* block = &m_F->front();
+    llvm::BasicBlock* block = &m_F.front();
     auto it = BB_scc_iterator::begin(block);
     llvm::BasicBlock* bb = nullptr;
     llvm::Loop* currentLoop;
@@ -65,11 +66,11 @@ void CFGTraversalPathCreator::construct_with_scc()
         bb = *scc_blocks.begin();
         if (scc_blocks.size() > 1) {
             is_loop_block = true;
-            llvm::Loop* bb_loop = m_LI->getLoopFor(bb);
+            llvm::Loop* bb_loop = m_LI.getLoopFor(bb);
             if (!bb_loop) {
                 llvm::dbgs() << "SCC node with multiple blocks, not constructing a loop\n";
                 for (const auto& b : scc_blocks) {
-                    llvm::Loop* loop = m_LI->getLoopFor(b);
+                    llvm::Loop* loop = m_LI.getLoopFor(b);
                     if (!loop) {
                         //llvm::dbgs() << "no loop for block " << b->getName() << ". adding as single block\n";
                         m_blockOrder.push_front(std::make_pair(b, nullptr));
@@ -130,14 +131,17 @@ void CFGTraversalPathCreator::construct_with_cfg()
 {
     std::list<llvm::BasicBlock*> work_list;
     std::unordered_set<llvm::BasicBlock*> processed_blocks;
-    work_list.push_front(&m_F->getEntryBlock());
+    work_list.push_front(&m_F.getEntryBlock());
+    // value block waits for key block. Means key block is non-processed predecessor of value block
+    std::unordered_map<llvm::BasicBlock*, llvm::BasicBlock*> waiting_map;
     while (!work_list.empty()) {
         llvm::BasicBlock* block = work_list.front();
+        //llvm::dbgs() << "block: " << block->getName() << "\n";
         work_list.pop_front();
         if (!processed_blocks.insert(block).second) {
             continue;
         }
-        llvm::Loop* loop = m_LI->getLoopFor(block);
+        llvm::Loop* loop = m_LI.getLoopFor(block);
         while (loop && loop->getLoopDepth() != 1) {
             loop = loop->getParentLoop();
         }
@@ -150,27 +154,50 @@ void CFGTraversalPathCreator::construct_with_cfg()
             m_blockOrder.push_back(std::make_pair(block, nullptr));
         }
         auto succ_it = succ_begin(block);
+        std::vector<llvm::BasicBlock*> successors_to_add;
+        std::vector<llvm::BasicBlock*> successors_from_waiting_map;
         while (succ_it != succ_end(block)) {
+            //llvm::dbgs() << (*succ_it)->getName() << "\n";
             auto pred_it = pred_begin(*succ_it);
             bool add_successor = true;
             while (pred_it != pred_end(*succ_it)) {
                 auto pred = *pred_it;
+                //llvm::dbgs() << pred->getName() << "\n";
                 if (processed_blocks.find(pred) != processed_blocks.end()) {
                     ++pred_it;
                     continue;
                 }
-                auto pred_loop = m_LI->getLoopFor(pred);
+                auto pred_loop = m_LI.getLoopFor(pred);
                 if (pred_loop && pred_loop->getHeader() == *succ_it) {
                     ++pred_it;
                     continue;
                 }
+                auto wait_pos = waiting_map.find(*succ_it);
+                if (wait_pos != waiting_map.end()) {
+                    // someone already waits for this block, and it waits for another block.
+                    // this might be a sign of broken loop.
+                    // add this block, because otherwise can lead to deadlock like situation
+                    successors_from_waiting_map.push_back(*succ_it);
+                    add_successor = false;
+                    ++pred_it;
+                    continue;
+                }
+
+                waiting_map.insert(std::make_pair(pred, *succ_it));
                 add_successor = false;
                 break;
             }
             if (add_successor) {
-                work_list.push_back(*succ_it);
+                successors_to_add.push_back(*succ_it);
             }
             ++succ_it;
+        }
+        if (!successors_to_add.empty()) {
+            work_list.insert(work_list.end(), successors_to_add.begin(), successors_to_add.end());
+        } else if (!successors_from_waiting_map.empty()) {
+            work_list.insert(work_list.end(), successors_from_waiting_map.begin(), successors_from_waiting_map.end());
+            std::for_each(successors_from_waiting_map.begin(), successors_from_waiting_map.end(),
+                          [&waiting_map] (llvm::BasicBlock* block) {waiting_map.erase(block);});
         }
     }
 }

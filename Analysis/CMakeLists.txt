@@ -32,6 +32,7 @@ add_library(InputDependency MODULE
     LoopTraversalPath.cpp
     CFGTraversalPath.cpp
     LLVMIntrinsicsInfo.cpp
+    BasicBlocksUtils.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

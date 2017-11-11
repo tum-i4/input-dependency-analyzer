@@ -7,6 +7,7 @@
 #include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicBasicBlockAnaliser.h"
 #include "IndirectCallSitesAnalysis.h"
+#include "BasicBlocksUtils.h"
 #include "Utils.h"
 #include "ClonedFunctionAnalysisResult.h"
 #include "CFGTraversalPath.h"
@@ -95,18 +96,8 @@ class FunctionAnaliser::Impl
 {
 public:
     Impl(llvm::Function* F,
-         llvm::AAResults& AAR,
-         llvm::LoopInfo& LI,
-         const llvm::PostDominatorTree& PDom,
-         const VirtualCallSiteAnalysisResult& virtualCallsInfo,
-         const IndirectCallSitesAnalysisResult& indirectCallsInfo,
          const FunctionAnalysisGetter& getter)
         : m_F(F)
-        , m_AAR(AAR)
-        , m_LI(LI)
-        , m_postDomTree(PDom)
-        , m_virtualCallsInfo(virtualCallsInfo)
-        , m_indirectCallsInfo(indirectCallsInfo)
         , m_FAGetter(getter)
         , m_returnValueDependencies(F->getReturnType())
         , m_argumentsFinalized(false)
@@ -118,6 +109,61 @@ public:
     void setFunction(llvm::Function* F)
     {
         m_F = F;
+    }
+
+    void setAAResults(llvm::AAResults* AAR)
+    {
+        m_AAR = AAR;
+    }
+
+    void setLoopInfo(llvm::LoopInfo* LI)
+    {
+        m_LI = LI;
+    }
+
+    void setPostDomTree(const llvm::PostDominatorTree* PDom)
+    {
+        m_postDomTree = PDom;
+    }
+
+    void setDomTree(const llvm::DominatorTree* dom)
+    {
+        m_domTree = dom;
+    }
+
+    void setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallsInfo)
+    {
+        m_virtualCallsInfo = virtualCallsInfo;
+    }
+
+    void setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallsInfo)
+    {
+        m_indirectCallsInfo = indirectCallsInfo;
+    }
+
+    FunctionSet getCallSitesData() const
+    {
+        return m_calledFunctions;
+    }
+
+    llvm::Function* getFunction()
+    {
+        return m_F;
+    }
+
+    const llvm::Function* getFunction() const
+    {
+        return m_F;
+    }
+
+    bool areArgumentsFinalized() const
+    {
+        return m_argumentsFinalized;
+    }
+
+    bool areGlobalsFinalized() const
+    {
+        return m_globalsFinalized;
     }
 
 private:
@@ -158,31 +204,6 @@ public:
     InputDependencyResult* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     void dump() const;
 
-    FunctionSet getCallSitesData() const
-    {
-        return m_calledFunctions;
-    }
-
-    llvm::Function* getFunction()
-    {
-        return m_F;
-    }
-
-    const llvm::Function* getFunction() const
-    {
-        return m_F;
-    }
-
-    bool areArgumentsFinalized() const
-    {
-        return m_argumentsFinalized;
-    }
-
-    bool areGlobalsFinalized() const
-    {
-        return m_globalsFinalized;
-    }
-
 private:
     using BlocksInTraversalOrder = std::list<std::pair<llvm::BasicBlock*, llvm::Loop*>>;
     void collectArguments();
@@ -211,11 +232,12 @@ private:
 
 private:
     llvm::Function* m_F;
-    llvm::AAResults& m_AAR;
-    llvm::LoopInfo& m_LI;
-    const llvm::PostDominatorTree& m_postDomTree;
-    const VirtualCallSiteAnalysisResult& m_virtualCallsInfo;
-    const IndirectCallSitesAnalysisResult& m_indirectCallsInfo;
+    llvm::AAResults* m_AAR;
+    llvm::LoopInfo* m_LI;
+    const llvm::PostDominatorTree* m_postDomTree;
+    const llvm::DominatorTree* m_domTree;
+    const VirtualCallSiteAnalysisResult* m_virtualCallsInfo;
+    const IndirectCallSitesAnalysisResult* m_indirectCallsInfo;
     const FunctionAnalysisGetter& m_FAGetter;
 
     Arguments m_inputs;
@@ -431,7 +453,9 @@ void FunctionAnaliser::Impl::analize()
     auto tic = Clock::now();
     collectArguments();
 
-    CFGTraversalPathCreator traversalPath(*m_F, m_LI);
+    CFGTraversalPathCreator traversalPath(*m_F);
+    traversalPath.setLoopInfo(m_LI);
+    traversalPath.setDomTree(m_domTree);
     traversalPath.construct(CFGTraversalPathCreator::CFG);
     const auto& blocks_in_traversal_order = traversalPath.getBlocksInOrder();
     m_loopBlocks= traversalPath.getBlocksLoops();
@@ -627,25 +651,25 @@ FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B, cons
 {
     if (depInfo.isInputDep()) {
         return DependencyAnalysisResultT(
-                    new InputDependentBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
+                    new InputDependentBasicBlockAnaliser(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B));
     } else if (depInfo.isInputArgumentDep() || depInfo.isValueDep()) {
         return DependencyAnalysisResultT(
-           new NonDeterministicBasicBlockAnaliser(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
+           new NonDeterministicBasicBlockAnaliser(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
     }
     return DependencyAnalysisResultT(
-            new BasicBlockAnalysisResult(m_F, m_AAR, m_virtualCallsInfo, m_indirectCallsInfo, m_inputs, m_FAGetter, B));
+            new BasicBlockAnalysisResult(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B));
 }
 
 LoopAnalysisResult* FunctionAnaliser::Impl::createLoopAnalysisResult(const DepInfo& depInfo, llvm::Loop* loop)
 {
-    LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, m_AAR,
-                                                       m_postDomTree,
-                                                       m_virtualCallsInfo,
-                                                       m_indirectCallsInfo,
+    LoopAnalysisResult* loopA = new LoopAnalysisResult(m_F, *m_AAR,
+                                                       *m_postDomTree,
+                                                       *m_virtualCallsInfo,
+                                                       *m_indirectCallsInfo,
                                                        m_inputs,
                                                        m_FAGetter,
                                                        *loop,
-                                                       m_LI);
+                                                       *m_LI);
     if (depInfo.isDefined()) {
         loopA->setLoopDependencies(depInfo);
     }
@@ -656,7 +680,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
 {
     DepInfo dep(DepInfo::DepInfo::INPUT_INDEP);
     bool postdominates_all_predecessors = true;
-    const auto& b_node = m_postDomTree[B];
+    const auto& b_node = (*m_postDomTree)[B];
     auto pred = pred_begin(B);
     while (pred != pred_end(B)) {
         auto pb = *pred;
@@ -670,7 +694,9 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             // means either block is in a loop, or cfg is broken. For the first case is safe to continue.
             // For the second case throw exception or continue based on run configuration
             // TODO: is it safe for loop case to assert that the loop of pred is the same as for B?
-            if (!m_LI.getLoopFor(pb) && !InputDepConfig::get().is_goto_unsafe()) {
+            if (!m_LI->getLoopFor(pb)
+                && !InputDepConfig::get().is_goto_unsafe()
+                && !BasicBlocksUtils::get().isBlockUnreachable(pb)) {
                 // use stringstream to build message
                 std::string msg = B->getName();
                 msg += " predecessor ";
@@ -683,14 +709,14 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
             continue;
         }
         dep.mergeDependencies(BBA->getInstructionDependencies(termInstr));
-        auto pred_node = m_postDomTree[*pred];
-        postdominates_all_predecessors &= m_postDomTree.dominates(b_node, pred_node);
+        auto pred_node = (*m_postDomTree)[*pred];
+        postdominates_all_predecessors &= m_postDomTree->dominates(b_node, pred_node);
         ++pred;
     }
     // if block postdominates all its predecessors, it will be reached independent of predecessors.
     llvm::BasicBlock* entry = &m_F->getEntryBlock();
-    auto entry_node = m_postDomTree[entry];
-    postdominates_all_predecessors &= m_postDomTree.dominates(b_node, entry_node);
+    auto entry_node = (*m_postDomTree)[entry];
+    postdominates_all_predecessors &= m_postDomTree->dominates(b_node, entry_node);
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
@@ -915,7 +941,7 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAna
     if (pos != m_BBAnalysisResults.end()) {
         return pos->second;
     }
-    if (auto loop = m_LI.getLoopFor(bb)) {
+    if (auto loop = m_LI->getLoopFor(bb)) {
         auto top_loop = Utils::getTopLevelLoop(loop);
         bb = top_loop->getHeader();
     } else {
@@ -926,7 +952,7 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAna
     }
     pos = m_BBAnalysisResults.find(bb);
     if (pos == m_BBAnalysisResults.end()) {
-        const auto& bb_node = m_postDomTree[bb];
+        const auto& bb_node = (*m_postDomTree)[bb];
         // TODO: commented so that the log is not a mess. uncomment later
         //llvm::dbgs() << "No analysis result for " << bb->getName() << " in function " << m_F->getName() << "\n";
         //if (!m_postDomTree.isReachableFromEntry(bb_node)) {
@@ -939,19 +965,44 @@ FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAna
 }
 
 FunctionAnaliser::FunctionAnaliser(llvm::Function* F,
-                                   llvm::AAResults& AAR,
-                                   llvm::LoopInfo& LI,
-                                   const llvm::PostDominatorTree& PDom,
-                                   const VirtualCallSiteAnalysisResult& VCAR,
-                                   const IndirectCallSitesAnalysisResult& ICAR,
                                    const FunctionAnalysisGetter& getter)
-    : m_analiser(new Impl(F, AAR, LI, PDom, VCAR, ICAR, getter))
+    : m_analiser(new Impl(F, getter))
 {
 }
 
 void FunctionAnaliser::setFunction(llvm::Function* F)
 {
     m_analiser->setFunction(F);
+}
+
+void FunctionAnaliser::setAAResults(llvm::AAResults* AAR)
+{
+    m_analiser->setAAResults(AAR);
+}
+
+void FunctionAnaliser::setLoopInfo(llvm::LoopInfo* LI)
+{
+    m_analiser->setLoopInfo(LI);
+}
+
+void FunctionAnaliser::setPostDomTree(const llvm::PostDominatorTree* PDom)
+{
+    m_analiser->setPostDomTree(PDom);
+}
+
+void FunctionAnaliser::setDomTree(const llvm::DominatorTree* dom)
+{
+    m_analiser->setDomTree(dom);
+}
+
+void FunctionAnaliser::setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallsInfo)
+{
+    m_analiser->setVirtualCallSiteAnalysisResult(virtualCallsInfo);
+}
+
+void FunctionAnaliser::setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallsInfo)
+{
+    m_analiser->setIndirectCallSiteAnalysisResult(indirectCallsInfo);
 }
 
 void FunctionAnaliser::analize()

@@ -10,6 +10,7 @@ namespace llvm {
 class GlobalVariable;
 class LoopInfo;
 class PostDominatorTree;
+class DominatorTree;
 }
 
 namespace input_dependency {
@@ -21,15 +22,17 @@ class FunctionAnaliser : public InputDependencyResult
 {
 public:
     FunctionAnaliser(llvm::Function* F,
-                     llvm::AAResults& AAR,
-                     llvm::LoopInfo& LI,
-                     const llvm::PostDominatorTree& PDom,
-                     const VirtualCallSiteAnalysisResult& virtualCallsInfo,
-                     const IndirectCallSitesAnalysisResult& indirectCallsInfo,
                      const FunctionAnalysisGetter& getter);
 
 public:
     void setFunction(llvm::Function* F);
+
+    void setAAResults(llvm::AAResults* AAR);
+    void setLoopInfo(llvm::LoopInfo* LI);
+    void setPostDomTree(const llvm::PostDominatorTree* PDom);
+    void setDomTree(const llvm::DominatorTree* dom);
+    void setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallsInfo);
+    void setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallsInfo);
 
     /// \name InputDependencyResult interface
     /// \{

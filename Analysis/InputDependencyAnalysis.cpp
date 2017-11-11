@@ -42,8 +42,6 @@ char InputDependencyAnalysis::ID = 0;
 
 bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 {
-    InputDepConfig().get().set_goto_unsafe(goto_unsafe);
-    // Disable later
     llvm::dbgs() << "Running input dependency analysis pass\n";
     configure_run();
 
@@ -86,10 +84,17 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
             llvm::AAResults& AAR = AARGetter(*F);
             llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
             const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
-            InputDepResType analiser(new FunctionAnaliser(F, AAR, LI, PDom, virtualCallsInfo, indirectCallsInfo, FAGetter));
+            const llvm::DominatorTree& dom = getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
+            InputDepResType analiser(new FunctionAnaliser(F, FAGetter));
             auto res = m_functionAnalisers.insert(std::make_pair(F, analiser));
             assert(res.second);
             auto analizer = res.first->second->toFunctionAnalysisResult();
+            analizer->setAAResults(&AAR);
+            analizer->setLoopInfo(&LI);
+            analizer->setPostDomTree(&PDom);
+            analizer->setDomTree(&dom);
+            analizer->setVirtualCallSiteAnalysisResult(&virtualCallsInfo);
+            analizer->setIndirectCallSiteAnalysisResult(&indirectCallsInfo);
             analizer->analize();
             const auto& calledFunctions = analizer->getCallSitesData();
             mergeCallSitesData(F, calledFunctions);
@@ -111,6 +116,7 @@ void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
     AU.addPreserved<llvm::CallGraphWrapperPass>();
     AU.addRequired<llvm::LoopInfoWrapperPass>();
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+    AU.addRequired<llvm::DominatorTreeWrapperPass>();
     AU.setPreservesAll();
 }
 

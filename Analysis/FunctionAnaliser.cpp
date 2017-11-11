@@ -566,6 +566,9 @@ InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const Dependenc
                 continue;
             }
             inputDepBlocks.insert(mapped_block);
+            if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
+                BasicBlocksUtils::get().addUnreachableBlock(mapped_block);
+            }
         }
         for (auto& I : B) {
             llvm::Instruction* mapped_instr = get_mapped_instruction(&I, local_instr_map, VMap);

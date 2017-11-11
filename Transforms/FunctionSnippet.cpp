@@ -1,6 +1,7 @@
 #include "FunctionSnippet.h"
 
 #include "Utils.h"
+#include "Analysis/BasicBlocksUtils.h"
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
@@ -198,6 +199,9 @@ void clone_blocks_snippet_to_function(llvm::Function* new_F,
             continue;
         }
         auto clone = llvm::CloneBasicBlock(block, value_to_value_map, "", new_F);
+        if (input_dependency::BasicBlocksUtils::get().isBlockUnreachable(block)) {
+            input_dependency::BasicBlocksUtils::get().addUnreachableBlock(clone);
+        }
         value_to_value_map.insert(std::make_pair(block, llvm::WeakVH(clone)));
         blocks.push_back(clone);
     }

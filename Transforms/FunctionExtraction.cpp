@@ -19,6 +19,7 @@
 #include "Analysis/InputDependentFunctionAnalysisResult.h"
 #include "Analysis/InputDependencyAnalysis.h"
 #include "Analysis/InputDependentFunctions.h"
+#include "Analysis/BasicBlocksUtils.h"
 
 #include <vector>
 #include <memory>
@@ -83,6 +84,10 @@ void SnippetsCreator::collect_snippets(bool expand)
     auto it = m_F.begin();
     while (it != m_F.end()) {
         auto B = &*it;
+        if (input_dependency::BasicBlocksUtils::get().isBlockUnreachable(B)) {
+            ++it;
+            continue;
+        }
         auto pos = processed_blocks.find(B);
         if (pos != processed_blocks.end()) {
             ++it;

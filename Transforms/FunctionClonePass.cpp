@@ -110,8 +110,15 @@ FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& cal
     auto& callArgDeps = functionCallDepInfo.getCallsArgumentDependencies();
 
     for (auto& argDepItem : callArgDeps) {
+        const llvm::BasicBlock* callsite_block = argDepItem.first->getParent();
+        if (caller_analiser->isInputDependentBlock(const_cast<llvm::BasicBlock*>(callsite_block))) {
+            continue;
+        }
         //llvm::dbgs() << "   Clone for call site " << *argDepItem.first << "\n";
         auto clone_res = doCloneForArguments(calledF, calledFunctionAnaliser, clone, argDepItem.second);
+        if (!clone_res.first && !clone_res.second) {
+            continue;
+        }
         auto F = clone_res.first;
         if (clone_res.second) {
             auto new_clone = m_clone_to_original.insert(std::make_pair(F, calledF));
@@ -147,6 +154,10 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDeps,
                                                                        calledF->getArgumentList().size(),
                                                                        calledF->isVarArg());
+    // no need to clone for all input dep arguments
+    if (std::all_of(mask.begin(), mask.end(), [] (bool b) {return b;})) {
+        return std::make_pair(nullptr, false);
+    }
     //llvm::dbgs() << "   Argument dependency mask is: " << FunctionClone::mask_to_string(mask) << "\n";
     llvm::Function* F = nullptr;
     if (clone.hasCloneForMask(mask)) {

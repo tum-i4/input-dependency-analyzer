@@ -1,8 +1,10 @@
 #pragma once
 
 #include "InputDependencyResult.h"
+#include "BasicBlocksUtils.h"
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/BasicBlock.h"
 
 namespace input_dependency {
 
@@ -47,7 +49,6 @@ public:
 
     bool isInputDependentBlock(llvm::BasicBlock* block) const override
     {
-        // TODO: what about entry and exit blocks?
         return true;
     }
 
@@ -65,18 +66,41 @@ public:
         return this;
     }
 
-    // for debug only
-    virtual long unsigned get_input_dep_count() const override
+    long unsigned get_input_dep_blocks_count() const override
     {
         return m_F->getBasicBlockList().size();
     }
 
-    virtual long unsigned get_input_indep_count() const override
+    long unsigned get_input_indep_blocks_count() const override
     {
         return 0;
     }
 
-    virtual long unsigned get_input_unknowns_count() const override 
+    long unsigned get_unreachable_blocks_count() const override
+    {
+        return BasicBlocksUtils::get().getFunctionUnreachableBlocksCount(m_F);
+    }
+
+    long unsigned get_unreachable_instructions_count() const override
+    {
+        return BasicBlocksUtils::get().getFunctionUnreachableInstructionsCount(m_F);
+    }
+
+    long unsigned get_input_dep_count() const override
+    {
+        long unsigned count = 0;
+        for (auto& B : *m_F) {
+            count += B.getInstList().size();
+        }
+        return count;
+    }
+
+    long unsigned get_input_indep_count() const override
+    {
+        return 0;
+    }
+
+    long unsigned get_input_unknowns_count() const override 
     {
         return 0;
     }

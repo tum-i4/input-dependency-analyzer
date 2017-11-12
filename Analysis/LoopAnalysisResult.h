@@ -87,6 +87,8 @@ public:
     const ReflectingDependencyAnaliserT& getAnalysisResult(llvm::BasicBlock* block) const;
     void markAllInputDependent() override;
 
+    long unsigned get_input_dep_blocks_count() const override;
+    long unsigned get_input_indep_blocks_count() const override;
     long unsigned get_input_dep_count() const override;
     long unsigned get_input_indep_count() const override;
     long unsigned get_input_unknowns_count() const override;

@@ -1,5 +1,7 @@
 #include "ClonedFunctionAnalysisResult.h"
 
+#include "BasicBlocksUtils.h"
+
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -125,7 +127,26 @@ bool ClonedFunctionAnalysisResult::changeFunctionCall(const llvm::Instruction* c
     return true;
 }
 
-// for debug only
+long unsigned ClonedFunctionAnalysisResult::get_input_dep_blocks_count() const
+{
+    return m_inputDependentBasicBlocks.size();
+}
+
+long unsigned ClonedFunctionAnalysisResult::get_input_indep_blocks_count() const
+{
+    return m_F->getBasicBlockList().size() - get_input_dep_count();
+}
+
+long unsigned ClonedFunctionAnalysisResult::get_unreachable_blocks_count() const
+{
+    return BasicBlocksUtils::get().getFunctionUnreachableBlocksCount(m_F);
+}
+
+long unsigned ClonedFunctionAnalysisResult::get_unreachable_instructions_count() const
+{
+    return BasicBlocksUtils::get().getFunctionUnreachableInstructionsCount(m_F);
+}
+
 long unsigned ClonedFunctionAnalysisResult::get_input_dep_count() const
 {
     return m_inputDependentInstrs.size();

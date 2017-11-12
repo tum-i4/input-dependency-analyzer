@@ -11,18 +11,43 @@ class Module;
 
 namespace input_dependency {
 
-class InputDependencyStatistics
+class Statistics
+{
+public:
+    virtual void report(llvm::Module& M,
+                        const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const = 0;
+};
+
+class CoverageStatistics : public Statistics
+{
+public:
+    CoverageStatistics() = default;
+
+public:
+    void report(llvm::Module& M,
+                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const override;
+};
+
+class InputDependencyStatistics : public Statistics
 {
 public:
     InputDependencyStatistics() = default;
 
 public:
-    void report(llvm::Module& M, const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const;
+    void report(llvm::Module& M,
+                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const override;
 };
 
 /// Collects and calculates statistics on input dependent instructions
 class InputDependencyStatisticsPass : public llvm::ModulePass
 {
+public:
+    enum Type {
+        INPUT_DEP,
+        COVERAGE,
+        UNKNOWN
+    };
+
 public:
     static char ID;
 

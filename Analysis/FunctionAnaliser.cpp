@@ -198,6 +198,10 @@ public:
     void analize();
     void finalizeArguments(const ArgumentDependenciesMap& dependentArgNos);
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps);
+    long unsigned get_input_dep_blocks_count() const;
+    long unsigned get_input_indep_blocks_count() const;
+    long unsigned get_unreachable_blocks_count() const;
+    long unsigned get_unreachable_instructions_count() const;
     long unsigned get_input_dep_count() const;
     long unsigned get_input_indep_count() const;
     long unsigned get_input_unknowns_count() const;
@@ -509,6 +513,35 @@ void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& 
         item.second->finalizeGlobals(globalsDeps);
     }
     m_globalsFinalized = true;
+}
+
+long unsigned FunctionAnaliser::Impl::get_input_dep_blocks_count() const
+{
+    // TODO: consider caching this information.
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_input_dep_blocks_count();
+    }
+    return count;
+}
+
+long unsigned FunctionAnaliser::Impl::get_input_indep_blocks_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_input_indep_count();
+    }
+    return count;
+}
+
+long unsigned FunctionAnaliser::Impl::get_unreachable_blocks_count() const
+{
+    return BasicBlocksUtils::get().getFunctionUnreachableBlocksCount(m_F);
+}
+
+long unsigned FunctionAnaliser::Impl::get_unreachable_instructions_count() const
+{
+    return BasicBlocksUtils::get().getFunctionUnreachableInstructionsCount(m_F);
 }
 
 long unsigned FunctionAnaliser::Impl::get_input_dep_count() const
@@ -1123,6 +1156,26 @@ const GlobalsSet& FunctionAnaliser::getReferencedGlobals() const
 const GlobalsSet& FunctionAnaliser::getModifiedGlobals() const
 {
     return m_analiser->getModifiedGlobals();
+}
+
+long unsigned FunctionAnaliser::get_input_dep_blocks_count() const
+{
+    return m_analiser->get_input_indep_blocks_count();
+}
+
+long unsigned FunctionAnaliser::get_input_indep_blocks_count() const
+{
+    return m_analiser->get_input_indep_blocks_count();
+}
+
+long unsigned FunctionAnaliser::get_unreachable_blocks_count() const
+{
+    return m_analiser->get_unreachable_blocks_count();
+}
+
+long unsigned FunctionAnaliser::get_unreachable_instructions_count() const
+{
+    return m_analiser->get_unreachable_instructions_count();
 }
 
 long unsigned FunctionAnaliser::get_input_dep_count() const

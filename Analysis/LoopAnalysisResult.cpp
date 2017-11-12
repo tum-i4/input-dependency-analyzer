@@ -380,6 +380,24 @@ void LoopAnalysisResult::markAllInputDependent()
     m_is_inputDep = true;
 }
 
+long unsigned LoopAnalysisResult::get_input_dep_blocks_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_input_dep_blocks_count();
+    }
+    return count;
+}
+
+long unsigned LoopAnalysisResult::get_input_indep_blocks_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_input_indep_blocks_count();
+    }
+    return count;
+}
+
 long unsigned LoopAnalysisResult::get_input_dep_count() const
 {
     long unsigned count = 0;

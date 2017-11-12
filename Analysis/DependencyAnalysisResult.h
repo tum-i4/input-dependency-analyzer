@@ -68,6 +68,8 @@ public:
     virtual void markAllInputDependent() = 0;
 
     // debug interface
+    virtual long unsigned get_input_dep_blocks_count() const = 0;
+    virtual long unsigned get_input_indep_blocks_count() const = 0;
     virtual long unsigned get_input_dep_count() const = 0;
     virtual long unsigned get_input_indep_count() const = 0;
     virtual long unsigned get_input_unknowns_count() const = 0;

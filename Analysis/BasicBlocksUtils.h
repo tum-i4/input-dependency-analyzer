@@ -4,6 +4,7 @@
 
 namespace llvm {
 class BasicBlock;
+class Function;
 }
 
 namespace input_dependency {
@@ -19,7 +20,9 @@ public:
 
 public:
     void addUnreachableBlock(llvm::BasicBlock* block);
-    bool isBlockUnreachable(llvm::BasicBlock* block);
+    bool isBlockUnreachable(llvm::BasicBlock* block) const;
+    long unsigned getFunctionUnreachableBlocksCount(llvm::Function* F) const;
+    long unsigned getFunctionUnreachableInstructionsCount(llvm::Function* F) const;
 
 private:
     std::unordered_set<llvm::BasicBlock*> m_unreachableBlocks;

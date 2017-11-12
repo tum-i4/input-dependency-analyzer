@@ -53,7 +53,11 @@ public:
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
     bool changeFunctionCall(const llvm::Instruction* callInstr, llvm::Function* oldF, llvm::Function* newF) override;
 
-    // for debug only
+    // caching for statistics
+    long unsigned get_input_dep_blocks_count() const override;
+    long unsigned get_input_indep_blocks_count() const override;
+    long unsigned get_unreachable_blocks_count() const override;
+    long unsigned get_unreachable_instructions_count() const override;
     long unsigned get_input_dep_count() const override;
     long unsigned get_input_indep_count() const override;
     long unsigned get_input_unknowns_count() const override;

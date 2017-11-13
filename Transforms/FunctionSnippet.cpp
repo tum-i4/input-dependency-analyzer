@@ -31,18 +31,19 @@ public:
 
 private:
     unique_name_generator()
-        : unique_id(0)
     {
     }
 
 public:
     std::string get_unique(const std::string& name)
     {
-        return name + std::to_string(unique_id++);
+        const std::string unique_name = name + std::to_string(name_numbering[name]);
+        ++name_numbering[name];
+        return unique_name;
     }
 
 private:
-    unsigned unique_id;
+    std::unordered_map<std::string, unsigned> name_numbering;
 };
 
 using ValueToValueMap = std::unordered_map<llvm::Value*, llvm::Value*>;

@@ -7,6 +7,12 @@
 
 namespace oh {
 
+std::string getCloneFunctionName(const std::string& original_name, const FunctionClone::mask& m)
+{
+    return original_name + FunctionClone::mask_to_string(m);
+}
+
+
 FunctionClone::FunctionClone(llvm::Function* F)
     : m_originalF(F)
 {
@@ -26,11 +32,14 @@ llvm::Function* FunctionClone::getClonedFunction(const mask& m) const
 
 llvm::Function* FunctionClone::doCloneForMask(const mask& m)
 {
+    llvm::dbgs() << "blah\n";
     if (hasCloneForMask(m)) {
         return getClonedFunction(m);
     }
     llvm::ValueToValueMapTy* VMap = new llvm::ValueToValueMapTy();
     llvm::Function* newF = llvm::CloneFunction(m_originalF, *VMap);
+    newF->setName(getCloneFunctionName(m_originalF->getName(), m));
+    llvm::dbgs() << "CLONE NAME " << newF->getName() << "\n";
     m_clones.insert(std::make_pair(m, clone_info(newF, VMap)));
 
     for (const auto& map_entry : *VMap) {

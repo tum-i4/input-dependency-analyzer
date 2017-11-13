@@ -167,13 +167,14 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     }
     auto original_f_analiser = original_analiser->toFunctionAnalysisResult();
     if (!original_f_analiser) {
-        // is it possible to clone clonned function?
-        // assert(false);
+        // no cloning for already cloned function or for extracted function.
         return std::make_pair(nullptr, false);
     }
     InputDepRes cloned_analiser(original_f_analiser->cloneForArguments(argDeps));
     F = cloned_analiser->getFunction();
-    //llvm::dbgs() << "   New clone is " << F->getName() << "\n";
+    std::string newName = calledF->getName();
+    newName += FunctionClone::mask_to_string(mask);
+    F->setName(newName);
     clone.addClone(mask, F);
     bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);
     return std::make_pair(F, true);
@@ -189,9 +190,10 @@ void FunctionClonePass::dump() const
 
 void FunctionClonePass::dumpStatistics(llvm::Module& M)
 {
-    llvm::dbgs() << "Input Dependency statistics after clonning\n";
-    input_dependency::InputDependencyStatistics statistics;
-    statistics.report(M, IDA->getAnalysisInfo());
+    // TODO: report with new statistics class
+    //llvm::dbgs() << "Input Dependency statistics after clonning\n";
+    //input_dependency::InputDependencyStatistics statistics;
+    //statistics.report(M, IDA->getAnalysisInfo());
 }
 
 static llvm::RegisterPass<FunctionClonePass> X(

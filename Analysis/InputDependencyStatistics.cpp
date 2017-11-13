@@ -159,7 +159,7 @@ bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
     return false;
 }
 
-static llvm::RegisterPass<InputDependencyStatisticsPass> X("stats","runs input dependency analysis");
+static llvm::RegisterPass<InputDependencyStatisticsPass> X("stats-dependency","runs input dependency analysis");
 
 }
 

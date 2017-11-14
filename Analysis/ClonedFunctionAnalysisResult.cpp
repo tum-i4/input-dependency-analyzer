@@ -54,6 +54,16 @@ const llvm::Function* ClonedFunctionAnalysisResult::getFunction() const
     return m_F;
 }
 
+bool ClonedFunctionAnalysisResult::isInputDepFunction() const
+{
+    return m_is_inputDep;
+}
+
+void ClonedFunctionAnalysisResult::setIsInputDepFunction(bool isInputDep)
+{
+    m_is_inputDep = isInputDep;
+}
+
 bool ClonedFunctionAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 {
     return m_inputDependentInstrs.find(instr) != m_inputDependentInstrs.end();

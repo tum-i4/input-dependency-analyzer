@@ -25,6 +25,8 @@ public:
 public:
      llvm::Function* getFunction() override;
      const llvm::Function* getFunction() const override;
+     bool isInputDepFunction() const override;
+     void setIsInputDepFunction(bool isInputDep) override;
      bool isInputDependent(llvm::Instruction* instr) const override;
      bool isInputDependent(const llvm::Instruction* instr) const override;
      bool isInputIndependent(llvm::Instruction* instr) const override;
@@ -44,8 +46,14 @@ public:
      long unsigned get_input_indep_count() const override;
      long unsigned get_input_unknowns_count() const override;
 
+     ClonedFunctionAnalysisResult* toClonedFunctionAnalysisResult() override
+     {
+         return this;
+     }
+
 private:
     llvm::Function* m_F;
+    bool m_is_inputDep;
     unsigned int m_instructionsCount;
     InstrSet m_inputIndependentInstrs;
     InstrSet m_inputDependentInstrs;

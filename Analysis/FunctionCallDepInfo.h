@@ -39,6 +39,7 @@ public:
 
     void removeCall(const llvm::Instruction* callInst);
 
+    const InstrSet& getCallSites() const;
     const CallSiteArgumentsDependenciesMap& getCallsArgumentDependencies() const;
     const CallSiteGloblasDependenciesMap& getCallsGlobalsDependencies() const;
 
@@ -80,6 +81,7 @@ private:
     const llvm::Function* m_F;
     CallSiteArgumentsDependenciesMap m_callsArgumentsDeps;
     CallSiteGloblasDependenciesMap m_callsGlobalsDeps;
+    InstrSet m_callSites;
 };
 
 } // namespace input_dependency

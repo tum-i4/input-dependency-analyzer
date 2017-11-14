@@ -4,6 +4,8 @@
 
 #include "llvm/Pass.h"
 
+#include <memory>
+
 namespace llvm {
 class Module;
 }
@@ -11,43 +13,40 @@ class Module;
 
 namespace input_dependency {
 
-class Statistics
+class InputDependencyStatistics
 {
 public:
-    virtual void report(llvm::Module& M,
-                        const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const = 0;
-};
+    class ReportWriter;
+    // default format is JSON
+    enum Format {
+        TEXT,
+        JSON
+    };
 
-class CoverageStatistics : public Statistics
-{
 public:
-    CoverageStatistics() = default;
+    InputDependencyStatistics(const std::string& format, const std::string& file_name);
 
 public:
     void report(llvm::Module& M,
-                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const override;
-};
+                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
+    void reportInputDepInputIndepRatio(llvm::Module& M,
+                                       const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
+    void reportInputDependencyInfo(llvm::Module& M,
+                                   const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
+    void reportCloningInformation(llvm::Module& M,
+                                  const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
+    void reportExtractionInformation(llvm::Module& M,
+                                     const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
+    void reportInputDepCoverage(llvm::Module& M,
+                                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo);
 
-class InputDependencyStatistics : public Statistics
-{
-public:
-    InputDependencyStatistics() = default;
-
-public:
-    void report(llvm::Module& M,
-                const InputDependencyAnalysis::InputDependencyAnalysisInfo& inputDepInfo) const override;
+private:
+    std::shared_ptr<ReportWriter> m_writer;
 };
 
 /// Collects and calculates statistics on input dependent instructions
 class InputDependencyStatisticsPass : public llvm::ModulePass
 {
-public:
-    enum Type {
-        INPUT_DEP,
-        COVERAGE,
-        UNKNOWN
-    };
-
 public:
     static char ID;
 

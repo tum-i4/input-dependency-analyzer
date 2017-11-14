@@ -15,6 +15,7 @@ class Value;
 namespace input_dependency {
 
 class FunctionAnaliser;
+class ClonedFunctionAnalysisResult;
 class InputDependentFunctionAnalysisResult;
 
 /// Defines interface to request for input dependency information
@@ -23,6 +24,8 @@ class InputDependencyResult
 public:
     virtual llvm::Function* getFunction() = 0;
     virtual const llvm::Function* getFunction() const = 0;
+    virtual bool isInputDepFunction() const = 0;
+    virtual void setIsInputDepFunction(bool isInputDep) = 0;
 
     virtual bool isInputDependent(llvm::Instruction* instr) const = 0;
     virtual bool isInputDependent(const llvm::Instruction* instr) const = 0;
@@ -52,6 +55,11 @@ public:
 
     // cast interface
     virtual FunctionAnaliser* toFunctionAnalysisResult()
+    {
+        return nullptr;
+    }
+
+    virtual ClonedFunctionAnalysisResult* toClonedFunctionAnalysisResult()
     {
         return nullptr;
     }

@@ -194,6 +194,11 @@ void FunctionCallDepInfo::removeCall(const llvm::Instruction* callInst)
     m_callsGlobalsDeps.erase(callInst);
 }
 
+const InstrSet& FunctionCallDepInfo::getCallSites() const
+{
+    return m_callSites;
+}
+
 const FunctionCallDepInfo::CallSiteArgumentsDependenciesMap& FunctionCallDepInfo::getCallsArgumentDependencies() const
 {
     return m_callsArgumentsDeps;
@@ -321,6 +326,7 @@ bool FunctionCallDepInfo::isValidInstruction(const llvm::Instruction* instr) con
 void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps)
 {
     auto res = m_callsArgumentsDeps.insert(std::make_pair(instr, argDeps));
+    m_callSites.insert(const_cast<llvm::Instruction*>(instr));
     if (!res.second) {
         //llvm::dbgs() << "FunctionCallDepInfo: arguments information for call site " << *instr << " is already collected\n";
     }
@@ -329,6 +335,7 @@ void FunctionCallDepInfo::addCallSiteArguments(const llvm::Instruction* instr, c
 void FunctionCallDepInfo::addCallSiteGlobals(const llvm::Instruction* instr, const GlobalVariableDependencyMap& globalDeps)
 {
     auto res = m_callsGlobalsDeps.insert(std::make_pair(instr, globalDeps));
+    m_callSites.insert(const_cast<llvm::Instruction*>(instr));
     if (!res.second) {
         //llvm::dbgs() << "FunctionCallDepInfo: globals information for call site " << *instr << " is already collected\n";
     }

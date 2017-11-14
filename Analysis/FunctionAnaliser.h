@@ -39,6 +39,8 @@ public:
 public:
     llvm::Function* getFunction() override;
     const llvm::Function* getFunction() const override;
+    bool isInputDepFunction() const override;
+    void setIsInputDepFunction(bool isInputDep) override;
 
     bool areArgumentsFinalized() const;
     bool areGlobalsFinalized() const;

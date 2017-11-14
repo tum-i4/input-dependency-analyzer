@@ -27,6 +27,16 @@ public:
         return m_F;
     }
 
+    bool isInputDepFunction() const override
+    {
+        return true;
+    }
+
+    void setIsInputDepFunction(bool isInputDep) override
+    {
+        // Don't allow changing input dep?
+    }
+
     bool isInputDependent(llvm::Instruction* instr) const override
     {
         return true;

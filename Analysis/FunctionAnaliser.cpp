@@ -156,6 +156,16 @@ public:
         return m_F;
     }
 
+    bool isInputDepFunction() const
+    {
+        return m_is_inputDep;
+    }
+
+    void setIsInputDepFunction(bool isInputDep)
+    {
+        m_is_inputDep = isInputDep;
+    }
+
     bool areArgumentsFinalized() const
     {
         return m_argumentsFinalized;
@@ -216,6 +226,7 @@ private:
     LoopAnalysisResult* createLoopAnalysisResult(const DepInfo& depInfo, llvm::Loop* loop);
     DepInfo getBasicBlockPredecessorInstructionsDeps(llvm::BasicBlock* B) const;
 
+    void updateFunctionInputDependencies();
     void updateFunctionCallInfo(llvm::Function* F);
     void updateFunctionCallsInfo(llvm::BasicBlock* B);
     void updateFunctionCallInfo(llvm::BasicBlock* B, llvm::Function* F);
@@ -256,6 +267,7 @@ private:
     bool m_argumentsFinalized;
     bool m_globalsFinalized;
     bool m_globalsUpdated;
+    bool m_is_inputDep;
 
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
@@ -504,6 +516,7 @@ void FunctionAnaliser::Impl::finalizeArguments(const ArgumentDependenciesMap& de
         updateFunctionCallsInfo(item.first);
         updateFunctionCallsGlobalsInfo(item.first);
     }
+    updateFunctionInputDependencies();
     m_argumentsFinalized = true;
 }
 
@@ -512,6 +525,7 @@ void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& 
     for (auto& item : m_BBAnalysisResults) {
         item.second->finalizeGlobals(globalsDeps);
     }
+    updateFunctionInputDependencies();
     m_globalsFinalized = true;
 }
 
@@ -758,6 +772,28 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
     }
 
     return dep;
+}
+
+void FunctionAnaliser::Impl::updateFunctionInputDependencies()
+{
+    for (const auto& calledF : m_calledFunctions) {
+        auto calledFA = const_cast<FunctionAnaliser*>(m_FAGetter(calledF));
+        if (!calledFA) {
+            continue;
+        }
+        if (m_is_inputDep) {
+            if (calledFA) {
+                calledFA->setIsInputDepFunction(true);
+            }
+        } else {
+            const auto& callDepInfo = getFunctionCallDepInfo(calledF);
+            for (const auto& callSite : callDepInfo.getCallSites()) {
+                if (isInputDependentBlock(callSite->getParent())) {
+                    calledFA->setIsInputDepFunction(true);
+                }
+            }
+        }
+    }
 }
 
 void FunctionAnaliser::Impl::updateFunctionCallInfo(llvm::Function* F)
@@ -1211,6 +1247,16 @@ llvm::Function* FunctionAnaliser::getFunction()
 const llvm::Function* FunctionAnaliser::getFunction() const
 {
     return m_analiser->getFunction();
+}
+
+bool FunctionAnaliser::isInputDepFunction() const
+{
+    return m_analiser->isInputDepFunction();
+}
+
+void FunctionAnaliser::setIsInputDepFunction(bool isInputDep)
+{
+    m_analiser->setIsInputDepFunction(isInputDep);
 }
 
 bool FunctionAnaliser::areArgumentsFinalized() const

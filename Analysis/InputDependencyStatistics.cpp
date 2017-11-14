@@ -13,6 +13,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include "json/writer.h"
+#include "json/value.h"
 
 #include <fstream>
 
@@ -268,10 +269,11 @@ unsigned get_function_instrs_count(llvm::Function& F)
 
 InputDependencyStatistics::Format string_to_stats_format(const std::string& stats_format)
 {
-    if (stats_format == "text") {
-        return InputDependencyStatistics::TEXT;
+    if (stats_format == "json") {
+        return InputDependencyStatistics::JSON;
     }
-    return InputDependencyStatistics::JSON;
+    //return InputDependencyStatistics::JSON;
+    return InputDependencyStatistics::TEXT;
 }
 
 InputDependencyStatistics::InputDependencyStatistics(const std::string& format_str,

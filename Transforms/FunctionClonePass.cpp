@@ -59,6 +59,10 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             if (f_analysisInfo == nullptr) {
                 continue;
             }
+            // TODO: check if we want this. It actually makes sense not cloning call sites from input dep function
+            //if (f_analysisInfo->isInputDepFunction()) {
+            //    continue;
+            //}
             const auto& callSites = f_analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
@@ -171,6 +175,8 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
         return std::make_pair(nullptr, false);
     }
     InputDepRes cloned_analiser(original_f_analiser->cloneForArguments(argDeps));
+    // call sites at input dep blocks are filtered out, thus if we got to this point, means call site is input indep
+    cloned_analiser->setIsInputDepFunction(false);
     F = cloned_analiser->getFunction();
     std::string newName = calledF->getName();
     newName += FunctionClone::mask_to_string(mask);

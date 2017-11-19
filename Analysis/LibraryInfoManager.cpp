@@ -2,7 +2,8 @@
 #include "LibraryInfoManager.h"
 #include "CLibraryInfo.h"
 #include "STLStringInfo.h"
-
+#include "LibraryInfoFromConfigFile.h"
+#include "InputDepConfig.h"
 
 #include <cassert>
 
@@ -31,6 +32,11 @@ void LibraryInfoManager::setup()
 
     STLStringInfo stlStringInfo(libFunctionCollector);
     stlStringInfo.setup();
+
+    if (!InputDepConfig::get().has_config_file()) {
+        LibraryInfoFromConfigFile configInfo(libFunctionCollector, InputDepConfig::get().get_config_file());
+        configInfo.setup();
+    }
 }
 
 bool LibraryInfoManager::hasLibFunctionInfo(const std::string& funcName) const

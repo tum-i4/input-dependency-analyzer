@@ -33,6 +33,7 @@ add_library(InputDependency MODULE
     CFGTraversalPath.cpp
     LLVMIntrinsicsInfo.cpp
     BasicBlocksUtils.cpp
+    LibraryInfoFromConfigFile.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

@@ -32,10 +32,16 @@ static llvm::cl::opt<bool> goto_unsafe(
     llvm::cl::desc("Process irregular CFG in an unsafe way"),
     llvm::cl::value_desc("boolean flag"));
 
+static llvm::cl::opt<std::string> libfunction_config(
+    "lib-config",
+    llvm::cl::desc("Configuration file for library functions"),
+    llvm::cl::value_desc("file name"));
+
 void configure_run()
 {
     InputDepInstructionsRecorder::get().set_record();
     InputDepConfig().get().set_goto_unsafe(goto_unsafe);
+    InputDepConfig().get().set_lib_config_file(libfunction_config);
 }
 
 char InputDependencyAnalysis::ID = 0;

@@ -39,7 +39,7 @@ public:
     virtual bool intersects(const Snippet& snippet) const = 0;
     virtual void expand() = 0;
     virtual void collect_used_values() = 0;
-    virtual void merge(const Snippet& snippet) = 0;
+    virtual bool merge(const Snippet& snippet) = 0;
     virtual llvm::Function* to_function() = 0;
     virtual void dump() const = 0;
 
@@ -76,7 +76,7 @@ public:
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void collect_used_values() override;
-    void merge(const Snippet& snippet) override;
+    bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;
     void dump() const override;
     virtual InstructionsSnippet* to_instrSnippet() override;
@@ -129,13 +129,17 @@ public:
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void collect_used_values() override;
-    void merge(const Snippet& snippet) override;
+    bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;
     void dump() const override;
     virtual BasicBlocksSnippet* to_blockSnippet() override;
 
+    const InstructionsSnippet& get_start_snippet() const;
+    bool contains_block(llvm::BasicBlock* block) const;
     iterator get_begin() const;
     iterator get_end() const;
+    llvm::BasicBlock* get_begin_block() const;
+    llvm::BasicBlock* get_end_block() const;
 
 public:
     static bool is_valid_snippet(iterator begin, iterator end, llvm::Function* F);

@@ -140,11 +140,6 @@ void SnippetsCreator::expand_snippets()
     auto it = m_snippets.begin();
     std::vector<snippet_list::iterator> to_erase;
     while (it != m_snippets.end()) {
-        if ((*it)->to_blockSnippet()) {
-            // do not merge blocks' snippet. may improve later
-            ++it;
-            continue;
-        }
         auto next_it = it + 1;
         if (next_it == m_snippets.end()) {
             // last snippet and is one instruction snippet
@@ -154,8 +149,9 @@ void SnippetsCreator::expand_snippets()
             break;
         }
         if ((*it)->intersects(**next_it)) {
-            (*next_it)->merge(**it);
-            to_erase.push_back(it);
+            if ((*next_it)->merge(**it)) {
+                to_erase.push_back(it);
+            }
             ++it;
         } else if ((*it)->is_single_instr_snippet()) {
             // e.g. load of input dep pointer, to store input indep value to it
@@ -255,6 +251,10 @@ SnippetsCreator::BasicBlockRange SnippetsCreator::get_blocks_snippet(llvm::Funct
 {
     auto end_block = find_block_postdominator(&*begin_block_pos);
     llvm::Function::iterator end_block_pos = Utils::get_block_pos(end_block);
+    while (m_input_dep_info->isInputDependentBlock(end_block) && end_block != &end_block->getParent()->back()) {
+        end_block = find_block_postdominator(&*end_block_pos);
+        end_block_pos = Utils::get_block_pos(end_block);
+    }
     return std::make_pair(begin_block_pos, end_block_pos);
 }
 

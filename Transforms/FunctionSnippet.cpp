@@ -46,6 +46,29 @@ private:
     std::unordered_map<std::string, unsigned> name_numbering;
 };
 
+// checks if snippet1 is predecessor snippet for snippet2,
+//meaning begin block of snippet2 is successor node for end block of snippet1
+bool is_predecessing_block_snippet(const BasicBlocksSnippet& snippet1, const BasicBlocksSnippet& snippet2)
+{
+    auto snippet_end = snippet1.get_end_block();
+    if (snippet_end == &*snippet1.get_begin_block()->getParent()->end()) {
+        // if snippet1 ends with the function, it can not be predecessor of any other snippet.
+        // note however it may contain snippet2, but this function does not check that.
+        return false;
+    }
+    if (snippet_end == snippet2.get_begin_block()) {
+        return true;
+    }
+    auto succ_it = succ_begin(snippet_end);
+    while (succ_it != succ_end(snippet_end)) {
+        if (*succ_it == snippet2.get_begin_block()) {
+            return true;
+        }
+        ++succ_it;
+    }
+    return false;
+}
+
 using ValueToValueMap = std::unordered_map<llvm::Value*, llvm::Value*>;
 using ArgIdxToValueMap = std::unordered_map<int, llvm::Value*>;
 using ArgToValueMap = std::unordered_map<llvm::Argument*, llvm::Value*>;
@@ -451,6 +474,7 @@ bool InstructionsSnippet::is_valid_snippet() const
 bool InstructionsSnippet::intersects(const Snippet& snippet) const
 {
     assert(snippet.is_valid_snippet());
+    //llvm::dbgs() << "Intersects " << m_block->getName() << " \n";
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
         if (m_block != instr_snippet->get_block()) {
@@ -491,8 +515,12 @@ void InstructionsSnippet::collect_used_values()
     collect_values(m_begin, m_end++, m_used_values);
 }
 
-void InstructionsSnippet::merge(const Snippet& snippet)
+bool InstructionsSnippet::merge(const Snippet& snippet)
 {
+    if (!intersects(snippet)) {
+        llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
+        return false;
+    }
     // expand this to include given snippet
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
@@ -506,9 +534,10 @@ void InstructionsSnippet::merge(const Snippet& snippet)
         }
         const auto& used_values = instr_snippet->get_used_values();
         m_used_values.insert(used_values.begin(), used_values.end());
-        return;
+        return true;
     }
-    assert(false);
+    llvm::dbgs() << "Do not merge instruction snippet with basic block snippet.\n";
+    return false;
     // do not merge instruction snippet with block snippet,
     // as block snippet should be turn into instruction snippet
 }
@@ -740,6 +769,20 @@ bool BasicBlocksSnippet::is_valid_snippet() const
 
 bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
 {
+    //llvm::dbgs() << "Intersects " << get_begin_block()->getName() << " \n";
+    auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
+    if (block_snippet) {
+        bool result = contains_block(block_snippet->get_begin_block())
+                        || contains_block(block_snippet->get_end_block());
+        if (!result) {
+            result |= snippet.intersects(*this);
+        }
+        if (!result) {
+            result |= is_predecessing_block_snippet(*this, *block_snippet);
+        }
+        return result;
+    }
+    // what about check intersection with start basic block in case m_start is not a valid snippet?
     if (!m_start.is_valid_snippet()) {
         return false;
     }
@@ -773,13 +816,49 @@ void BasicBlocksSnippet::collect_used_values()
     }
 }
 
-void BasicBlocksSnippet::merge(const Snippet& snippet)
+bool BasicBlocksSnippet::merge(const Snippet& snippet)
 {
+    if (!intersects(snippet)) {
+        llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
+        return false;
+    }
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
-        m_start.merge(snippet);
+        return m_start.merge(snippet);
     }
-    // do not merge block snippets for now
+    bool modified = false;
+    auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
+    if (m_start.is_valid_snippet()) {
+        m_start.merge(block_snippet->get_start_snippet());
+    }
+    if (!contains_block(block_snippet->get_begin_block()) && block_snippet->contains_block(&*m_begin)) {
+        m_begin = block_snippet->get_begin();
+        if (block_snippet->get_start_snippet().is_valid_snippet()) {
+            m_start = block_snippet->get_start_snippet();
+            modified = true;
+        }
+    }
+    if (!contains_block(block_snippet->get_end_block()) && block_snippet->contains_block(&*m_end)) {
+        m_end = block_snippet->get_end();
+        modified = true;
+    }
+    if (!modified) {
+        // check for case when one snippet continues the other
+        // check if begin of the snippet is successor of the end of this
+        if (is_predecessing_block_snippet(*this, *block_snippet)) {
+            m_end = block_snippet->get_end();
+            modified = true;
+        } else if (is_predecessing_block_snippet(*block_snippet, *this)) {
+            m_begin = block_snippet->get_begin();
+            modified = true;
+        }
+    }
+    if (modified) {
+        m_blocks.clear();
+        m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
+        return true;
+    }
+    return false;
 }
 
 // create function type and corresponding function
@@ -893,6 +972,26 @@ BasicBlocksSnippet::iterator BasicBlocksSnippet::get_end() const
     return m_end;
 }
 
+llvm::BasicBlock* BasicBlocksSnippet::get_begin_block() const
+{
+    return &*m_begin;
+}
+
+llvm::BasicBlock* BasicBlocksSnippet::get_end_block() const
+{
+    return &*m_end;
+}
+
+const InstructionsSnippet& BasicBlocksSnippet::get_start_snippet() const
+{
+    return m_start;
+}
+
+bool BasicBlocksSnippet::contains_block(llvm::BasicBlock* block) const
+{
+    return m_blocks.find(block) != m_blocks.end();
+}
+
 BasicBlocksSnippet* BasicBlocksSnippet::to_blockSnippet()
 {
     return this;
@@ -904,11 +1003,12 @@ void BasicBlocksSnippet::dump() const
     if (m_start.is_valid_snippet()) {
         m_start.dump();
     }
+    llvm::dbgs() << "Begin block " << m_begin->getName() << "\n";
     for (const auto& b : m_blocks) {
         llvm::dbgs() << b->getName() << "\n";
     }
     if (m_end != m_begin->getParent()->end()) {
-        llvm::dbgs() << m_end->getName() << "\n";
+        llvm::dbgs() << "End block " << m_end->getName() << "\n";
     }
     llvm::dbgs() << "*********\n";
 }
@@ -919,6 +1019,6 @@ bool BasicBlocksSnippet::is_valid_snippet(iterator begin,
 {
     return (begin != parent->end() && begin != end);
 }
-
+ 
 }
 

@@ -531,7 +531,6 @@ void FunctionAnaliser::Impl::finalizeGlobals(const GlobalVariableDependencyMap& 
 
 long unsigned FunctionAnaliser::Impl::get_input_dep_blocks_count() const
 {
-    // TODO: consider caching this information.
     long unsigned count = 0;
     for (const auto& analiser : m_BBAnalysisResults) {
         count += analiser.second->get_input_dep_blocks_count();
@@ -543,7 +542,7 @@ long unsigned FunctionAnaliser::Impl::get_input_indep_blocks_count() const
 {
     long unsigned count = 0;
     for (const auto& analiser : m_BBAnalysisResults) {
-        count += analiser.second->get_input_indep_count();
+        count += analiser.second->get_input_indep_blocks_count();
     }
     return count;
 }

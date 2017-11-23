@@ -27,11 +27,17 @@ public:
     using ValueSet = std::unordered_set<llvm::Value*>;
 
 public:
+    Snippet()
+        : m_instruction_number(0)
+    {
+    }
+
     virtual ~Snippet()
     {
     }
 
     virtual bool is_valid_snippet() const = 0;
+    virtual unsigned get_instructions_number() const = 0;
     virtual bool is_single_instr_snippet() const
     {
         return false;
@@ -60,6 +66,7 @@ public:
 
 protected:
     ValueSet m_used_values; 
+    unsigned m_instruction_number;
 };
 
 class InstructionsSnippet : public Snippet
@@ -72,6 +79,7 @@ public:
 
 public:
     bool is_valid_snippet() const override;
+    unsigned get_instructions_number() const override;
     bool is_single_instr_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
@@ -126,6 +134,7 @@ public:
 
 public:
     bool is_valid_snippet() const override;
+    unsigned get_instructions_number() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void collect_used_values() override;

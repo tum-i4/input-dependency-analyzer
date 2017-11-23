@@ -5,6 +5,7 @@
 #include "FunctionAnaliser.h"
 #include "InputDepConfig.h"
 #include "Utils.h"
+#include "InputDependencyStatistics.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -35,6 +36,21 @@ static llvm::cl::opt<bool> goto_unsafe(
 static llvm::cl::opt<std::string> libfunction_config(
     "lib-config",
     llvm::cl::desc("Configuration file for library functions"),
+    llvm::cl::value_desc("file name"));
+
+static llvm::cl::opt<bool> stats(
+    "dependency-stats",
+    llvm::cl::desc("Dump statistics"),
+    llvm::cl::value_desc("boolean flag"));
+
+static llvm::cl::opt<std::string> stats_format(
+    "dependency-stats-format",
+    llvm::cl::desc("Statistics format"),
+    llvm::cl::value_desc("format name"));
+
+static llvm::cl::opt<std::string> stats_file(
+    "dependency-stats-file",
+    llvm::cl::desc("Statistics file"),
     llvm::cl::value_desc("file name"));
 
 void configure_run()
@@ -109,6 +125,14 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
     }
     doFinalization(CG);
     llvm::dbgs() << "Finished input dependency analysis\n\n";
+    if (stats) {
+        std::string file_name = stats_file;
+        if (file_name.empty()) {
+            file_name = "stats";
+        }
+        InputDependencyStatistics stats(stats_format, file_name, M, m_functionAnalisers);
+        stats.reportInputDepCoverage();
+    }
     return false;
 }
 

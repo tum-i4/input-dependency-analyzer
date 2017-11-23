@@ -64,6 +64,15 @@ std::unordered_set<llvm::BasicBlock*> Utils::get_blocks_in_range(llvm::Function:
     return blocks;
 }
 
+unsigned Utils::get_function_instrs_count(llvm::Function& F)
+{
+    unsigned count = 0;
+    for (auto& B : F) {
+        count += B.getInstList().size();
+    }
+    return count;
+}
+
 }
 
 

@@ -124,12 +124,16 @@ void LoopAnalysisResult::gatherResults()
 
 void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
 {
+    finalizeLoopDependencies(dependentArgs);
     for (auto& item : m_BBAnalisers) {
-        item.second->finalizeResults(dependentArgs);
+        if (m_is_inputDep) {
+            item.second->markAllInputDependent();
+        } else {
+            item.second->finalizeResults(dependentArgs);
+        }
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
-    finalizeLoopDependencies(dependentArgs);
 }
 
 void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
@@ -377,6 +381,7 @@ void LoopAnalysisResult::markAllInputDependent()
     for (auto& bbAnaliser : m_BBAnalisers) {
         bbAnaliser.second->markAllInputDependent();
     }
+    m_loopDependencies.mergeDependency(DepInfo::INPUT_DEP);
     m_is_inputDep = true;
 }
 
@@ -391,6 +396,9 @@ long unsigned LoopAnalysisResult::get_input_dep_blocks_count() const
 
 long unsigned LoopAnalysisResult::get_input_indep_blocks_count() const
 {
+    if (m_is_inputDep) {
+        return 0;
+    }
     long unsigned count = 0;
     for (const auto& analysisRes : m_BBAnalisers) {
         count += analysisRes.second->get_input_indep_blocks_count();
@@ -749,9 +757,11 @@ void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::Argu
     }
     if (m_loopDependencies.isInputDep()) {
         m_is_inputDep = true;
+        m_loopDependencies.mergeDependencies(DepInfo::INPUT_DEP);
     } else if (m_loopDependencies.isInputArgumentDep()
             && Utils::haveIntersection(dependentArgs, m_loopDependencies.getArgumentDependencies())) {
         m_is_inputDep = true;
+        m_loopDependencies.mergeDependencies(DepInfo::INPUT_DEP);
     }
 }
 

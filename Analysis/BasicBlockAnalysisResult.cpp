@@ -565,12 +565,12 @@ void BasicBlockAnalysisResult::markAllInputDependent()
 
 long unsigned BasicBlockAnalysisResult::get_input_dep_blocks_count() const
 {
-    return m_is_inputDep;
+    return m_is_inputDep ? 1 : 0;
 }
 
 long unsigned BasicBlockAnalysisResult::get_input_indep_blocks_count() const
 {
-    return m_is_inputDep;
+    return m_is_inputDep ? 0 : 1;
 }
 
 long unsigned BasicBlockAnalysisResult::get_input_dep_count() const

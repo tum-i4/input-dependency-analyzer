@@ -114,6 +114,9 @@ void SnippetsCreator::collect_snippets(bool expand)
                                                                blocks_range.second,
                                                                *back->to_instrSnippet()));
             block_snippets.push_back(blocks_snippet);
+            if (m_F.getName() == "main") {
+                blocks_snippet->dump();
+            }
         }
         // for some blocks will run insert twice
         processed_blocks.insert(B);
@@ -148,20 +151,19 @@ void SnippetsCreator::expand_snippets()
             }
             break;
         }
+        (*it)->dump();
+        (*next_it)->dump();
         if ((*it)->intersects(**next_it)) {
             if ((*next_it)->merge(**it)) {
                 to_erase.push_back(it);
             }
-            ++it;
-        } else if ((*it)->is_single_instr_snippet()) {
-            // e.g. load of input dep pointer, to store input indep value to it
-            to_erase.push_back(it);
             ++it;
         } else {
             ++it;
         }
     }
     for (auto& elem : to_erase) {
+        (*elem)->dump();
         m_snippets.erase(elem);
     }
 }
@@ -312,7 +314,7 @@ void SnippetsCreator::update_processed_blocks(const llvm::BasicBlock* block,
 void run_on_function(llvm::Function& F,
                      llvm::PostDominatorTree* PDom,
                      SnippetsCreator::InputDependencyAnalysisInfo* input_dep_info,
-                     std::unordered_set<llvm::Function*>& extracted_functions)
+                     std::unordered_map<llvm::Function*, unsigned>& extracted_functions)
 {
     // map from block to snippets?
     SnippetsCreator creator(F);
@@ -323,13 +325,45 @@ void run_on_function(llvm::Function& F,
 
     llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
     for (auto& snippet : snippets) {
+        if (snippet->is_single_instr_snippet()) {
+            llvm::dbgs() << "Do not extract single instruction snippet\n";
+            snippet->dump();
+            continue;
+        }
+        llvm::dbgs() << "to function\n";
         snippet->dump();
         auto extracted_function = snippet->to_function();
-        extracted_functions.insert(extracted_function);
+        extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));
     }
 }
 
+} // unnamed namespace
+
+
+void ExtractionStatistics::report()
+{
+    write_entry(m_module_name, "NumOfExtractedInst", m_numOfExtractedInst);
+    write_entry(m_module_name, "NumOfMediateInst", m_numOfMediateInst);
+    write_entry(m_module_name, "ExtractedFuncs", m_extractedFuncs);
+    flush();
 }
+
+static llvm::cl::opt<bool> stats(
+    "extraction-stats",
+    llvm::cl::desc("Dump statistics"),
+    llvm::cl::value_desc("boolean flag"));
+
+static llvm::cl::opt<std::string> stats_format(
+    "extraction-stats-format",
+    llvm::cl::desc("Statistics format"),
+    llvm::cl::value_desc("format name"));
+
+static llvm::cl::opt<std::string> stats_file(
+    "extraction-stats-file",
+    llvm::cl::desc("Statistics file"),
+    llvm::cl::value_desc("file name"));
+
+char FunctionExtractionPass::ID = 0;
 
 void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
@@ -345,6 +379,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     auto& input_dep = getAnalysis<input_dependency::InputDependencyAnalysis>();
     const auto& function_calls = getAnalysis<input_dependency::InputDependentFunctionsPass>();
 
+    initialize_statistics();
+    std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
         if (F.isDeclaration()) {
@@ -365,16 +401,29 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             continue;
         }
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
-        run_on_function(F, PDom, f_input_dep_info, m_extracted_functions);
+        run_on_function(F, PDom, f_input_dep_info, extracted_functions);
         modified = true;
         llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";
     }
 
     llvm::dbgs() << "\nExtracted functions are \n";
-    for (const auto& f : m_extracted_functions) {
-        llvm::dbgs() << f->getName() << "\n";
+    m_statistics.set_module_name(M.getName());
+    for (const auto& f : extracted_functions) {
+        llvm::Function* extracted_f = f.first;
+        m_extracted_functions.insert(extracted_f);
+        llvm::dbgs() << extracted_f->getName() << "\n";
         input_dep.insertAnalysisInfo(
-                f, input_dependency::InputDependencyAnalysis::InputDepResType(new input_dependency::InputDependentFunctionAnalysisResult(f)));
+                extracted_f, input_dependency::InputDependencyAnalysis::InputDepResType(new
+                input_dependency::InputDependentFunctionAnalysisResult(extracted_f)));
+        if (stats) {
+            unsigned f_instr_num = Utils::get_function_instrs_count(*extracted_f);
+            m_statistics.add_numOfExtractedInst(f.second);
+            m_statistics.add_numOfMediateInst(f_instr_num - f.second);
+            m_statistics.add_extractedFunction(extracted_f->getName());
+        }
+    }
+    if (stats) {
+        m_statistics.report();
     }
     return modified;
 }
@@ -384,7 +433,18 @@ const std::unordered_set<llvm::Function*>& FunctionExtractionPass::get_extracted
     return m_extracted_functions;
 }
 
-char FunctionExtractionPass::ID = 0;
+void FunctionExtractionPass::initialize_statistics()
+{
+    if (!stats) {
+        return;
+    }
+    std::string file_name = stats_file;
+    if (file_name.empty()) {
+        file_name = "stats";
+    }
+    m_statistics = ExtractionStatistics(stats_format, file_name);
+}
+
 static llvm::RegisterPass<FunctionExtractionPass> X(
                                 "extract-functions",
                                 "Transformation pass to extract input dependent snippets into separate functions");

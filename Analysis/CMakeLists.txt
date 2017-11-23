@@ -34,6 +34,7 @@ add_library(InputDependency MODULE
     LLVMIntrinsicsInfo.cpp
     BasicBlocksUtils.cpp
     LibraryInfoFromConfigFile.cpp
+    Statistics.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

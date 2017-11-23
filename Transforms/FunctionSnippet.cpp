@@ -464,11 +464,17 @@ InstructionsSnippet::InstructionsSnippet(llvm::BasicBlock* block,
     } else {
         m_returnInst = nullptr;
     }
+    m_instruction_number = m_end_idx - m_begin_idx;
 }
 
 bool InstructionsSnippet::is_valid_snippet() const
 {
     return m_block && InstructionsSnippet::is_valid_snippet(m_begin, m_end, m_block);
+}
+
+unsigned InstructionsSnippet::get_instructions_number() const
+{
+    return m_instruction_number;
 }
 
 bool InstructionsSnippet::intersects(const Snippet& snippet) const
@@ -521,6 +527,9 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
         llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
         return false;
     }
+    llvm::dbgs() << "Merging\n";
+    dump();
+    snippet.dump();
     // expand this to include given snippet
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
@@ -760,6 +769,15 @@ BasicBlocksSnippet::BasicBlocksSnippet(llvm::Function* function,
     , m_start(start)
 {
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
+    if (m_start.is_valid_snippet() && !m_start.is_block()) {
+        m_blocks.erase(m_start.get_block());
+    }
+    if (m_start.is_valid_snippet()) {
+        m_instruction_number += m_start.get_instructions_number();
+    }
+    for (const auto& block : m_blocks) {
+        m_instruction_number += block->getInstList().size();
+    }
 }
 
 bool BasicBlocksSnippet::is_valid_snippet() const
@@ -767,18 +785,26 @@ bool BasicBlocksSnippet::is_valid_snippet() const
     return m_function && BasicBlocksSnippet::is_valid_snippet(m_begin, m_end, m_function);
 }
 
+unsigned BasicBlocksSnippet::get_instructions_number() const
+{
+    return m_instruction_number;
+}
+
 bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
 {
-    //llvm::dbgs() << "Intersects " << get_begin_block()->getName() << " \n";
+    llvm::dbgs() << "Intersects " << get_begin_block()->getName() << " \n";
     auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
     if (block_snippet) {
         bool result = contains_block(block_snippet->get_begin_block())
                         || contains_block(block_snippet->get_end_block());
         if (!result) {
-            result |= snippet.intersects(*this);
+            result |= (is_predecessing_block_snippet(*this, *block_snippet) &&
+                    (!block_snippet->get_start_snippet().is_valid_snippet() ||
+                    block_snippet->get_start_snippet().is_block()));
         }
         if (!result) {
-            result |= is_predecessing_block_snippet(*this, *block_snippet);
+            result |= (is_predecessing_block_snippet(*block_snippet, *this) &&
+                    (!m_start.is_valid_snippet() || m_start.is_block()));
         }
         return result;
     }
@@ -822,6 +848,9 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
         llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
         return false;
     }
+    llvm::dbgs() << "Merging\n";
+    dump();
+    snippet.dump();
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
         return m_start.merge(snippet);
@@ -830,6 +859,7 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
     if (m_start.is_valid_snippet()) {
         m_start.merge(block_snippet->get_start_snippet());
+        m_start.dump();
     }
     if (!contains_block(block_snippet->get_begin_block()) && block_snippet->contains_block(&*m_begin)) {
         m_begin = block_snippet->get_begin();
@@ -845,17 +875,20 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     if (!modified) {
         // check for case when one snippet continues the other
         // check if begin of the snippet is successor of the end of this
-        if (is_predecessing_block_snippet(*this, *block_snippet)) {
+        if (is_predecessing_block_snippet(*this, *block_snippet) && block_snippet->get_start_snippet().is_block()) {
             m_end = block_snippet->get_end();
             modified = true;
-        } else if (is_predecessing_block_snippet(*block_snippet, *this)) {
+        } else if (is_predecessing_block_snippet(*block_snippet, *this) && m_start.is_block()) {
             m_begin = block_snippet->get_begin();
+            m_start = block_snippet->get_start_snippet();
             modified = true;
         }
     }
     if (modified) {
         m_blocks.clear();
         m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
+        llvm::dbgs() << "After merge\n";
+        dump();
         return true;
     }
     return false;

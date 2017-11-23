@@ -1,6 +1,6 @@
 #include "FunctionClonePass.h"
+#include "Utils.h"
 
-#include "Analysis/InputDependencyStatistics.h"
 #include "Analysis/FunctionAnaliser.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -25,6 +25,29 @@ bool skip_function(llvm::Function* F, const std::unordered_set<llvm::Function*>&
 
 }
 
+void CloneStatistics::report()
+{
+    write_entry(m_module_name, "NumOfClonnedInst", m_numOfClonnedInst);
+    write_entry(m_module_name, "NumOfInstAfterCloning", m_numOfInstAfterCloning);
+    write_entry(m_module_name, "NumOfInDepInstAfterCloning", m_numOfInDepInstAfterCloning);
+    write_entry(m_module_name, "ClonnedFunctions", m_clonnedFuncs);
+    flush();
+}
+
+static llvm::cl::opt<bool> stats(
+    "clone-stats",
+    llvm::cl::desc("Dump statistics"),
+    llvm::cl::value_desc("boolean flag"));
+
+static llvm::cl::opt<std::string> stats_format(
+    "clone-stats-format",
+    llvm::cl::desc("Statistics format"),
+    llvm::cl::value_desc("format name"));
+
+static llvm::cl::opt<std::string> stats_file(
+    "clone-stats-file",
+    llvm::cl::desc("Statistics file"),
+    llvm::cl::value_desc("file name"));
 
 char FunctionClonePass::ID = 0;
 
@@ -42,6 +65,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     auto it = M.begin();
     FunctionSet to_process;
     FunctionSet processed;
+    initialize_statistics();
     while (it != M.end()) {
         auto F = &*it;
         ++it;
@@ -49,6 +73,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             continue;
         }
         to_process.insert(F);
+        m_statistics.add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
         while (!to_process.empty()) {
             auto pos = to_process.begin();
             auto& currentF = *pos;
@@ -57,12 +82,14 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
             auto f_analysisInfo = getFunctionInputDepInfo(currentF);
             if (f_analysisInfo == nullptr) {
+                to_process.erase(currentF);
                 continue;
             }
-            // TODO: check if we want this. It actually makes sense not cloning call sites from input dep function
-            //if (f_analysisInfo->isInputDepFunction()) {
-            //    continue;
-            //}
+            m_statistics.add_numOfInDepInstAfterCloning(f_analysisInfo->get_input_indep_count());
+            if (f_analysisInfo->isInputDepFunction()) {
+                to_process.erase(currentF);
+                continue;
+            }
             const auto& callSites = f_analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
@@ -81,8 +108,10 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
     llvm::dbgs() << "Finished function clonning transofrmation\n\n";
     dump();
-
-    //dumpStatistics(M);
+    if (stats) {
+        m_statistics.set_module_name(M.getName());
+        m_statistics.report();
+    }
     return isChanged;
 }
 
@@ -183,7 +212,23 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     F->setName(newName);
     clone.addClone(mask, F);
     bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);
+    m_statistics.add_numOfInDepInstAfterCloning(cloned_analiser->get_input_indep_count());
+    m_statistics.add_numOfClonnedInst(Utils::get_function_instrs_count(*F));
+    m_statistics.add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
+    m_statistics.add_clonnedFunction(F->getName());
     return std::make_pair(F, true);
+}
+
+void FunctionClonePass::initialize_statistics()
+{
+    if (!stats) {
+        return;
+    }
+    std::string file_name = stats_file;
+    if (file_name.empty()) {
+        file_name = "stats";
+    }
+    m_statistics = CloneStatistics(stats_format, file_name);
 }
 
 void FunctionClonePass::dump() const
@@ -192,14 +237,6 @@ void FunctionClonePass::dump() const
     for (const auto& clone : m_functionCloneInfo) {
         clone.second.dump();
     }
-}
-
-void FunctionClonePass::dumpStatistics(llvm::Module& M)
-{
-    // TODO: report with new statistics class
-    //llvm::dbgs() << "Input Dependency statistics after clonning\n";
-    //input_dependency::InputDependencyStatistics statistics;
-    //statistics.report(M, IDA->getAnalysisInfo());
 }
 
 static llvm::RegisterPass<FunctionClonePass> X(

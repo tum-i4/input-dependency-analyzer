@@ -33,7 +33,7 @@ void LibraryInfoManager::setup()
     STLStringInfo stlStringInfo(libFunctionCollector);
     stlStringInfo.setup();
 
-    if (!InputDepConfig::get().has_config_file()) {
+    if (InputDepConfig::get().has_config_file()) {
         LibraryInfoFromConfigFile configInfo(libFunctionCollector, InputDepConfig::get().get_config_file());
         configInfo.setup();
     }

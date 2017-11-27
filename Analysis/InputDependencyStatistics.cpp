@@ -121,10 +121,14 @@ void InputDependencyStatistics::reportInputInDepCoverage()
             cov_data = cached_pos->second;
         }
         const auto& FA = FA_pos->second;
-        unsigned indep_count = FA->get_input_indep_blocks_count();
+        unsigned indep_count = has_cached_data
+                            ? cov_data.all_blocks - cov_data.unreachable_blocks - cov_data.input_dep_blocks
+                            : FA->get_input_indep_blocks_count();
         unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
         unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
-        unsigned indep_instrs_count = FA->get_input_indep_count();
+        unsigned indep_instrs_count = has_cached_data
+                            ? cov_data.all_instrs - cov_data.unreachable_instrs - cov_data.input_dep_instrs
+                            : FA->get_input_indep_count();
         unsigned unreachable_instrs = has_cached_data ? cov_data.unreachable_instrs : FA->get_unreachable_instructions_count();
         unsigned instructions = has_cached_data ? cov_data.all_instrs : get_function_instrs_count(F);
         auto input_indep_cov = input_indep_coverage_data{F.getName(), indep_count, unreachable, blocks,
@@ -161,10 +165,14 @@ void InputDependencyStatistics::reportInputDepCoverage()
             cov_data = cached_pos->second;
         }
         const auto& FA = FA_pos->second;
-        unsigned dep_count = FA->get_input_dep_blocks_count();
+        unsigned dep_count = has_cached_data
+                                    ? cov_data.all_blocks - cov_data.unreachable_blocks - cov_data.input_indep_blocks
+                                    : FA->get_input_dep_blocks_count();
         unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
         unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
-        unsigned dep_instrs_count = FA->get_input_dep_count();
+        unsigned dep_instrs_count = has_cached_data
+                                    ? cov_data.all_instrs - cov_data.unreachable_instrs - cov_data.input_indep_instrs
+                                    : FA->get_input_dep_count();
         unsigned unreachable_instrs = has_cached_data ? cov_data.unreachable_instrs : FA->get_unreachable_instructions_count();
         unsigned instructions = has_cached_data ? cov_data.all_instrs : get_function_instrs_count(F);
         auto input_dep_cov = input_dep_coverage_data{F.getName(), dep_count, unreachable, blocks,

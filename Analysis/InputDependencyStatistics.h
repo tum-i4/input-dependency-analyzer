@@ -82,10 +82,14 @@ public:
     virtual void reportInputInDepCoverage();
 
     /// Reports ratio of input dependent instructions from input dependent functions over all instructions, as well as
-    /// ration of input dependent basic blocks in input dependent functions over all basic blocks.
+    /// ratio of input dependent basic blocks in input dependent functions over all basic blocks.
     /// Note that this function will not add input dependent instructions/blocks that are in input independent
     /// functions. The information collected by this function will be cached for further uses and can be invalidated
     /// by a call to \a invalidate_stats_data function.
+    virtual void reportInputDepFunctionCoverage();
+
+    /// Reports ratio of input dependent instructions over all instructions, as well as ratio of input dependent basic
+    /// blocks over all basic blocks.
     virtual void reportInputDepCoverage();
 
     /// Invalidates stat data cached so far. Note cached data will persist, unless this function is called.
@@ -107,6 +111,7 @@ private:
 
     // caching stats
     std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_coverage_data;
+    std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_function_coverage_data;
     std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_coverage_data;
 };
 
@@ -118,6 +123,7 @@ public:
     void reportInputDepInputIndepRatio() override {}
     void reportInputDependencyInfo() override {}
     void reportInputInDepCoverage() override {}
+    void reportInputDepFunctionCoverage() override {}
     void reportInputDepCoverage() override {}
     void invalidate_stats_data() override {}
 

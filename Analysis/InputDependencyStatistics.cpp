@@ -40,6 +40,7 @@ void InputDependencyStatistics::report()
     reportInputDepInputIndepRatio();
     reportInputDependencyInfo();
     reportInputDepCoverage();
+    reportInputDepFunctionCoverage();
     reportInputInDepCoverage();
 }
 
@@ -160,10 +161,10 @@ void InputDependencyStatistics::reportInputDepCoverage()
             cov_data = cached_pos->second;
         }
         const auto& FA = FA_pos->second;
-        unsigned dep_count = FA->isInputDepFunction() ? FA->get_input_dep_blocks_count() : 0;
+        unsigned dep_count = FA->get_input_dep_blocks_count();
         unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
         unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
-        unsigned dep_instrs_count = FA->isInputDepFunction() ? FA->get_input_dep_count() : 0;
+        unsigned dep_instrs_count = FA->get_input_dep_count();
         unsigned unreachable_instrs = has_cached_data ? cov_data.unreachable_instrs : FA->get_unreachable_instructions_count();
         unsigned instructions = has_cached_data ? cov_data.all_instrs : get_function_instrs_count(F);
         auto input_dep_cov = input_dep_coverage_data{F.getName(), dep_count, unreachable, blocks,
@@ -176,10 +177,50 @@ void InputDependencyStatistics::reportInputDepCoverage()
     unsetStatsTypeName();
 }
 
+void InputDependencyStatistics::reportInputDepFunctionCoverage()
+{
+    setStatsTypeName("input_dep_function_coverage");
+    input_dep_coverage_data module_coverage_data{m_module->getName(), 0, 0, 0, 0, 0, 0};
+
+    for (auto& F : *m_module) {
+        auto FA_pos = m_IDA->find(&F);
+        if (FA_pos == m_IDA->end()) {
+            continue;
+        }
+        auto cached_input_dep_data = m_function_input_dep_function_coverage_data.find(&F);
+        if (cached_input_dep_data != m_function_input_dep_function_coverage_data.end()) {
+            report_input_dep_coverage_data(cached_input_dep_data->second);
+            update_module_coverage_data(module_coverage_data, cached_input_dep_data->second);
+            continue;
+        }
+        auto cached_pos = m_function_input_indep_coverage_data.find(&F);
+        bool has_cached_data = cached_pos != m_function_input_indep_coverage_data.end();
+        input_indep_coverage_data cov_data;
+        if (has_cached_data) {
+            cov_data = cached_pos->second;
+        }
+        const auto& FA = FA_pos->second;
+        unsigned dep_count = FA->isInputDepFunction() ? FA->get_input_dep_blocks_count() : 0;
+        unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
+        unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
+        unsigned dep_instrs_count = FA->isInputDepFunction() ? FA->get_input_dep_count() : 0;
+        unsigned unreachable_instrs = has_cached_data ? cov_data.unreachable_instrs : FA->get_unreachable_instructions_count();
+        unsigned instructions = has_cached_data ? cov_data.all_instrs : get_function_instrs_count(F);
+        auto input_dep_cov = input_dep_coverage_data{F.getName(), dep_count, unreachable, blocks,
+                                           dep_instrs_count, unreachable_instrs, instructions};
+        m_function_input_dep_function_coverage_data.insert(std::make_pair(&F, input_dep_cov));
+        report_input_dep_coverage_data(input_dep_cov);
+        update_module_coverage_data(module_coverage_data, input_dep_cov);
+    }
+    report_input_dep_coverage_data(module_coverage_data);
+    unsetStatsTypeName();
+}
+
 void InputDependencyStatistics::invalidate_stats_data()
 {
     m_function_input_indep_coverage_data.clear();
     m_function_input_dep_coverage_data.clear();
+    m_function_input_dep_function_coverage_data.clear();
 }
 
 void InputDependencyStatistics::report_inputdepindep_data(const inputdepindep_data& data)

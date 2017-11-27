@@ -134,6 +134,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         stats.setSectionName("inputdep_stats");
         stats.reportInputInDepCoverage();
         stats.reportInputDepCoverage();
+        stats.reportInputDepFunctionCoverage();
         stats.flush();
     }
     return false;

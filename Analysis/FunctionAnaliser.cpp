@@ -1196,7 +1196,7 @@ const GlobalsSet& FunctionAnaliser::getModifiedGlobals() const
 
 long unsigned FunctionAnaliser::get_input_dep_blocks_count() const
 {
-    return m_analiser->get_input_indep_blocks_count();
+    return m_analiser->get_input_dep_blocks_count();
 }
 
 long unsigned FunctionAnaliser::get_input_indep_blocks_count() const

@@ -225,6 +225,11 @@ void Statistics::resume_report(const std::string& file_name)
     m_writer->open(file_name);
 }
 
+void Statistics::flush()
+{
+    m_writer->flush();
+}
+
 void Statistics::write_entry(const std::string& class_key, const std::string& key, unsigned value)
 {
     m_writer->write_entry(ReportWriter::key{m_sectionName, class_key, m_statsTypeName, key}, value);
@@ -240,9 +245,5 @@ void Statistics::write_entry(const std::string& class_key, const std::string& ke
     m_writer->write_entry(ReportWriter::key{m_sectionName, class_key, m_statsTypeName, key}, value);
 }
 
-void Statistics::flush()
-{
-    m_writer->flush();
-}
 }
 

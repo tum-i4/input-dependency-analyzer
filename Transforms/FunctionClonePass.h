@@ -78,6 +78,7 @@ public:
     DummyCloneStatistics() = default;
 
     void report() override {}
+    void flush() override {}
 
     void add_numOfClonnedInst(unsigned num) override
     {}

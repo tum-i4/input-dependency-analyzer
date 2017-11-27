@@ -54,6 +54,7 @@ public:
 
     virtual void stop_report();
     virtual void resume_report(const std::string& file_name);
+    virtual void flush();
 
     virtual void report() = 0;
 
@@ -61,7 +62,6 @@ protected:
     void write_entry(const std::string& class_key, const std::string& key, unsigned value);
     void write_entry(const std::string& class_key, const std::string& key, const std::string& value);
     void write_entry(const std::string& class_key, const std::string& key, const std::vector<std::string>& value);
-    void flush();
 
 protected:
     std::shared_ptr<ReportWriter> m_writer;

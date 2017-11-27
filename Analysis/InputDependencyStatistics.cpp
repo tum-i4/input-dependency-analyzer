@@ -41,7 +41,6 @@ void InputDependencyStatistics::report()
     reportInputDependencyInfo();
     reportInputDepCoverage();
     reportInputInDepCoverage();
-    flush();
 }
 
 void InputDependencyStatistics::reportInputDepInputIndepRatio()
@@ -72,7 +71,6 @@ void InputDependencyStatistics::reportInputDepInputIndepRatio()
             module_dep_count,
             module_indep_count,
             module_unknown_count});
-    flush();
     unsetStatsTypeName();
 }
 
@@ -97,8 +95,6 @@ void InputDependencyStatistics::reportInputDependencyInfo()
                                        module_inputdep_instrs,
                                        inputdep_functions_count,
                                        input_dep_functions});
-    flush();
-    unsetStatsTypeName();
 }
 
 void InputDependencyStatistics::reportInputInDepCoverage()
@@ -138,7 +134,6 @@ void InputDependencyStatistics::reportInputInDepCoverage()
         update_module_coverage_data(module_coverage_data, input_indep_cov);
     }
     report_input_indep_coverage_data(module_coverage_data);
-    flush();
     unsetStatsTypeName();
 }
 
@@ -178,7 +173,6 @@ void InputDependencyStatistics::reportInputDepCoverage()
         update_module_coverage_data(module_coverage_data, input_dep_cov);
     }
     report_input_dep_coverage_data(module_coverage_data);
-    flush();
     unsetStatsTypeName();
 }
 
@@ -287,6 +281,7 @@ bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
     }
     InputDependencyStatistics statistics(stats_format, stats_file, &M, &IDA.getAnalysisInfo());
     statistics.report();
+    statistics.flush();
     return false;
 }
 

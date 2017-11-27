@@ -58,6 +58,7 @@ public:
     DummyExtractionStatistics() = default;
 
     void report() override {}
+    void flush() override {}
     void add_numOfExtractedInst(unsigned num) override {}
     void add_numOfMediateInst(unsigned num) override {}
     void add_extractedFunction(const std::string& name) override {}

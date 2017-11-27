@@ -120,6 +120,8 @@ public:
     void reportInputInDepCoverage() override {}
     void reportInputDepCoverage() override {}
     void invalidate_stats_data() override {}
+
+    void flush() override {}
 };
 
 /// Collects and calculates statistics on input dependent instructions

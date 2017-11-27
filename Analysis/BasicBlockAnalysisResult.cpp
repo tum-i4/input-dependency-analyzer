@@ -369,7 +369,9 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
 bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block,
                                                 const ArgumentDependenciesMap& depArgs) const
 {
-    return isInputDependent(block);
+    // if this function is called means block is neither argument dep (nonDetBlock would have been called) nor input
+    // dependent block;
+    return false;
 }
 
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
@@ -400,7 +402,7 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr,
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) const
 {
     assert(instr->getParent()->getParent() == m_F);
-    return m_inputIndependentInstrs.find(instr) != m_inputIndependentInstrs.end();
+    return m_inputIndependentInstrs.find(instr) != m_inputIndependentInstrs.end() && !isInputDependent(instr);
 }
 
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
@@ -552,12 +554,12 @@ void BasicBlockAnalysisResult::markAllInputDependent()
         functionItem.second.markAllInputDependent();
     }
     for (auto& depinstr : m_inputDependentInstrs) {
-        depinstr.second = info;
+        m_finalInputDependentInstrs.insert(depinstr.first);
     }
     for (auto& instr : m_inputIndependentInstrs) {
-        m_inputDependentInstrs.insert(std::make_pair(instr, info));
+        m_finalInputDependentInstrs.insert(instr);
     }
-    m_inputIndependentInstrs.clear();
+    //m_inputIndependentInstrs.clear();
     for (auto& val : m_valueDependencies) {
         val.second.updateCompositeValueDep(info);
     }

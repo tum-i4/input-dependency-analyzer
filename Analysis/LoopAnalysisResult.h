@@ -130,6 +130,7 @@ private:
     DepInfo getBlockTerminatingDependencies(llvm::BasicBlock* B) const;
     void collectLoopBlocks(llvm::Loop* block_loop);
     void finalizeLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs);
+    void reflectValueDepsOnLoopDeps();
 
 private:
     llvm::Function* m_F;

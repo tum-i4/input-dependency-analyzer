@@ -369,7 +369,6 @@ void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
     AU.addRequired<input_dependency::InputDependencyAnalysis>();
-    AU.addRequired<input_dependency::InputDependentFunctionsPass>();
     AU.setPreservesAll();
 }
 
@@ -377,9 +376,10 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
 {
     bool modified = false;
     auto& input_dep = getAnalysis<input_dependency::InputDependencyAnalysis>();
-    const auto& function_calls = getAnalysis<input_dependency::InputDependentFunctionsPass>();
 
-    initialize_statistics();
+    createStatistics(M, input_dep);
+    m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
+    m_coverageStatistics->reportInputDepCoverage();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
@@ -396,7 +396,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         if (!f_input_dep_info) {
             continue;
         }
-        if (!function_calls.is_function_input_independent(&F)) {
+        if (f_input_dep_info->isInputDepFunction()) {
             llvm::dbgs() << "Skip: Input dependent function " << F.getName() << "\n";
             continue;
         }
@@ -407,7 +407,6 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     }
 
     llvm::dbgs() << "\nExtracted functions are \n";
-    m_statistics.set_module_name(M.getName());
     for (const auto& f : extracted_functions) {
         llvm::Function* extracted_f = f.first;
         m_extracted_functions.insert(extracted_f);
@@ -417,14 +416,14 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
                 input_dependency::InputDependentFunctionAnalysisResult(extracted_f)));
         if (stats) {
             unsigned f_instr_num = Utils::get_function_instrs_count(*extracted_f);
-            m_statistics.add_numOfExtractedInst(f.second);
-            m_statistics.add_numOfMediateInst(f_instr_num - f.second);
-            m_statistics.add_extractedFunction(extracted_f->getName());
+            m_extractionStatistics->add_numOfExtractedInst(f.second);
+            m_extractionStatistics->add_numOfMediateInst(f_instr_num - f.second);
+            m_extractionStatistics->add_extractedFunction(extracted_f->getName());
         }
     }
-    if (stats) {
-        m_statistics.report();
-    }
+    m_coverageStatistics->setSectionName("input_dep_coverage_after_extraction");
+    m_coverageStatistics->reportInputDepCoverage();
+    m_extractionStatistics->report();
     return modified;
 }
 
@@ -433,16 +432,21 @@ const std::unordered_set<llvm::Function*>& FunctionExtractionPass::get_extracted
     return m_extracted_functions;
 }
 
-void FunctionExtractionPass::initialize_statistics()
+void FunctionExtractionPass::createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysis& IDA)
 {
     if (!stats) {
+        m_extractionStatistics = ExtractionStatisticsType(new DummyExtractionStatistics());
+        m_coverageStatistics = CoverageStatisticsType(new input_dependency::DummyInputDependencyStatistics());
         return;
     }
     std::string file_name = stats_file;
     if (file_name.empty()) {
         file_name = "stats";
     }
-    m_statistics = ExtractionStatistics(stats_format, file_name);
+    m_extractionStatistics= ExtractionStatisticsType(new ExtractionStatistics(M.getName(), stats_format, file_name));
+    m_extractionStatistics->setSectionName("extraction_stats");
+    m_coverageStatistics = CoverageStatisticsType(new input_dependency::InputDependencyStatistics(stats_format, file_name, &M,
+                                                                          &IDA.getAnalysisInfo()));
 }
 
 static llvm::RegisterPass<FunctionExtractionPass> X(

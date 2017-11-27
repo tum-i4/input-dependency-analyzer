@@ -52,7 +52,7 @@ bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* bloc
                                                           const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
 {
     assert(block == m_BB);
-    if (m_nonDetDeps.isInputDep()) {
+    if (m_nonDetDeps.isInputDep() && m_nonDetDeps.getArgumentDependencies().empty()) {
         return true;
     }
     return Utils::isInputDependentForArguments(m_nonDetDeps, depArgs);

@@ -1,19 +1,27 @@
 #pragma once
 
 #include "Analysis/Statistics.h"
+#include "Analysis/InputDependencyStatistics.h"
 
 #include "llvm/Pass.h"
 
+#include <memory>
 #include <unordered_set>
+
+namespace input_dependency {
+class InputDependencyAnalysis;
+}
 
 namespace oh {
 class ExtractionStatistics : public input_dependency::Statistics
 {
 public:
     ExtractionStatistics() = default;
-    ExtractionStatistics(const std::string& format,
+    ExtractionStatistics(const std::string& module_name,
+                         const std::string& format,
                          const std::string& file_name)
         : Statistics(format, file_name)
+        , m_module_name(module_name)
         , m_numOfExtractedInst(0)
         , m_numOfMediateInst(0)
     {
@@ -22,22 +30,17 @@ public:
 public:
     void report() override;
 
-    void set_module_name(const std::string& name)
-    {
-        m_module_name = name;
-    }
-
-    void add_numOfExtractedInst(unsigned num)
+    virtual void add_numOfExtractedInst(unsigned num)
     {
         m_numOfExtractedInst += num;
     }
 
-    void add_numOfMediateInst(unsigned num)
+    virtual void add_numOfMediateInst(unsigned num)
     {
         m_numOfMediateInst += num;
     }
 
-    void add_extractedFunction(const std::string& name)
+    virtual void add_extractedFunction(const std::string& name)
     {
         m_extractedFuncs.push_back(name);
     }
@@ -49,6 +52,16 @@ private:
     std::vector<std::string> m_extractedFuncs;
 }; // class CloneStatistics
 
+class DummyExtractionStatistics :  public ExtractionStatistics
+{
+public:
+    DummyExtractionStatistics() = default;
+
+    void report() override {}
+    void add_numOfExtractedInst(unsigned num) override {}
+    void add_numOfMediateInst(unsigned num) override {}
+    void add_extractedFunction(const std::string& name) override {}
+};
 
 /**
 * \class FunctionExtractionPass
@@ -73,11 +86,14 @@ public:
     const std::unordered_set<llvm::Function*>& get_extracted_functions() const;
 
 private:
-    void initialize_statistics();
+    void createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysis& IDA);
 
 private:
     std::unordered_set<llvm::Function*> m_extracted_functions;
-    ExtractionStatistics m_statistics;
+    using ExtractionStatisticsType = std::shared_ptr<ExtractionStatistics>;
+    ExtractionStatisticsType m_extractionStatistics;
+    using CoverageStatisticsType = std::shared_ptr<input_dependency::InputDependencyStatistics>;
+    CoverageStatisticsType m_coverageStatistics;
 };
 
 } // namespace oh

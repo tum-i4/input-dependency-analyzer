@@ -362,7 +362,7 @@ void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, ValueDep
     for (auto& item : argDeps) {
         // if argument is input indep, do not make it input dependent
         if (!item.second.isInputIndep()) {
-            item.second.updateCompositeValueDep(info);
+            item.second.mergeDependencies(info);
         }
     }
 }

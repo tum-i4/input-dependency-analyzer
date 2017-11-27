@@ -144,7 +144,7 @@ long unsigned ClonedFunctionAnalysisResult::get_input_dep_blocks_count() const
 
 long unsigned ClonedFunctionAnalysisResult::get_input_indep_blocks_count() const
 {
-    return m_F->getBasicBlockList().size() - get_input_dep_count();
+    return m_F->getBasicBlockList().size() - get_input_dep_blocks_count();
 }
 
 long unsigned ClonedFunctionAnalysisResult::get_unreachable_blocks_count() const

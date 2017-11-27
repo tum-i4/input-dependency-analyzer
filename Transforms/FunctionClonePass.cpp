@@ -62,10 +62,13 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     llvm::dbgs() << "Running function clonning transofrmation pass\n";
     bool isChanged = true;
     IDA = &getAnalysis<input_dependency::InputDependencyAnalysis>();
+
+    createStatistics(M);
+    m_coverageStatistics->reportInputInDepCoverage();
+
     auto it = M.begin();
     FunctionSet to_process;
     FunctionSet processed;
-    initialize_statistics();
     while (it != M.end()) {
         auto F = &*it;
         ++it;
@@ -73,7 +76,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             continue;
         }
         to_process.insert(F);
-        m_statistics.add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
+        m_cloneStatistics->add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
         while (!to_process.empty()) {
             auto pos = to_process.begin();
             auto& currentF = *pos;
@@ -85,7 +88,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
                 to_process.erase(currentF);
                 continue;
             }
-            m_statistics.add_numOfInDepInstAfterCloning(f_analysisInfo->get_input_indep_count());
+            m_cloneStatistics->add_numOfInDepInstAfterCloning(f_analysisInfo->get_input_indep_count());
             if (f_analysisInfo->isInputDepFunction()) {
                 to_process.erase(currentF);
                 continue;
@@ -108,10 +111,9 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
     llvm::dbgs() << "Finished function clonning transofrmation\n\n";
     dump();
-    if (stats) {
-        m_statistics.set_module_name(M.getName());
-        m_statistics.report();
-    }
+    m_coverageStatistics->setSectionName("input_indep_coverage_after_clonning");
+    m_coverageStatistics->reportInputInDepCoverage();
+    m_cloneStatistics->report();
     return isChanged;
 }
 
@@ -212,23 +214,29 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     F->setName(newName);
     clone.addClone(mask, F);
     bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);
-    m_statistics.add_numOfInDepInstAfterCloning(cloned_analiser->get_input_indep_count());
-    m_statistics.add_numOfClonnedInst(Utils::get_function_instrs_count(*F));
-    m_statistics.add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
-    m_statistics.add_clonnedFunction(F->getName());
+    m_cloneStatistics->add_numOfInDepInstAfterCloning(cloned_analiser->get_input_indep_count());
+    m_cloneStatistics->add_numOfClonnedInst(Utils::get_function_instrs_count(*F));
+    m_cloneStatistics->add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
+    m_cloneStatistics->add_clonnedFunction(F->getName());
     return std::make_pair(F, true);
 }
 
-void FunctionClonePass::initialize_statistics()
+void FunctionClonePass::createStatistics(llvm::Module& M)
 {
     if (!stats) {
+        m_cloneStatistics = CloneStatisticsType(new DummyCloneStatistics());
+        m_coverageStatistics = CoverageStatisticsType(new input_dependency::DummyInputDependencyStatistics());
         return;
     }
     std::string file_name = stats_file;
     if (file_name.empty()) {
         file_name = "stats";
     }
-    m_statistics = CloneStatistics(stats_format, file_name);
+    m_cloneStatistics = CloneStatisticsType(new CloneStatistics(M.getName(), stats_format, file_name));
+    m_cloneStatistics->setSectionName("clone_stats");
+    m_coverageStatistics = CoverageStatisticsType(new input_dependency::InputDependencyStatistics(stats_format, file_name, &M,
+                                                                          &IDA->getAnalysisInfo()));
+    m_coverageStatistics->setSectionName("input_indep_coverage_before_clonning");
 }
 
 void FunctionClonePass::dump() const

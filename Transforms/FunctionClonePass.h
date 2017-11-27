@@ -3,8 +3,10 @@
 #include "FunctionClone.h"
 #include "Analysis/InputDependencyAnalysis.h"
 #include "Analysis/Statistics.h"
+#include "Analysis/InputDependencyStatistics.h"
 
 #include "llvm/Pass.h"
+#include <memory>
 
 namespace input_dependency {
 class InputDependencyAnalysis;
@@ -23,9 +25,11 @@ class CloneStatistics : public input_dependency::Statistics
 {
 public:
     CloneStatistics() = default;
-    CloneStatistics(const std::string& format,
+    CloneStatistics(const std::string& module_name,
+                    const std::string& format,
                     const std::string& file_name)
         : Statistics(format, file_name)
+        , m_module_name(module_name)
         , m_numOfClonnedInst(0)
         , m_numOfInstAfterCloning(0)
         , m_numOfInDepInstAfterCloning(0)
@@ -40,22 +44,22 @@ public:
         m_module_name = name;
     }
 
-    void add_numOfClonnedInst(unsigned num)
+    virtual void add_numOfClonnedInst(unsigned num)
     {
         m_numOfClonnedInst += num;
     }
 
-    void add_numOfInstAfterCloning(unsigned num)
+    virtual void add_numOfInstAfterCloning(unsigned num)
     {
         m_numOfInstAfterCloning += num;
     }
 
-    void add_numOfInDepInstAfterCloning(unsigned num)
+    virtual void add_numOfInDepInstAfterCloning(unsigned num)
     {
         m_numOfInDepInstAfterCloning += num;
     }
 
-    void add_clonnedFunction(const std::string& name)
+    virtual void add_clonnedFunction(const std::string& name)
     {
         m_clonnedFuncs.push_back(name);
     }
@@ -67,6 +71,26 @@ private:
     unsigned m_numOfInDepInstAfterCloning;
     std::vector<std::string> m_clonnedFuncs;
 }; // class CloneStatistics
+
+class DummyCloneStatistics : public CloneStatistics
+{
+public:
+    DummyCloneStatistics() = default;
+
+    void report() override {}
+
+    void add_numOfClonnedInst(unsigned num) override
+    {}
+
+    void add_numOfInstAfterCloning(unsigned num) override
+    {}
+
+    void add_numOfInDepInstAfterCloning(unsigned num) override
+    {}
+
+    void add_clonnedFunction(const std::string& name) override
+    {}
+};
 
 class FunctionClonePass : public llvm::ModulePass
 {
@@ -94,7 +118,7 @@ private:
                                             FunctionClone& clone,
                                             const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps);
 
-    void initialize_statistics();
+    void createStatistics(llvm::Module& M);
     void dump() const;
 
 private:
@@ -102,7 +126,10 @@ private:
     using FunctionCloneInfo = std::unordered_map<llvm::Function*, FunctionClone>;
     FunctionCloneInfo m_functionCloneInfo;
     std::unordered_map<llvm::Function*, llvm::Function*> m_clone_to_original;
-    CloneStatistics m_statistics;
+    using CloneStatisticsType = std::shared_ptr<CloneStatistics>;
+    CloneStatisticsType m_cloneStatistics;
+    using CoverageStatisticsType = std::shared_ptr<input_dependency::InputDependencyStatistics>;
+    CoverageStatisticsType m_coverageStatistics;
 };
 
 }

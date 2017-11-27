@@ -20,6 +20,8 @@ public:
         JSON
     };
 
+    using Keys = std::vector<std::string>;
+
 public:
     Statistics() = default;
     Statistics(const std::string& format, const std::string& file_name);
@@ -29,6 +31,30 @@ public:
     }
 
 public:
+    /// Set section name for this statistics in case it is a subsection of another statistics
+    void setSectionName(const std::string& str)
+    {
+        m_sectionName = str;
+    }
+
+    void unsetSectionName()
+    {
+        m_sectionName.clear();
+    }
+
+    void setStatsTypeName(const std::string& str)
+    {
+        m_statsTypeName = str;
+    }
+
+    void unsetStatsTypeName()
+    {
+        m_statsTypeName.clear();
+    }
+
+    virtual void stop_report();
+    virtual void resume_report(const std::string& file_name);
+
     virtual void report() = 0;
 
 protected:
@@ -39,6 +65,8 @@ protected:
 
 protected:
     std::shared_ptr<ReportWriter> m_writer;
+    std::string m_sectionName;
+    std::string m_statsTypeName;
 };
 
 }

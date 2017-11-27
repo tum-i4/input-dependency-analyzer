@@ -103,6 +103,7 @@ public:
         , m_argumentsFinalized(false)
         , m_globalsFinalized(false)
         , m_globalsUpdated(false)
+        , m_is_inputDep(false)
     {
     }
 

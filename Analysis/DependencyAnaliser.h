@@ -153,6 +153,7 @@ protected:
     bool m_finalized;
     bool m_globalsFinalized;
 
+    std::unordered_map<llvm::Value*, FunctionSet> m_functionValues;
     ArgumentDependenciesMap m_outArgDependencies;
     ValueDepInfo m_returnValueDependencies;
     FunctionSet m_calledFunctions;

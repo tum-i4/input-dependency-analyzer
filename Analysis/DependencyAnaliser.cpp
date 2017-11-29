@@ -331,8 +331,24 @@ void DependencyAnaliser::processBranchInst(llvm::BranchInst* branchInst)
 void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto op = storeInst->getOperand(0);
+    auto storeTo = storeInst->getPointerOperand();
     ValueDepInfo info(op->getType(), DepInfo()); // the value here is not important, could be null
-    if (llvm::dyn_cast<llvm::Constant>(op)) {
+    // assigning function to a variable
+    if (auto* function = llvm::dyn_cast<llvm::Function>(op)) {
+        auto FA = m_FAG(function);
+        DepInfo f_info;
+        if (FA) {
+            if (FA->isInputDepFunction()) {
+                f_info.setDependency(DepInfo::INPUT_DEP);
+            } else {
+                f_info.setDependency(DepInfo::INPUT_INDEP);
+            }
+        } else {
+            f_info.setDependency(DepInfo::INPUT_INDEP);
+        }
+        info.updateCompositeValueDep(f_info);
+        m_functionValues[storeTo].insert(function);
+    } else if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
     } else {
         info.mergeDependencies(getValueDependencies(op));
@@ -353,7 +369,6 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         InputDepInstructionsRecorder::get().record(storeInst);
     }
     assert(info.isDefined());
-    auto storeTo = storeInst->getPointerOperand();
     if (auto global = llvm::dyn_cast<llvm::GlobalVariable>(storeTo)) {
         m_modifiedGlobals.insert(global);
     }

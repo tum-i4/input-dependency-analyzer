@@ -75,7 +75,7 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         AAR.emplace(llvm::createLegacyPMAAResults(*this, F, *BAR));
         return *AAR;
     };
-    auto FAGetter = [&] (llvm::Function* F) -> const FunctionAnaliser* {
+    auto FAGetter = [&] (llvm::Function* F) -> FunctionAnaliser* {
         auto pos = m_functionAnalisers.find(F);
         if (pos == m_functionAnalisers.end()) {
             return nullptr;

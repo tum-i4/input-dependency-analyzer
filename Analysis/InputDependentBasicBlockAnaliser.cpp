@@ -18,6 +18,7 @@ InputDependentBasicBlockAnaliser::InputDependentBasicBlockAnaliser(llvm::Functio
                                                                    llvm::BasicBlock* BB)
                     : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
 {
+    m_is_inputDep = true;
 }
 
 void InputDependentBasicBlockAnaliser::processReturnInstr(llvm::ReturnInst* retInst)
@@ -105,6 +106,11 @@ void InputDependentBasicBlockAnaliser::updateReturnValueDependencies(const Value
     BasicBlockAnalysisResult::updateReturnValueDependencies(ValueDepInfo(DepInfo::INPUT_DEP));
 }
 
+long unsigned InputDependentBasicBlockAnaliser::get_input_dep_count() const
+{
+    return m_BB->getInstList().size();
+}
+
 ReflectingInputDependentBasicBlockAnaliser::ReflectingInputDependentBasicBlockAnaliser(llvm::Function* F,
                                                                    llvm::AAResults& AAR,
                                                                    const VirtualCallSiteAnalysisResult& virtualCallsInfo,
@@ -114,6 +120,11 @@ ReflectingInputDependentBasicBlockAnaliser::ReflectingInputDependentBasicBlockAn
                                                                    llvm::BasicBlock* BB)
                     : InputDependentBasicBlockAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
 {
+}
+
+long unsigned ReflectingInputDependentBasicBlockAnaliser::get_input_dep_count() const
+{
+    return m_BB->getInstList().size();
 }
 
 

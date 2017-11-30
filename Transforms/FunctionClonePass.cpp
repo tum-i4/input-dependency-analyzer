@@ -100,10 +100,6 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
                     continue;
                 }
-                if (callSite->getArgumentList().empty()) {
-                    // don't clone function with no argument
-                    continue;
-                }
                 const auto& clonedFunctions = doClone(f_analysisInfo, callSite);
                 to_process.insert(clonedFunctions.begin(), clonedFunctions.end());
             }
@@ -193,7 +189,7 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
                                                                        calledF->getArgumentList().size(),
                                                                        calledF->isVarArg());
     // no need to clone for all input dep arguments
-    if (std::all_of(mask.begin(), mask.end(), [] (bool b) {return b;})) {
+    if (!mask.empty() && std::all_of(mask.begin(), mask.end(), [] (bool b) {return b;})) {
         return std::make_pair(nullptr, false);
     }
     //llvm::dbgs() << "   Argument dependency mask is: " << FunctionClone::mask_to_string(mask) << "\n";
@@ -213,7 +209,7 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     cloned_analiser->setIsInputDepFunction(false);
     F = cloned_analiser->getFunction();
     std::string newName = calledF->getName();
-    newName += FunctionClone::mask_to_string(mask);
+    newName += mask.empty() ? "_indep" : FunctionClone::mask_to_string(mask);
     F->setName(newName);
     clone.addClone(mask, F);
     bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);

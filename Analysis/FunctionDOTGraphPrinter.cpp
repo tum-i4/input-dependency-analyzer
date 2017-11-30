@@ -69,7 +69,11 @@ public:
         std::string Str;
         raw_string_ostream OS(Str);
 
-        OS << Node->getName() << "\n";
+        if (analiser->isInputDependentBlock(const_cast<llvm::BasicBlock*>(Node))) {
+            OS << "*** " << Node->getName() << "\n";
+        } else {
+            OS << Node->getName() << "\n";
+        }
         for (auto& instr : *Node) {
             if (analiser->isInputDependent(&instr)) {
                 OS << "*** ";

@@ -29,6 +29,22 @@ public:
     {
         return true;
     }
+    long unsigned get_input_dep_blocks_count() const  override
+    {
+        return 1;
+    }
+
+    long unsigned get_input_indep_blocks_count() const  override
+    {
+        return 0;
+    }
+
+    long unsigned get_input_dep_count() const  override;
+
+    long unsigned get_input_indep_count() const  override
+    {
+        return 0;
+    }
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{
@@ -64,6 +80,23 @@ public:
     bool isInputDependent(llvm::BasicBlock* block) const override
     {
         return true;
+    }
+
+    long unsigned get_input_dep_blocks_count() const  override
+    {
+        return 1;
+    }
+
+    long unsigned get_input_indep_blocks_count() const  override
+    {
+        return 0;
+    }
+
+    long unsigned get_input_dep_count() const  override;
+
+    long unsigned get_input_indep_count() const  override
+    {
+        return 0;
     }
 
     void reflect(const DependencyAnaliser::ValueDependencies&, const DepInfo&) override

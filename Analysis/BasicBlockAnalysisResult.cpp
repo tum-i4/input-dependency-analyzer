@@ -411,9 +411,6 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr) const
 bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr,
                                                 const ArgumentDependenciesMap& depArgs) const
 {
-    if (depArgs.empty()) {
-        return isInputDependent(instr);
-    }
     auto pos = m_inputDependentInstrs.find(instr);
     if (pos == m_inputDependentInstrs.end()) {
         // if is not in non-final input dep instructions set, means is input independent
@@ -423,6 +420,10 @@ bool BasicBlockAnalysisResult::isInputDependent(llvm::Instruction* instr,
     if (deps.isInputDep()) {
         // is input dep
         return true;
+    }
+    // if got to this point means is input arg dep, as all args are input indep - return false
+    if (depArgs.empty()) {
+        return false;
     }
     return (deps.isInputArgumentDep() && Utils::haveIntersection(depArgs, deps.getArgumentDependencies()));
 }
@@ -436,9 +437,6 @@ bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) cons
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
                                                   const ArgumentDependenciesMap& depArgs) const
 {
-    if (depArgs.empty()) {
-        return isInputIndependent(instr);
-    }
     auto pos = m_inputDependentInstrs.find(instr);
     if (pos == m_inputDependentInstrs.end()) {
         return true;
@@ -448,6 +446,7 @@ bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
         return false;
     }
     return deps.isInputIndep()
+        || depArgs.empty()
         || (deps.isInputArgumentDep() && !Utils::haveIntersection(depArgs, deps.getArgumentDependencies()));
 }
 

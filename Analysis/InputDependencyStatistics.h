@@ -81,6 +81,9 @@ public:
     /// Cached data can be invalidated by a call of \a invalidate_stats_data
     virtual void reportInputInDepCoverage();
 
+    /// The same as \a reportInputInDepCoverage only for input indep functions.
+    virtual void reportInputInDepFunctionCoverage();
+
     /// Reports ratio of input dependent instructions from input dependent functions over all instructions, as well as
     /// ratio of input dependent basic blocks in input dependent functions over all basic blocks.
     /// Note that this function will not add input dependent instructions/blocks that are in input independent
@@ -111,6 +114,7 @@ private:
 
     // caching stats
     std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_coverage_data;
+    std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_functoin_coverage_data;
     std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_function_coverage_data;
     std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_coverage_data;
 };
@@ -123,6 +127,7 @@ public:
     void reportInputDepInputIndepRatio() override {}
     void reportInputDependencyInfo() override {}
     void reportInputInDepCoverage() override {}
+    void reportInputInDepFunctionCoverage() override {}
     void reportInputDepFunctionCoverage() override {}
     void reportInputDepCoverage() override {}
     void invalidate_stats_data() override {}

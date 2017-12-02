@@ -380,7 +380,6 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     createStatistics(M, input_dep);
     m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
     m_coverageStatistics->reportInputDepFunctionCoverage();
-    m_coverageStatistics->flush();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
@@ -424,7 +423,6 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     }
     m_coverageStatistics->setSectionName("input_dep_coverage_after_extraction");
     m_coverageStatistics->reportInputDepFunctionCoverage();
-    m_coverageStatistics->flush();
     m_extractionStatistics->report();
     return modified;
 }
@@ -445,10 +443,11 @@ void FunctionExtractionPass::createStatistics(llvm::Module& M, input_dependency:
     if (file_name.empty()) {
         file_name = "stats";
     }
-    m_extractionStatistics= ExtractionStatisticsType(new ExtractionStatistics(M.getName(), stats_format, file_name));
-    m_extractionStatistics->setSectionName("extraction_stats");
     m_coverageStatistics = CoverageStatisticsType(new input_dependency::InputDependencyStatistics(stats_format, file_name, &M,
                                                                           &IDA.getAnalysisInfo()));
+    m_extractionStatistics = ExtractionStatisticsType(new ExtractionStatistics(m_coverageStatistics->getReportWriter()));
+    m_extractionStatistics->setSectionName("extraction_stats");
+    m_extractionStatistics->set_module_name(M.getName());
 }
 
 static llvm::RegisterPass<FunctionExtractionPass> X(

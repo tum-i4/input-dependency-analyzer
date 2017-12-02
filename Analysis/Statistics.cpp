@@ -10,63 +10,18 @@ using json = nlohmann::json;
 
 namespace input_dependency {
 
-class Statistics::ReportWriter
+void Statistics::ReportWriter::close()
 {
-public:
-    struct key
-    {
-        std::string sectionName;
-        std::string functionName;
-        std::string statisticsTypeName;
-        std::string valueName;
-    };
+    m_strm.close();
+    m_strm.clear();
+}
 
-    struct clone_data
-    {
-        std::string name;
-        unsigned numOfClonnedInst;
-        unsigned numOfInstAfterCloning;
-        unsigned numOfInDepInstAfterCloning;
-        std::vector<std::string> clonnedFuncs;
-    };
-
-    struct extraction_data
-    {
-        std::string name;
-        unsigned numOfExtractedInst;
-        unsigned numOfMediateInst;
-        std::vector<std::string> extractedFuncs;
-    };
-
-public:
-    virtual ~ReportWriter()
-    {
+void Statistics::ReportWriter::open(const std::string& file_name)
+{
+    if (!m_strm.is_open()) {
+        m_strm.open(file_name, std::ofstream::app);
     }
-
-    virtual void close()
-    {
-        m_strm.close();
-        m_strm.clear();
-    }
-
-    virtual void open(const std::string& file_name)
-    {
-        if (!m_strm.is_open()) {
-            m_strm.open(file_name, std::ofstream::app);
-        }
-    }
-
-    // Because can not have template virtual functions
-    virtual void write_entry(const key& k, unsigned value) = 0;
-    virtual void write_entry(const key& k, const std::string& value) = 0;
-    virtual void write_entry(const key& k, const std::vector<std::string>& value) = 0;
-    virtual void flush() = 0;
-
-protected:
-    std::ofstream m_strm;
-    std::string m_sectionName;
-    std::string m_statsName;
-};
+}
 
 class TextReportWriter : public Statistics::ReportWriter
 {
@@ -213,6 +168,11 @@ Statistics::Statistics(const std::string& format_str,
         m_writer.reset(new JsonReportWriter(file_name));
         break;
     }
+}
+
+Statistics::Statistics(ReportWriterType writer)
+    : m_writer(writer)
+{
 }
 
 void Statistics::stop_report()

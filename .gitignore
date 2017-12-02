@@ -3,4 +3,5 @@ OH/.*.swp
 Transforms/.*.swp
 CutVertice/.*.swp
 build/
+tests/
 

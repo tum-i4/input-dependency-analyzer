@@ -27,7 +27,17 @@ public:
     {
     }
 
+    ExtractionStatistics(Statistics::ReportWriterType writer)
+        : Statistics(writer)
+    {
+    }
+
 public:
+    void set_module_name(const std::string& name)
+    {
+        m_module_name = name;
+    }
+
     void report() override;
 
     virtual void add_numOfExtractedInst(unsigned num)

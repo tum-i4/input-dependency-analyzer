@@ -36,6 +36,11 @@ public:
     {
     }
 
+    CloneStatistics(Statistics::ReportWriterType writer)
+        : Statistics(writer)
+    {
+    }
+
 public:
     void report() override;
 

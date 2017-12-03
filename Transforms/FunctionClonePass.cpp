@@ -6,6 +6,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
@@ -71,6 +72,8 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     auto it = M.begin();
     FunctionSet to_process;
     FunctionSet processed;
+    std::unordered_map<llvm::Function*, bool> original_uses;
+    FunctionSet unused_originals;
     while (it != M.end()) {
         auto F = &*it;
         ++it;
@@ -87,11 +90,14 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
             auto f_analysisInfo = getFunctionInputDepInfo(currentF);
             if (f_analysisInfo == nullptr) {
+                original_uses[currentF] = true;
+                unused_originals.erase(currentF);
                 to_process.erase(currentF);
                 continue;
             }
             m_cloneStatistics->add_numOfInDepInstAfterCloning(f_analysisInfo->get_input_indep_count());
             if (f_analysisInfo->isInputDepFunction()) {
+                original_uses[currentF] = true;
                 to_process.erase(currentF);
                 continue;
             }
@@ -100,15 +106,18 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
                     continue;
                 }
-                const auto& clonedFunctions = doClone(f_analysisInfo, callSite);
+                original_uses.insert(std::make_pair(callSite, false));
+                bool uses_original = false;
+                const auto& clonedFunctions = doClone(f_analysisInfo, callSite, uses_original);
+                original_uses[callSite] |= uses_original;
                 to_process.insert(clonedFunctions.begin(), clonedFunctions.end());
             }
             to_process.erase(currentF);
         }
     }
-
+    remove_unused_originals(original_uses);
     llvm::dbgs() << "Finished function clonning transofrmation\n\n";
-    dump();
+    //dump();
     m_coverageStatistics->setSectionName("input_indep_coverage_after_clonning");
     m_coverageStatistics->reportInputInDepFunctionCoverage();
     //m_coverageStatistics->flush();
@@ -120,7 +129,8 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 // Will clone for all sets of input dependent arguments.
 // Returns set of clonned functions.
 FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& caller_analiser,
-                                                          llvm::Function* calledF)
+                                                          llvm::Function* calledF,
+                                                          bool& uses_original)
 {
     llvm::dbgs() << "   Clone " << calledF->getName() << "\n";
     llvm::dbgs() << "---------------------------\n";
@@ -135,6 +145,7 @@ FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& cal
     }
     auto calledFunctionAnaliser = getFunctionInputDepInfo(calledF);
     if (!calledFunctionAnaliser) {
+        uses_original = true;
         return clonedFunctions;
     }
     auto emplace_res = m_functionCloneInfo.emplace(calledF, FunctionClone(calledF));
@@ -146,11 +157,13 @@ FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& cal
     for (auto& argDepItem : callArgDeps) {
         const llvm::BasicBlock* callsite_block = argDepItem.first->getParent();
         if (caller_analiser->isInputDependentBlock(const_cast<llvm::BasicBlock*>(callsite_block))) {
+            uses_original = true;
             continue;
         }
         //llvm::dbgs() << "   Clone for call site " << *argDepItem.first << "\n";
         auto clone_res = doCloneForArguments(calledF, calledFunctionAnaliser, clone, argDepItem.second);
         if (!clone_res.first && !clone_res.second) {
+            uses_original = true;
             continue;
         }
         auto F = clone_res.first;
@@ -160,6 +173,7 @@ FunctionClonePass::FunctionSet FunctionClonePass::doClone(const InputDepRes& cal
             clonedFunctions.insert(F);
             // add to analysis info
         }
+        uses_original = (cloned_calledF == F);
         if (cloned_calledF != F) {
             //llvm::dbgs() << "   Change call site to call cloned function\n";
             caller_analiser->changeFunctionCall(argDepItem.first, cloned_calledF, F);
@@ -218,6 +232,51 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     m_cloneStatistics->add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
     m_cloneStatistics->add_clonnedFunction(F->getName());
     return std::make_pair(F, true);
+}
+
+void FunctionClonePass::remove_unused_originals(const std::unordered_map<llvm::Function*, bool>& original_uses)
+{
+    llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
+    std::unordered_set<llvm::Function*> functionsToErase;
+    for (auto& node : CG) {
+        for (auto& calleeNode : *node.second) {
+            llvm::Function* f = calleeNode.second->getFunction();
+            auto pos = original_uses.find(f);
+            if (pos == original_uses.end() || pos->second) {
+                continue;
+            }
+            node.second->removeAnyCallEdgeTo(calleeNode.second);
+            calleeNode.second->removeAllCalledFunctions();
+            llvm::dbgs() << "Add function " << f->getName() << "\n";
+            functionsToErase.insert(f);
+        }
+        llvm::Function* nodeF = node.second->getFunction();
+        if (!nodeF) {
+            continue;
+        }
+        auto nodeF_pos = original_uses.find(nodeF);
+        if (nodeF_pos != original_uses.end() && !nodeF_pos->second) {
+            node.second->removeAllCalledFunctions ();
+        }
+    }
+    for (auto& f : functionsToErase) {
+    //while (!functionsToErase.empty()) {
+        //llvm::Function* f = functionsToErase.back();
+        llvm::dbgs() << "Remove unused function analysis info " << f->getName() << "\n";
+        //functionsToErase.pop_back();
+        IDA->getAnalysisInfo().erase(f);
+        if (f->user_empty()) {
+            f->dropAllReferences();
+            CG.removeFunctionFromModule(CG[f]);
+            delete f;
+        }
+//        f->dropAllReferences();
+//        auto* removed_f = CG.removeFunctionFromModule(CG[f]);
+//        if (f->user_empty()) {
+//            delete f;
+//        }
+    }
+    functionsToErase.clear();
 }
 
 void FunctionClonePass::createStatistics(llvm::Module& M)

@@ -116,7 +116,8 @@ private:
     using FunctionSet = std::unordered_set<llvm::Function*>;
     using InputDepRes = input_dependency::InputDependencyAnalysis::InputDepResType;
     FunctionSet doClone(const InputDepRes& analiser,
-                        llvm::Function* calledF);
+                        llvm::Function* calledF,
+                        bool& uses_original);
     InputDepRes getFunctionInputDepInfo(llvm::Function* F) const;
     std::pair<llvm::Function*, bool> doCloneForArguments(
                                             llvm::Function* calledF,
@@ -124,6 +125,7 @@ private:
                                             FunctionClone& clone,
                                             const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps);
 
+    void remove_unused_originals(const std::unordered_map<llvm::Function*, bool>& original_uses);
     void createStatistics(llvm::Module& M);
     void dump() const;
 

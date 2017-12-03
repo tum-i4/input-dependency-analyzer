@@ -6,12 +6,14 @@ namespace input_dependency {
 namespace intrinsics {
 
 const std::string& memcpy = "memcpy";
+const std::string& memset = "memset";
 
 }
 
 void LLVMIntrinsicsInfo::setup()
 {
     add_memcpy();
+    add_memset();
 }
 
 void LLVMIntrinsicsInfo::add_memcpy()
@@ -26,4 +28,15 @@ void LLVMIntrinsicsInfo::add_memcpy()
     m_libFunctionInfoProcessor(std::move(memcpy));
 }
 
+void LLVMIntrinsicsInfo::add_memset()
+{
+    // @llvm.memset.p0i8.i32(i8* <dest>, i8 <val>,
+    //                       i32 <len>, i32 <align>, i1 <isvolatile>)
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(0, {1, 2}, argDeps);
+    LibFunctionInfo memcpy(intrinsics::memset,
+                           argDeps,
+                           LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    m_libFunctionInfoProcessor(std::move(memcpy));
+}
 }

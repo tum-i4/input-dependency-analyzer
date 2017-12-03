@@ -332,21 +332,11 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
 {
     auto op = storeInst->getOperand(0);
     auto storeTo = storeInst->getPointerOperand();
+    removeCallbackFunctionsForValue(storeTo);
     ValueDepInfo info(op->getType(), DepInfo()); // the value here is not important, could be null
     // assigning function to a variable
     if (auto* function = llvm::dyn_cast<llvm::Function>(op)) {
-        auto FA = m_FAG(function);
-        DepInfo f_info;
-        if (FA) {
-            if (FA->isInputDepFunction()) {
-                f_info.setDependency(DepInfo::INPUT_DEP);
-            } else {
-                f_info.setDependency(DepInfo::INPUT_INDEP);
-            }
-        } else {
-            f_info.setDependency(DepInfo::INPUT_INDEP);
-        }
-        info.updateCompositeValueDep(f_info);
+        info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
         m_functionValues[storeTo].insert(function);
     } else if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
@@ -409,9 +399,6 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         }
         return;
     }
-   // if (F->isIntrinsic()) {
-   //     updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_INDEP));
-   // } else
     if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst, F);
         updateLibFunctionCallInstOutArgDependencies(callInst, argDepMap);
@@ -1082,7 +1069,6 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
 {
     auto Fname = Utils::demangle_name(F->getName());
     if (Fname.empty()) {
-        // log msg
         // Try with non-demangled name
         Fname = F->getName();
     }
@@ -1095,10 +1081,16 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
     for (auto& arg : F->getArgumentList()) {
+        llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
+        if (!actualArg) {
+            llvm::dbgs() << "No actual value for formal argument " << arg << "\n";
+        }
+        if (libFInfo.isCallbackArgument(&arg)) {
+            markCallbackFunctionsForValue(actualArg);
+        }
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
-        llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         if (!libFInfo.hasResolvedArgument(&arg)) {
             continue;
         }

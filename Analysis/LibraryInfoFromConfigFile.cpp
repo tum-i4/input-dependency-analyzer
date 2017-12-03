@@ -11,7 +11,12 @@ namespace input_dependency {
 void LibraryInfoFromConfigFile::setup()
 {
     std::ifstream ifs (m_config_file, std::ifstream::in);
-    json root(ifs);
+    if (!ifs.is_open()) {
+        llvm::dbgs() << "Could not open file " << m_config_file << "\n";
+        return;
+    }
+    json root;
+    ifs >> root;
     const json functions = root["functions"];
     for (unsigned i = 0; i < functions.size(); ++i) {
         const json function_val = functions[i];
@@ -22,7 +27,21 @@ void LibraryInfoFromConfigFile::setup()
 void LibraryInfoFromConfigFile::add_library_function(const json& function_value)
 {
     const std::string& f_name = function_value["name"];
-    json arg_deps = function_value["deps"];
+    auto arg_deps_pos = function_value.find("deps");
+    LibFunctionInfo libInfo(f_name);
+    if (arg_deps_pos != function_value.end()) {
+        json arg_deps = *arg_deps_pos;
+        parse_dependencies(libInfo, arg_deps);
+    }
+    const auto& callbackIndices = get_callback_indices(function_value);
+    if (!callbackIndices.empty()) {
+        libInfo.setCallbackArgumentIndices(callbackIndices);
+    }
+    m_libFunctionInfoProcessor(std::move(libInfo));
+}
+
+void LibraryInfoFromConfigFile::parse_dependencies(LibFunctionInfo& libInfo, const json& arg_deps)
+{
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     LibFunctionInfo::LibArgDepInfo returnDeps;
     for (unsigned i = 0; i < arg_deps.size(); ++i) {
@@ -48,10 +67,8 @@ void LibraryInfoFromConfigFile::add_library_function(const json& function_value)
             }
         }
     }
-    LibFunctionInfo libInfo(f_name,
-                            std::move(argDeps),
-                            returnDeps);
-    m_libFunctionInfoProcessor(std::move(libInfo));
+    libInfo.setArgumentDeps(argDeps);
+    libInfo.setReturnDeps(returnDeps);
 }
 
 LibFunctionInfo::LibArgDepInfo LibraryInfoFromConfigFile::get_entry_dependencies(const json& entry)
@@ -72,6 +89,24 @@ LibFunctionInfo::LibArgDepInfo LibraryInfoFromConfigFile::get_entry_dependencies
         }
     }
     return LibFunctionInfo::LibArgDepInfo{dep, arg_deps};
+}
+
+LibFunctionInfo::ArgumentIndices LibraryInfoFromConfigFile::get_callback_indices(const json& entry)
+{
+    LibFunctionInfo::ArgumentIndices indices;
+    auto callback_pos = entry.find("callback_arguments");
+    if (callback_pos == entry.end()) {
+        return indices;
+    }
+    auto callback_indices = *callback_pos;
+    for (const auto& val : callback_indices) {
+        if (!val.is_number()) {
+            llvm::dbgs() << "Invalid value type for callback argument. Expects a number\n";
+            continue;
+        }
+        indices.insert(val.get<int>());
+    }
+    return indices;
 }
 
 }

@@ -27,6 +27,7 @@ public:
     using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
     using ValueDependencies = DependencyAnaliser::ValueDependencies;
     using FunctionCallsArgumentDependencies = DependencyAnaliser::FunctionCallsArgumentDependencies;
+    using ValueCallbackMap = DependencyAnaliser::ValueCallbackMap;
 
 public:
     BasicBlockAnalysisResult(llvm::Function* F,
@@ -74,16 +75,21 @@ protected:
     void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
     void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) override;
     void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info);
-    void updateFunctionsForValue(llvm::Value* value, const DepInfo& info);
+    void markCallbackFunctionsForValue(llvm::Value* value) override;
+    void removeCallbackFunctionsForValue(llvm::Value* value) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
     DepInfo determineInstructionDependenciesFromOperands(llvm::Instruction* instr) override;
     /// \}
+
+private:
+    void markFunctionsForValue(llvm::Value* value);
 
     /// \name Implementation of DependencyAnalysisResult interface
     /// \{
 public:
     void setInitialValueDependencies(const ValueDependencies& valueDependencies) override;
     void setOutArguments(const ArgumentDependenciesMap& outArgs) override;
+    void setCallbackFunctions(const ValueCallbackMap& callbacks) override;
 
     bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::BasicBlock* block, const ArgumentDependenciesMap& depArgs) const override;
@@ -98,6 +104,7 @@ public:
     const ValueDependencies& getValuesDependencies() const override;
     const ValueDepInfo& getReturnValueDependencies() const override;
     const ArgumentDependenciesMap& getOutParamsDependencies() const override;
+    const ValueCallbackMap& getCallbackFunctions() const override;
     const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
     bool changeFunctionCall(llvm::Instruction* instr, llvm::Function* oldF, llvm::Function* newCallee) override;

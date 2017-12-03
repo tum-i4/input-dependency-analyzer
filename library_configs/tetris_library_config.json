@@ -1,0 +1,24 @@
+{
+    "functions": [
+    {
+        "name": "sigemptyset",
+         "deps": [
+         {
+             "0": ["indep"]
+         }
+         ]
+    },
+    {
+        "name": "sigaddset",
+         "deps": [
+         {
+             "0": [1]
+         }
+         ]
+    },
+    {
+        "name": "sigaction",
+        "callback_arguments": [1]
+    }
+    ]
+}

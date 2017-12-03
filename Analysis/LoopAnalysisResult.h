@@ -64,6 +64,7 @@ public:
     void setLoopDependencies(const DepInfo& loopDeps);
     void setInitialValueDependencies(const DependencyAnaliser::ValueDependencies& valueDependencies) override;
     void setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs) override;
+    void setCallbackFunctions(const DependencyAnaliser::ValueCallbackMap& callbacks) override;
     // make sure call this after finalization
     bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
@@ -77,6 +78,7 @@ public:
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
     const ValueDepInfo& getReturnValueDependencies() const override;
     const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const override;
+    const DependencyAnaliser::ValueCallbackMap& getCallbackFunctions() const override;
     const FCallsArgDeps& getFunctionsCallInfo() const override;
     const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const override;
     bool changeFunctionCall(llvm::Instruction* instr, llvm::Function* oldF, llvm::Function* newCallee) override;
@@ -106,6 +108,7 @@ private:
     bool isSpecialLoopBlock(llvm::BasicBlock* B) const;
     DependencyAnaliser::ValueDependencies getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
+    DependencyAnaliser::ValueCallbackMap getBasicBlockPredecessorsCallbackFunctions(llvm::BasicBlock* B);
     void updateLoopDependecies(DepInfo&& depInfo);
     bool checkForLoopDependencies(llvm::BasicBlock* B);
     bool checkForLoopDependencies(const DependencyAnaliser::ValueDependencies& valueDeps);
@@ -116,6 +119,7 @@ private:
     void updateCalledFunctionsList();
     void updateReturnValueDependencies();
     void updateOutArgumentDependencies();
+    void updateCallbacks();
     void updateValueDependencies();
     void updateValueDependencies(llvm::BasicBlock* B);
     void updateGlobals();
@@ -150,6 +154,7 @@ private:
     FunctionSet m_calledFunctions;
     DependencyAnaliser::ValueDependencies m_initialDependencies;
     DependencyAnaliser::ValueDependencies m_valueDependencies;
+    std::unordered_map<llvm::Value*, FunctionSet> m_functionValues;
     GlobalsSet m_referencedGlobals;
     GlobalsSet m_modifiedGlobals;
     bool m_globalsUpdated;

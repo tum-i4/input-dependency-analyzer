@@ -4,6 +4,7 @@
 
 namespace llvm {
 
+class Argument;
 class Function;
 
 }
@@ -31,6 +32,7 @@ private:
 public:
     bool hasLibFunctionInfo(const std::string& funcName) const;
     const LibFunctionInfo& getLibFunctionInfo(const std::string& funcName) const;
+    bool isCallbackArgument(llvm::Argument* arg) const;
 
 public:
     void resolveLibFunctionInfo(llvm::Function* F, const std::string& demangledName);

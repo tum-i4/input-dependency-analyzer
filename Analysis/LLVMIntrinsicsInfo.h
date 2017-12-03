@@ -19,6 +19,7 @@ public:
 
 private:
     void add_memcpy();
+    void add_memset();
     //TODO: add more
 };
 

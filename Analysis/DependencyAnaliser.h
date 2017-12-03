@@ -26,6 +26,7 @@ public:
     using GlobalVariableDependencyMap = FunctionCallDepInfo::GlobalVariableDependencyMap;
     using FunctionCallsArgumentDependencies = std::unordered_map<llvm::Function*, FunctionCallDepInfo>;
     using InstrDependencyMap = std::unordered_map<llvm::Instruction*, DepInfo>;
+    using ValueCallbackMap = std::unordered_map<llvm::Value*, FunctionSet>;
 
 public:
     DependencyAnaliser(llvm::Function* F,
@@ -80,6 +81,8 @@ protected:
     virtual void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) = 0;
     virtual void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) = 0;
     virtual void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info) = 0;
+    virtual void markCallbackFunctionsForValue(llvm::Value* value) = 0;
+    virtual void removeCallbackFunctionsForValue(llvm::Value* value) = 0;
 
     virtual ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal);
     virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
@@ -153,7 +156,7 @@ protected:
     bool m_finalized;
     bool m_globalsFinalized;
 
-    std::unordered_map<llvm::Value*, FunctionSet> m_functionValues;
+    ValueCallbackMap m_functionValues;
     ArgumentDependenciesMap m_outArgDependencies;
     ValueDepInfo m_returnValueDependencies;
     FunctionSet m_calledFunctions;

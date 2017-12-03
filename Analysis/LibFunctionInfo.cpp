@@ -37,6 +37,12 @@ ArgumentSet getResolvedArguments(const IndexToArgumentMap& indexToArg,
 
 namespace input_dependency {
 
+LibFunctionInfo::LibFunctionInfo(const std::string& name)
+    : m_name(name)
+    , m_isResolved(false)
+{
+}
+
 LibFunctionInfo::LibFunctionInfo(const std::string& name,
                                  const LibArgumentDependenciesMap& argumentDeps,
                                  const LibArgDepInfo& retDep)
@@ -55,6 +61,21 @@ LibFunctionInfo::LibFunctionInfo(std::string&& name,
     , m_argumentDependencies(std::move(argumentDeps))
     , m_returnDependency(std::move(retDep))
 {
+}
+
+void LibFunctionInfo::setArgumentDeps(const LibArgumentDependenciesMap& argumentDeps)
+{
+    m_argumentDependencies = argumentDeps;
+}
+
+void LibFunctionInfo::setReturnDeps(const LibArgDepInfo& retDeps)
+{
+    m_returnDependency = retDeps;
+}
+
+void LibFunctionInfo::setCallbackArgumentIndices(const ArgumentIndices& indices)
+{
+    m_callbackArgumentIndices = indices;
 }
 
 const std::string& LibFunctionInfo::getName() const
@@ -108,11 +129,22 @@ const ValueDepInfo& LibFunctionInfo::getResolvedReturnDependency() const
     return m_resolvedReturnDependency;
 }
 
+bool LibFunctionInfo::isCallbackArgument(int index) const
+{
+    return m_callbackArgumentIndices.find(index) != m_callbackArgumentIndices.end();
+}
+
+bool LibFunctionInfo::isCallbackArgument(llvm::Argument* arg) const
+{
+    return m_callbackArguments.find(arg) != m_callbackArguments.end();
+}
+
 void LibFunctionInfo::resolve(llvm::Function* F)
 {
     const auto& indexToArg = getFunctionIndexToArgMap(F);
     resolveArgumentDependencies(indexToArg);
     resolveReturnDependency(indexToArg);
+    resolveCallbackArguments(indexToArg);
     m_isResolved = true;
 }
 
@@ -136,6 +168,16 @@ void LibFunctionInfo::resolveReturnDependency(const IndexToArgumentMap& indexToA
     m_resolvedReturnDependency.setArgumentDependencies(std::move(arguments));
     m_returnDependency.argumentDependencies.clear();
     m_returnDependency.dependency = DepInfo::UNKNOWN;
+}
+
+void LibFunctionInfo::resolveCallbackArguments(const IndexToArgumentMap& indexToArg)
+{
+    for (const auto& callbackIndex : m_callbackArgumentIndices) {
+        auto argPos = indexToArg.find(callbackIndex);
+        if (argPos != indexToArg.end()) {
+            m_callbackArguments.insert(argPos->second);
+        }
+    }
 }
 
 } // namespace input_dependency

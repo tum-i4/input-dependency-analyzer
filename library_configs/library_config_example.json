@@ -18,6 +18,10 @@
             "return": ["dep"]
         }
         ]
+    },
+    {
+        "name": "sigaction",
+        "callback_arguments": [1]
     }
     ]
 }

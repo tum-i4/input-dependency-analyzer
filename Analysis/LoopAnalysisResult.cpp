@@ -86,6 +86,7 @@ void LoopAnalysisResult::gatherResults()
         auto& analiser = m_BBAnalisers[B];
         analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
         analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
+        analiser->setCallbackFunctions(getBasicBlockPredecessorsCallbackFunctions(B));
         analiser->gatherResults();
         updateValueDependencies(B);
         is_input_dep = checkForLoopDependencies(B);
@@ -114,6 +115,7 @@ void LoopAnalysisResult::gatherResults()
     updateCalledFunctionsList();
     updateReturnValueDependencies();
     updateOutArgumentDependencies();
+    updateCallbacks();
     updateValueDependencies();
     reflectValueDepsOnLoopDeps();
 
@@ -161,6 +163,11 @@ void LoopAnalysisResult::setInitialValueDependencies(
             const DependencyAnaliser::ValueDependencies& valueDependencies)
 {
     m_initialDependencies = valueDependencies;
+}
+
+void LoopAnalysisResult::setCallbackFunctions(const std::unordered_map<llvm::Value*, FunctionSet>& callbacks)
+{
+    m_functionValues = callbacks;
 }
 
 void LoopAnalysisResult::setOutArguments(const DependencyAnaliser::ArgumentDependenciesMap& outArgs)
@@ -285,6 +292,12 @@ const DependencyAnaliser::ArgumentDependenciesMap&
 LoopAnalysisResult::getOutParamsDependencies() const
 {
     return m_outArgDependencies;
+}
+
+const std::unordered_map<llvm::Value*, FunctionSet>&
+LoopAnalysisResult::getCallbackFunctions() const
+{
+    return m_functionValues;
 }
 
 const LoopAnalysisResult::FCallsArgDeps& LoopAnalysisResult::getFunctionsCallInfo() const
@@ -532,6 +545,39 @@ DependencyAnaliser::ArgumentDependenciesMap LoopAnalysisResult::getBasicBlockPre
     return deps;
 }
 
+DependencyAnaliser::ValueCallbackMap LoopAnalysisResult::getBasicBlockPredecessorsCallbackFunctions(llvm::BasicBlock* B)
+{
+    DependencyAnaliser::ValueCallbackMap callbacks;
+    auto pred = pred_begin(B);
+    while (pred != pred_end(B)) {
+        if (!m_L.contains(*pred)) {
+            for (const auto& item : m_functionValues) {
+                auto pos = callbacks.insert(item);
+                if (!pos.second) {
+                    pos.first->second.insert(item.second.begin(), item.second.end());
+                }
+            }
+            ++pred;
+            continue;
+        }
+        auto pos = m_BBAnalisers.find(*pred);
+        if (pos == m_BBAnalisers.end()) {
+            ++pred;
+            continue;
+        }
+        assert(pos != m_BBAnalisers.end());
+        const auto& functions = pos->second->getCallbackFunctions();
+        for (const auto& f : functions) {
+            auto pos = callbacks.insert(f);
+            if (!pos.second) {
+                pos.first->second.insert(f.second.begin(), f.second.end());
+            }
+        }
+        ++pred;
+    }
+    return callbacks;
+}
+
 void LoopAnalysisResult::updateFunctionCallInfo()
 {
     for (const auto& item : m_BBAnalisers) {
@@ -585,6 +631,21 @@ void LoopAnalysisResult::updateOutArgumentDependencies()
             auto pos = m_outArgDependencies.find(item.first);
             assert(pos != m_outArgDependencies.end());
             pos->second.mergeDependencies(item.second);
+        }
+    }
+}
+
+void LoopAnalysisResult::updateCallbacks()
+{
+    // latches should contain all the info
+    for (const auto& latch : m_latches) {
+        const auto& callbacks = m_BBAnalisers[latch]->getCallbackFunctions();
+        for (const auto& item : callbacks) {
+            auto res = m_functionValues.insert(item);
+            if (!res.second) {
+                res.first->second.clear();
+                res.first->second = item.second;
+            }
         }
     }
 }

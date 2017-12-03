@@ -155,7 +155,6 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     if (!res.second) {
         res.first->second.updateCompositeValueDep(info);
     }
-    updateFunctionsForValue(value, info);
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second);
         updateAliasingOutArgDependencies(value, res.first->second);
@@ -173,7 +172,6 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     if (!res.second) {
         res.first->second.updateValueDep(info);
     }
-    updateFunctionsForValue(value, info.getValueDep());
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second);
         updateAliasingOutArgDependencies(value, res.first->second);
@@ -191,7 +189,6 @@ void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* val
     }
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
     res.first->second.updateValueDep(elInstr, info);
-    updateFunctionsForValue(elInstr, info.getValueDep());
     updateAliasesDependencies(value, elInstr, res.first->second);
     updateAliasingOutArgDependencies(value, info);
 }
@@ -233,12 +230,10 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
             //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
-            updateFunctionsForValue(valDep.first, info.getValueDep());
         } else if (alias == llvm::AliasResult::MustAlias) {
             //llvm::dbgs() << "Must aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.updateValueDep(value_instr, info)
                         : valDep.second.updateValueDep(info);
-            updateFunctionsForValue(valDep.first, info.getValueDep());
         }
     }
     for (auto& valDep : m_initialDependencies) {
@@ -252,11 +247,9 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         if (alias == llvm::AliasResult::MayAlias) {
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
-            updateFunctionsForValue(valDep.first, info.getValueDep());
         } else if (alias == llvm::AliasResult::MustAlias) {
             value_instr ? valDep.second.updateValueDep(value_instr, info)
                         : valDep.second.updateValueDep(info);
-            updateFunctionsForValue(valDep.first, info.getValueDep());
         }
     }
 }
@@ -357,7 +350,7 @@ void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* i
     }
 }
 
-void BasicBlockAnalysisResult::updateFunctionsForValue(llvm::Value* value, const DepInfo& info)
+void BasicBlockAnalysisResult::markFunctionsForValue(llvm::Value* value)
 {
     auto functions_pos = m_functionValues.find(value);
     if (functions_pos == m_functionValues.end()) {
@@ -369,7 +362,75 @@ void BasicBlockAnalysisResult::updateFunctionsForValue(llvm::Value* value, const
         // if no FA save for later point?
         if (FA) {
             llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
-            FA->setIsInputDepFunction(info.isInputDep());
+            FA->setIsInputDepFunction(true);
+        }
+    }
+}
+
+void BasicBlockAnalysisResult::markCallbackFunctionsForValue(llvm::Value* value)
+{
+    for (auto& valDep : m_valueDependencies) {
+        if (valDep.first == value) {
+            markFunctionsForValue(value);
+        }
+        auto alias = m_AAR.alias(value, valDep.first);
+        // what about partial alias
+        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+            markFunctionsForValue(valDep.first);
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
+        }
+    }
+    for (auto& valDep : m_initialDependencies) {
+        if (m_valueDependencies.find(valDep.first) != m_valueDependencies.end()) {
+            continue;
+        }
+        if (valDep.first == value) {
+            markFunctionsForValue(value);
+        }
+        auto alias = m_AAR.alias(value, valDep.first);
+        // what about partial alias
+        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+            markFunctionsForValue(valDep.first);
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
+        }
+    }
+}
+
+void BasicBlockAnalysisResult::removeCallbackFunctionsForValue(llvm::Value* value)
+{
+    for (auto& valDep : m_valueDependencies) {
+        auto pos = m_functionValues.find(valDep.first);
+        if (pos == m_functionValues.end()) {
+            continue;
+        }
+        if (valDep.first == value) {
+            m_functionValues.erase(pos);
+            continue;
+        }
+        auto alias = m_AAR.alias(value, valDep.first);
+        // what about partial alias
+        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+            m_functionValues.erase(pos);
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
+        }
+    }
+    for (auto& valDep : m_initialDependencies) {
+        if (m_valueDependencies.find(valDep.first) != m_valueDependencies.end()) {
+            continue;
+        }
+        auto pos = m_functionValues.find(valDep.first);
+        if (pos == m_functionValues.end()) {
+            continue;
+        }
+        if (valDep.first == value) {
+            m_functionValues.erase(pos);
+            continue;
+        }
+        auto alias = m_AAR.alias(value, valDep.first);
+        // what about partial alias
+        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+            m_functionValues.erase(pos);
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
         }
     }
 }
@@ -383,6 +444,11 @@ void BasicBlockAnalysisResult::setInitialValueDependencies(
 void BasicBlockAnalysisResult::setOutArguments(const ArgumentDependenciesMap& outArgs)
 {
     m_outArgDependencies = outArgs;
+}
+
+void BasicBlockAnalysisResult::setCallbackFunctions(const ValueCallbackMap& callbacks)
+{
+    m_functionValues = callbacks;
 }
 
 bool BasicBlockAnalysisResult::isInputDependent(llvm::BasicBlock* block) const
@@ -500,6 +566,12 @@ const BasicBlockAnalysisResult::ArgumentDependenciesMap&
 BasicBlockAnalysisResult::getOutParamsDependencies() const
 {
     return m_outArgDependencies;
+}
+
+const BasicBlockAnalysisResult::ValueCallbackMap&
+BasicBlockAnalysisResult::getCallbackFunctions() const
+{
+    return m_functionValues;
 }
 
 const DependencyAnaliser::FunctionCallsArgumentDependencies&

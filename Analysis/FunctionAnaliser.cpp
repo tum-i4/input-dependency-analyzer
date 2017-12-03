@@ -244,6 +244,7 @@ private:
     void updateModifiedGlobals();
     DependencyAnaliser::ValueDependencies getBasicBlockPredecessorsDependencies(llvm::BasicBlock* B);
     DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
+    DependencyAnaliser::ValueCallbackMap getBasicBlockPredecessorsCallbackFunctions(llvm::BasicBlock* B);
     DependencyAnalysisResultT getAnalysisResult(llvm::BasicBlock* B) const;
 
 private:
@@ -488,6 +489,7 @@ void FunctionAnaliser::Impl::analize()
         }
         m_BBAnalysisResults[bb]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(bb));
         m_BBAnalysisResults[bb]->setOutArguments(getBasicBlockPredecessorsArguments(bb));
+        m_BBAnalysisResults[bb]->setCallbackFunctions(getBasicBlockPredecessorsCallbackFunctions(bb));
         m_BBAnalysisResults[bb]->gatherResults();
 
         updateValueDependencies(bb);
@@ -1004,6 +1006,39 @@ FunctionAnaliser::Impl::getBasicBlockPredecessorsArguments(llvm::BasicBlock* B)
         ++pred;
     }
     return deps;
+}
+
+DependencyAnaliser::ValueCallbackMap
+FunctionAnaliser::Impl::getBasicBlockPredecessorsCallbackFunctions(llvm::BasicBlock* B)
+{
+    auto pred = pred_begin(B);
+    // entry block
+    if (pred == pred_end(B)) {
+        return DependencyAnaliser::ValueCallbackMap();
+    }
+    DependencyAnaliser::ValueCallbackMap callbacks;
+    while (pred != pred_end(B)) {
+        auto pos = m_BBAnalysisResults.find(*pred);
+        if (pos == m_BBAnalysisResults.end()) {
+            //assert(m_LI.getLoopFor(*pred) != nullptr);
+            auto loopHead = m_loopBlocks.find(*pred);
+            if (loopHead == m_loopBlocks.end()) {
+                ++pred;
+                continue;
+            }
+            pos = m_BBAnalysisResults.find(loopHead->second);
+        }
+        assert(pos != m_BBAnalysisResults.end());
+        const auto& pred_callbacks = pos->second->getCallbackFunctions();
+        for (const auto& cb : pred_callbacks) {
+            auto res = callbacks.insert(cb);
+            if (!res.second) {
+                res.first->second.insert(cb.second.begin(), cb.second.end());
+            }
+        }
+        ++pred;
+    }
+    return callbacks;
 }
 
 FunctionAnaliser::Impl::DependencyAnalysisResultT FunctionAnaliser::Impl::getAnalysisResult(llvm::BasicBlock* bb) const

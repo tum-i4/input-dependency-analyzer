@@ -17,6 +17,7 @@ public:
     using GlobalVariableDependencyMap = DependencyAnaliser::GlobalVariableDependencyMap;
     using ValueDependencies = DependencyAnaliser::ValueDependencies;
     using FunctionCallsArgumentDependencies = DependencyAnaliser::FunctionCallsArgumentDependencies;
+    using ValueCallbackMap = DependencyAnaliser::ValueCallbackMap;
 
 public:
     DependencyAnalysisResult() = default;
@@ -31,6 +32,7 @@ public:
 public:
     virtual void setInitialValueDependencies(const ValueDependencies& valueDependencies) = 0;
     virtual void setOutArguments(const ArgumentDependenciesMap& outArgs) = 0;
+    virtual void setCallbackFunctions(const ValueCallbackMap& callbacks) = 0;
 
     /// \name Interface to start analysis
     /// \{
@@ -55,9 +57,12 @@ public:
     virtual bool hasValueDependencyInfo(llvm::Value* val) const = 0;
     virtual ValueDepInfo getValueDependencyInfo(llvm::Value* val) = 0;
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) const = 0;
+
     virtual const ValueDependencies& getValuesDependencies() const = 0;
     virtual const ValueDepInfo& getReturnValueDependencies() const = 0;
+
     virtual const ArgumentDependenciesMap& getOutParamsDependencies() const = 0;
+    virtual const ValueCallbackMap& getCallbackFunctions() const = 0;
     virtual const FunctionCallsArgumentDependencies& getFunctionsCallInfo() const = 0;
     virtual bool hasFunctionCallInfo(llvm::Function* F) const = 0;
     virtual const FunctionCallDepInfo& getFunctionCallInfo(llvm::Function* F) const = 0;

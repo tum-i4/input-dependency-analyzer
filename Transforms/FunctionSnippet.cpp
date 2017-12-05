@@ -875,10 +875,13 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     if (!modified) {
         // check for case when one snippet continues the other
         // check if begin of the snippet is successor of the end of this
-        if (is_predecessing_block_snippet(*this, *block_snippet) && block_snippet->get_start_snippet().is_block()) {
+        if (is_predecessing_block_snippet(*this, *block_snippet) &&
+            ((block_snippet->get_start_snippet().is_valid_snippet() && block_snippet->get_start_snippet().is_block()) ||
+            !block_snippet->get_start_snippet().is_valid_snippet())) {
             m_end = block_snippet->get_end();
             modified = true;
-        } else if (is_predecessing_block_snippet(*block_snippet, *this) && m_start.is_block()) {
+        } else if (is_predecessing_block_snippet(*block_snippet, *this) && ((m_start.is_valid_snippet() &&
+        m_start.is_block()) || !m_start.is_valid_snippet())) {
             m_begin = block_snippet->get_begin();
             m_start = block_snippet->get_start_snippet();
             modified = true;
@@ -1036,12 +1039,24 @@ void BasicBlocksSnippet::dump() const
     if (m_start.is_valid_snippet()) {
         m_start.dump();
     }
-    llvm::dbgs() << "Begin block " << m_begin->getName() << "\n";
+    if (m_begin->getName().empty()) {
+        llvm::dbgs() << "Begin block " <<  *m_begin << "\n";
+    } else {
+        llvm::dbgs() << "Begin block " << m_begin->getName() << "\n";
+    }
     for (const auto& b : m_blocks) {
-        llvm::dbgs() << b->getName() << "\n";
+        if (b->getName().empty()) {
+            llvm::dbgs() << "BB: " << *b << "\n";
+        } else {
+            llvm::dbgs() << b->getName() << "\n";
+        }
     }
     if (m_end != m_begin->getParent()->end()) {
-        llvm::dbgs() << "End block " << m_end->getName() << "\n";
+        if (m_end->getName().empty()) {
+            llvm::dbgs() << "End block " <<  *m_end << "\n";
+        } else {
+            llvm::dbgs() << "End block " << m_end->getName() << "\n";
+        }
     }
     llvm::dbgs() << "*********\n";
 }

@@ -214,7 +214,11 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     // TODO: would not need this part remove if all instructions are collected together in one map
     for (auto& instrDep : m_instructionValueDependencies) {
         assert(instrDep.second.isValueDep());
-        m_inputDependentInstrs[instrDep.first].mergeDependencies(instrDep.second);
+        if (instrDep.second.isValueDep() && instrDep.second.getValueDependencies().empty()) {
+            m_inputIndependentInstrs.insert(instrDep.first);
+        } else {
+            m_inputDependentInstrs[instrDep.first].mergeDependencies(instrDep.second);
+        }
     }
     m_instructionValueDependencies.clear();
     m_valueDependentInstrs.clear();

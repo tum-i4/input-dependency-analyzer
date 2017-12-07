@@ -2,7 +2,6 @@
 #include "Utils.h"
 
 #include "Analysis/FunctionAnaliser.h"
-
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Function.h"

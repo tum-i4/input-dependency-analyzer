@@ -10,7 +10,6 @@
 
 namespace input_dependency {
 class InputDependencyAnalysis;
-class FunctionAnaliser;
 }
 
 namespace llvm {

@@ -48,6 +48,16 @@ void NonDeterministicBasicBlockAnaliser::finalizeResults(const ArgumentDependenc
     } 
 }
 
+void NonDeterministicBasicBlockAnaliser::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
+{
+    BasicBlockAnalysisResult::finalizeGlobals(globalsDeps);
+    if (!m_nonDetDeps.isValueDep() && m_nonDetDeps.getValueDependencies().empty()) {
+        return;
+    }
+    finalizeValueDependencies(globalsDeps, m_nonDetDeps);
+    m_is_inputDep |= m_nonDetDeps.isInputDep();
+}
+
 bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* block,
                                                           const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const
 {

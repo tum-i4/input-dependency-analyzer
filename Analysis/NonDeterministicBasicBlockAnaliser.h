@@ -28,6 +28,7 @@ public:
     DepInfo getBlockDependencies() const override;
 
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+    void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
 
     /// \name Implementation of DependencyAnaliser interface

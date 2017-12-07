@@ -110,6 +110,7 @@ protected:
     void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, const ArgumentDependenciesMap& argDepMap);
     void updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
     void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& argDepMap);
+    void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
 
 private:
     void updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info);
@@ -138,7 +139,7 @@ private:
 
     void finalizeValues(const GlobalVariableDependencyMap& globalDeps);
     void finalizeInstructions(const GlobalVariableDependencyMap& globalDeps);
-    void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
+    DepInfo getFinalizedDepInfo(const ValueSet& values, const GlobalVariableDependencyMap& globalDeps);
 
 protected:
     static ValueDepInfo getArgumentActualDependencies(const ArgumentSet& dependencies,

@@ -27,29 +27,6 @@ llvm::Argument* getFunctionArgument(llvm::Function* F, unsigned index)
     return &*it;
 }
 
-DepInfo getFinalizedDepInfo(const ValueSet& values,
-                            const DependencyAnaliser::GlobalVariableDependencyMap& globalDeps)
-{
-    DepInfo newInfo(DepInfo::INPUT_INDEP);
-    for (auto& item : values) {
-        auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
-        if (global == nullptr) {
-            continue;
-        }
-        assert(global != nullptr);
-        auto pos = globalDeps.find(global);
-        if (pos == globalDeps.end()) {
-            continue;
-        }
-        assert(pos != globalDeps.end());
-        assert(pos->second.isDefined());
-        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
-        newInfo.mergeDependencies(pos->second.getArgumentDependencies());
-        newInfo.mergeDependency(pos->second.getDependency());
-    }
-    return newInfo;
-}
-
 llvm::Function* getAliasingFunction(llvm::Value* calledValue)
 {
     if (auto* alias = llvm::dyn_cast<llvm::GlobalAlias>(calledValue)) {
@@ -904,8 +881,35 @@ void DependencyAnaliser::finalizeInstructions(const GlobalVariableDependencyMap&
         } else {
             ++instrpos;
         }
-
     }
+}
+
+DepInfo DependencyAnaliser::getFinalizedDepInfo(const ValueSet& values,
+                                                const DependencyAnaliser::GlobalVariableDependencyMap& globalDeps)
+{
+    DepInfo newInfo(DepInfo::INPUT_INDEP);
+    for (auto& item : values) {
+        auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
+        if (global == nullptr) {
+            continue;
+        }
+        assert(global != nullptr);
+        auto pos = globalDeps.find(global);
+        if (pos == globalDeps.end()) {
+            continue;
+        }
+        assert(pos->second.isDefined());
+        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
+        ValueDepInfo globalDepInfo = pos->second;
+        auto internal_pos = m_valueDependencies.find(global);
+        if (internal_pos != m_valueDependencies.end()) {
+            // TODO: internal value dependency?
+            globalDepInfo.mergeDependencies(internal_pos->second);
+        }
+        newInfo.mergeDependencies(globalDepInfo.getArgumentDependencies());
+        newInfo.mergeDependency(globalDepInfo.getDependency());
+    }
+    return newInfo;
 }
 
 void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps,

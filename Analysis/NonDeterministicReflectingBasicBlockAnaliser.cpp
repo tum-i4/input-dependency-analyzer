@@ -30,7 +30,6 @@ NonDeterministicReflectingBasicBlockAnaliser::NonDeterministicReflectingBasicBlo
                                      const DepInfo& nonDetDeps)
                                 : ReflectingBasicBlockAnaliser(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                                 , m_nonDeterministicDeps(nonDetDeps)
-                                , m_is_final_inputDep(false)
 {
 }
 
@@ -43,11 +42,21 @@ void NonDeterministicReflectingBasicBlockAnaliser::finalizeResults(const Argumen
 {
     ReflectingBasicBlockAnaliser::finalizeResults(dependentArgs);
     if (m_nonDeterministicDeps.isInputDep()) {
-        m_is_final_inputDep = true;
+        m_is_inputDep = true;
     }
     if (m_nonDeterministicDeps.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, m_nonDeterministicDeps.getArgumentDependencies())) {
-        m_is_final_inputDep = true;
+        m_is_inputDep = true;
     } 
+}
+
+void NonDeterministicReflectingBasicBlockAnaliser::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
+{
+    BasicBlockAnalysisResult::finalizeGlobals(globalsDeps);
+    if (!m_nonDeterministicDeps.isValueDep() && m_nonDeterministicDeps.getValueDependencies().empty()) {
+        return;
+    }
+    finalizeValueDependencies(globalsDeps, m_nonDeterministicDeps);
+    m_is_inputDep |= m_nonDeterministicDeps.isInputDep();
 }
 
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)

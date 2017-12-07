@@ -29,6 +29,7 @@ public:
 public:
     DepInfo getBlockDependencies() const override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
+    void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
 
 public:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
@@ -49,7 +50,6 @@ private:
 
 private:
     DepInfo m_nonDeterministicDeps;
-    bool m_is_final_inputDep;
 }; // class NonDeterministiReflectingBasicBlockAnaliser
 } // namespace input_dependency
 

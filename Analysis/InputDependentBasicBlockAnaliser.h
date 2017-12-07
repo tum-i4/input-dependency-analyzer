@@ -29,6 +29,31 @@ public:
     {
         return true;
     }
+
+    bool isInputDependent(llvm::BasicBlock* block, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return true;
+    }
+    bool isInputDependent(llvm::Instruction* instr) const override
+    {
+        return true;
+    }
+
+    bool isInputDependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return true;
+    }
+
+    bool isInputIndependent(llvm::Instruction* instr) const override
+    {
+        return false;
+    }
+
+    bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return false;
+    }
+
     long unsigned get_input_dep_blocks_count() const  override
     {
         return 1;
@@ -82,7 +107,31 @@ public:
         return true;
     }
 
-    long unsigned get_input_dep_blocks_count() const  override
+    bool isInputDependent(llvm::BasicBlock* block, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return true;
+    }
+    bool isInputDependent(llvm::Instruction* instr) const override
+    {
+        return true;
+    }
+
+    bool isInputDependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return true;
+    }
+
+    bool isInputIndependent(llvm::Instruction* instr) const override
+    {
+        return false;
+    }
+
+    bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override
+    {
+        return false;
+    }
+
+   long unsigned get_input_dep_blocks_count() const  override
     {
         return 1;
     }

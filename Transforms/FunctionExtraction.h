@@ -29,6 +29,8 @@ public:
 
     ExtractionStatistics(Statistics::ReportWriterType writer)
         : Statistics(writer)
+        , m_numOfExtractedInst(0)
+        , m_numOfMediateInst(0)
     {
     }
 

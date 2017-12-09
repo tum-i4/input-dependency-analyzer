@@ -227,8 +227,9 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     clone.addClone(mask, F);
     bool add_to_input_dep = IDA->insertAnalysisInfo(F, cloned_analiser);
     m_cloneStatistics->add_numOfInDepInstAfterCloning(cloned_analiser->get_input_indep_count());
-    m_cloneStatistics->add_numOfClonnedInst(Utils::get_function_instrs_count(*F));
-    m_cloneStatistics->add_numOfInstAfterCloning(Utils::get_function_instrs_count(*F));
+    unsigned function_instr_count = Utils::get_function_instrs_count(*F);
+    m_cloneStatistics->add_numOfClonnedInst(function_instr_count);
+    m_cloneStatistics->add_numOfInstAfterCloning(function_instr_count);
     m_cloneStatistics->add_clonnedFunction(F->getName());
     return std::make_pair(F, true);
 }
@@ -264,15 +265,11 @@ void FunctionClonePass::remove_unused_originals(const std::unordered_map<llvm::F
         //functionsToErase.pop_back();
         IDA->getAnalysisInfo().erase(f);
         if (f->user_empty()) {
+            m_cloneStatistics->remove_numOfInstAfterCloning(Utils::get_function_instrs_count(*f));
             f->dropAllReferences();
             CG.removeFunctionFromModule(CG[f]);
             delete f;
         }
-//        f->dropAllReferences();
-//        auto* removed_f = CG.removeFunctionFromModule(CG[f]);
-//        if (f->user_empty()) {
-//            delete f;
-//        }
     }
     functionsToErase.clear();
 }

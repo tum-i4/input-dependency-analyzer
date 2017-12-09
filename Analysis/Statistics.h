@@ -20,8 +20,6 @@ public:
         JSON
     };
 
-    using Keys = std::vector<std::string>;
-
 public:
     class ReportWriter
     {
@@ -40,7 +38,6 @@ public:
         virtual void close();
 
         virtual void open(const std::string& file_name);
-        // Because can not have template virtual functions
         virtual void write_entry(const key& k, unsigned value) = 0;
         virtual void write_entry(const key& k, const std::string& value) = 0;
         virtual void write_entry(const key& k, const std::vector<std::string>& value) = 0;

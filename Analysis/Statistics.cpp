@@ -19,7 +19,7 @@ void Statistics::ReportWriter::close()
 void Statistics::ReportWriter::open(const std::string& file_name)
 {
     if (!m_strm.is_open()) {
-        m_strm.open(file_name, std::ofstream::app);
+        m_strm.open(file_name, std::ofstream::out);
     }
 }
 
@@ -79,7 +79,7 @@ private:
 
 JsonReportWriter::JsonReportWriter(const std::string& file_name)
 {
-    m_strm.open(file_name, std::ofstream::app);
+    m_strm.open(file_name, std::ofstream::out);
 }
 
 JsonReportWriter::~JsonReportWriter()
@@ -107,7 +107,7 @@ void JsonReportWriter::write(const key& k, const ValueTy& value)
 
 TextReportWriter::TextReportWriter(const std::string& file_name)
 {
-    m_strm.open(file_name, std::ofstream::app);
+    m_strm.open(file_name, std::ofstream::out);
 }
 
 TextReportWriter::~TextReportWriter()

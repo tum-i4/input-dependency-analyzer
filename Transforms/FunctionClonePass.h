@@ -8,6 +8,8 @@
 #include "llvm/Pass.h"
 #include <memory>
 
+#include <iostream>
+
 namespace input_dependency {
 class InputDependencyAnalysis;
 }
@@ -37,6 +39,9 @@ public:
 
     CloneStatistics(Statistics::ReportWriterType writer)
         : Statistics(writer)
+        , m_numOfClonnedInst(0)
+        , m_numOfInstAfterCloning(0)
+        , m_numOfInDepInstAfterCloning(0)
     {
     }
 
@@ -56,6 +61,15 @@ public:
     virtual void add_numOfInstAfterCloning(unsigned num)
     {
         m_numOfInstAfterCloning += num;
+    }
+
+    virtual void remove_numOfInstAfterCloning(unsigned num)
+    {
+        if (num > m_numOfInstAfterCloning) {
+            m_numOfInstAfterCloning = 0;
+        } else {
+            m_numOfInstAfterCloning -= num;
+        }
     }
 
     virtual void add_numOfInDepInstAfterCloning(unsigned num)
@@ -88,6 +102,9 @@ public:
     {}
 
     void add_numOfInstAfterCloning(unsigned num) override
+    {}
+
+    void remove_numOfInstAfterCloning(unsigned num) override
     {}
 
     void add_numOfInDepInstAfterCloning(unsigned num) override

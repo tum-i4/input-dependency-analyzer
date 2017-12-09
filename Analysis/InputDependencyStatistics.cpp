@@ -37,42 +37,11 @@ InputDependencyStatistics::InputDependencyStatistics(const std::string& format,
 
 void InputDependencyStatistics::report()
 {
-    reportInputDepInputIndepRatio();
     reportInputDependencyInfo();
     reportInputDepCoverage();
     reportInputDepFunctionCoverage();
     reportInputInDepCoverage();
-}
-
-void InputDependencyStatistics::reportInputDepInputIndepRatio()
-{
-    setStatsTypeName("input_dep_indep_ratio");
-    unsigned module_dep_count = 0;
-    unsigned module_indep_count = 0;
-    unsigned module_unknown_count = 0;
-
-    for (auto& F : *m_module) {
-        auto FA_pos = m_IDA->find(&F);
-        if (FA_pos == m_IDA->end()) {
-            continue;
-        }
-        const auto& FA = FA_pos->second;
-        unsigned dep_count = FA->get_input_dep_count();
-        unsigned indep_count = FA->get_input_indep_count();
-        unsigned unknown_count = FA->get_input_unknowns_count();
-        report_inputdepindep_data(inputdepindep_data{F.getName(),
-                                  dep_count, indep_count,
-                                  unknown_count});
-        module_dep_count += dep_count;
-        module_indep_count += indep_count;
-        module_unknown_count += unknown_count;
-    }
-    report_inputdepindep_data(
-            inputdepindep_data{m_module->getName(),
-            module_dep_count,
-            module_indep_count,
-            module_unknown_count});
-    unsetStatsTypeName();
+    reportInputInDepFunctionCoverage();
 }
 
 void InputDependencyStatistics::reportInputDependencyInfo()
@@ -152,8 +121,8 @@ void InputDependencyStatistics::reportInputInDepFunctionCoverage()
         if (FA_pos == m_IDA->end()) {
             continue;
         }
-        auto cached_input_indep_data = m_function_input_indep_functoin_coverage_data.find(&F);
-        if (cached_input_indep_data != m_function_input_indep_functoin_coverage_data.end()) {
+        auto cached_input_indep_data = m_function_input_indep_function_coverage_data.find(&F);
+        if (cached_input_indep_data != m_function_input_indep_function_coverage_data.end()) {
             report_input_indep_coverage_data(cached_input_indep_data->second);
             update_module_coverage_data(module_coverage_data, cached_input_indep_data->second);
             continue;
@@ -182,7 +151,7 @@ void InputDependencyStatistics::reportInputInDepFunctionCoverage()
         auto input_indep_cov = input_indep_coverage_data{F.getName(), indep_count, unreachable, blocks,
                                            indep_instrs_count, unreachable_instrs, instructions};
 
-        m_function_input_indep_functoin_coverage_data.insert(std::make_pair(&F, input_indep_cov));
+        m_function_input_indep_function_coverage_data.insert(std::make_pair(&F, input_indep_cov));
         report_input_indep_coverage_data(input_indep_cov);
         update_module_coverage_data(module_coverage_data, input_indep_cov);
     }
@@ -217,7 +186,7 @@ void InputDependencyStatistics::reportInputDepCoverage()
                                     ? cov_data.all_blocks - cov_data.unreachable_blocks - cov_data.input_indep_blocks
                                     : FA->get_input_dep_blocks_count();
         unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
-        unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
+        unsigned blocks = F.getBasicBlockList().size();
         unsigned dep_instrs_count = has_cached_data
                                     ? cov_data.all_instrs - cov_data.unreachable_instrs - cov_data.input_indep_instrs
                                     : FA->get_input_dep_count();
@@ -256,12 +225,19 @@ void InputDependencyStatistics::reportInputDepFunctionCoverage()
             cov_data = cached_pos->second;
         }
         const auto& FA = FA_pos->second;
-        unsigned dep_count = FA->isInputDepFunction() ? FA->get_input_dep_blocks_count() : 0;
+        unsigned dep_count = FA->isInputDepFunction() ? F.getBasicBlockList().size() : 0;
         unsigned unreachable = has_cached_data ? cov_data.unreachable_blocks : FA->get_unreachable_blocks_count();
-        unsigned blocks = has_cached_data ? cov_data.all_blocks : F.getBasicBlockList().size();
-        unsigned dep_instrs_count = FA->isInputDepFunction() ? FA->get_input_dep_count() : 0;
+        unsigned blocks = F.getBasicBlockList().size();
+        unsigned dep_instrs_count = FA->isInputDepFunction() ? get_function_instrs_count(F) : 0;
         unsigned unreachable_instrs = has_cached_data ? cov_data.unreachable_instrs : FA->get_unreachable_instructions_count();
-        unsigned instructions = has_cached_data ? cov_data.all_instrs : get_function_instrs_count(F);
+        unsigned instructions = 0;
+        if (dep_instrs_count != 0) {
+            instructions = dep_instrs_count;
+        } else if (has_cached_data) {
+            instructions = cov_data.all_instrs;
+        } else {
+            instructions = get_function_instrs_count(F);
+        }
         auto input_dep_cov = input_dep_coverage_data{F.getName(), dep_count, unreachable, blocks,
                                            dep_instrs_count, unreachable_instrs, instructions};
         m_function_input_dep_function_coverage_data.insert(std::make_pair(&F, input_dep_cov));
@@ -277,16 +253,6 @@ void InputDependencyStatistics::invalidate_stats_data()
     m_function_input_indep_coverage_data.clear();
     m_function_input_dep_coverage_data.clear();
     m_function_input_dep_function_coverage_data.clear();
-}
-
-void InputDependencyStatistics::report_inputdepindep_data(const inputdepindep_data& data)
-{
-    write_entry(data.name, "Instructions", data.input_deps_count + data.input_indeps_count + data.unknowns_count);
-    write_entry(data.name, "NumInputDep", data.input_deps_count);
-    write_entry(data.name, "NumInputInDep", data.input_indeps_count);
-    write_entry(data.name, "NumUnknowns", data.unknowns_count);
-    unsigned percent = (data.input_deps_count * 100) / (data.input_deps_count + data.input_indeps_count + data.unknowns_count);
-    write_entry(data.name, "Ratio", percent);
 }
 
 void InputDependencyStatistics::report_inputdep_data(const inputdep_data& data)

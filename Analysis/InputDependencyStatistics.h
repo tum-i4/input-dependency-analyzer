@@ -17,15 +17,6 @@ class InputDependencyStatistics : public Statistics
 private:
     using InputDependencyAnalysisInfo = InputDependencyAnalysis::InputDependencyAnalysisInfo;
 
-    // both input dep and indep info
-    struct inputdepindep_data
-    {
-        std::string name;
-        unsigned input_deps_count;
-        unsigned input_indeps_count;
-        unsigned unknowns_count;
-    };
-
     // input dep info
     struct inputdep_data
     {
@@ -67,10 +58,6 @@ public:
 public:
     void report() override;
 
-    /// Reports number of input dependent and independent instructions, as well as corresponding percentages.
-    /// This function collects all necessary information from given inputDepAnalysisInfo
-    virtual void reportInputDepInputIndepRatio();
-
     /// Reports number of input dep/input indep instructions and input dep functions.
     /// This function collects all necessary information from given inputDepAnalysisInfo
     virtual void reportInputDependencyInfo();
@@ -99,7 +86,6 @@ public:
     virtual void invalidate_stats_data();
 
 private:
-    void report_inputdepindep_data(const inputdepindep_data& data);
     void report_inputdep_data(const inputdep_data& data);
     void report_input_indep_coverage_data(const input_indep_coverage_data& data);
     void report_input_dep_coverage_data(const input_dep_coverage_data& data);
@@ -114,7 +100,7 @@ private:
 
     // caching stats
     std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_coverage_data;
-    std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_functoin_coverage_data;
+    std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_function_coverage_data;
     std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_function_coverage_data;
     std::unordered_map<llvm::Function*, input_dep_coverage_data> m_function_input_dep_coverage_data;
 };
@@ -124,7 +110,6 @@ class DummyInputDependencyStatistics : public InputDependencyStatistics
 public:
     DummyInputDependencyStatistics() = default;
 
-    void reportInputDepInputIndepRatio() override {}
     void reportInputDependencyInfo() override {}
     void reportInputInDepCoverage() override {}
     void reportInputInDepFunctionCoverage() override {}

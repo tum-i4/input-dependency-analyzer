@@ -246,7 +246,6 @@ void FunctionClonePass::remove_unused_originals(const std::unordered_map<llvm::F
             }
             node.second->removeAnyCallEdgeTo(calleeNode.second);
             calleeNode.second->removeAllCalledFunctions();
-            llvm::dbgs() << "Add function " << f->getName() << "\n";
             functionsToErase.insert(f);
         }
         llvm::Function* nodeF = node.second->getFunction();

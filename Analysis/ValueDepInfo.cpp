@@ -47,7 +47,7 @@ ValueDepInfo::ValueDepInfo(llvm::Type* type, const DepInfo& depInfo)
     int64_t el_num = get_composite_type_elements_num(type);
     if (el_num != -1) {
         m_isComposite = true;
-        m_elementDeps.resize(el_num, ValueDepInfo(DepInfo(DepInfo::INPUT_INDEP)));
+        m_elementDeps.resize(el_num, ValueDepInfo(depInfo));
     }
 }
 

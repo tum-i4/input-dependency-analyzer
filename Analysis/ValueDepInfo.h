@@ -16,7 +16,6 @@ namespace input_dependency {
  * \class ValueDepInfo
  * \brief Represents input dependency information for a value
  * For composite values, such as structs, arrays, etc., has info for each element
- * TODO: see if DepInfo is necessary
  */
 class ValueDepInfo
 {

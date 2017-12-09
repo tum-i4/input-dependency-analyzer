@@ -62,9 +62,10 @@ void BasicBlockAnalysisResult::analize()
     for (auto& I : *m_BB) {
         //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
-            // Note alloc instructions are at the begining of the function
-            // Here just collect them with input indep state
-            m_valueDependencies.insert(std::make_pair(allocInst, ValueDepInfo(allocInst->getAllocatedType())));
+            // collect alloca value with input dependency state INPUT_DEP
+            m_valueDependencies.insert(std::make_pair(allocInst,
+                                                ValueDepInfo(allocInst->getAllocatedType(), DepInfo(DepInfo::INPUT_DEP))));
+            // collect alloca instruction with input dependency state INPUT_INDEP
             updateInstructionDependencies(allocInst, DepInfo(DepInfo::INPUT_INDEP));
         } else if (auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
             processReturnInstr(retInst);

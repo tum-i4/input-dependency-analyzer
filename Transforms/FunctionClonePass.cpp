@@ -55,6 +55,7 @@ void FunctionClonePass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<input_dependency::InputDependencyAnalysis>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
+    AU.setPreservesAll();
 }
 
 bool FunctionClonePass::runOnModule(llvm::Module& M)

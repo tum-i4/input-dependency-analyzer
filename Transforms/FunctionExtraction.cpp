@@ -369,7 +369,6 @@ void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
     AU.addRequired<input_dependency::InputDependencyAnalysis>();
-    AU.setPreservesAll();
 }
 
 bool FunctionExtractionPass::runOnModule(llvm::Module& M)

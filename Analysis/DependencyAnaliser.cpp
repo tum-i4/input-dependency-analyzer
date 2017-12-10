@@ -345,7 +345,7 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         updateDependencyForGetElementPtr(getElPtr, info);
     } else {
         updateValueDependencies(storeTo, info, true);
-        updateModAliasesDependencies(storeInst, info);
+        //updateModAliasesDependencies(storeInst, info);
         llvm::Value* memoryValue = getMemoryValue(storeTo);
         if (memoryValue && memoryValue != storeTo) {
             updateValueDependencies(memoryValue, info, true);

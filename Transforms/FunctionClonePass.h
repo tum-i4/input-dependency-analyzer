@@ -10,10 +10,6 @@
 
 #include <iostream>
 
-namespace input_dependency {
-class InputDependencyAnalysis;
-}
-
 namespace llvm {
 class Function;
 class Instruction;
@@ -146,7 +142,7 @@ private:
     void dump() const;
 
 private:
-    input_dependency::InputDependencyAnalysis* IDA;
+    input_dependency::InputDependencyAnalysisPass::InputDependencyAnalysisType IDA;
     using FunctionCloneInfo = std::unordered_map<llvm::Function*, FunctionClone>;
     FunctionCloneInfo m_functionCloneInfo;
     std::unordered_map<llvm::Function*, llvm::Function*> m_clone_to_original;

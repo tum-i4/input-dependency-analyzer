@@ -24,12 +24,12 @@ char InputDependencyDebugInfoPrinterPass::ID = 0;
 void InputDependencyDebugInfoPrinterPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
-    AU.addRequired<InputDependencyAnalysis>();
+    AU.addRequired<InputDependencyAnalysisPass>();
 }
 
 bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
 {
-    auto& inputDepRes = getAnalysis<InputDependencyAnalysis>();
+    auto inputDepRes = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();
 
     std::string module_name = M.getName();
     auto dot_pos = module_name.find_first_of('.');
@@ -46,14 +46,14 @@ bool InputDependencyDebugInfoPrinterPass::runOnModule(llvm::Module& M)
         if (F.isDeclaration() || F.isIntrinsic()) {
             continue;
         }
-        auto funcInputDep = inputDepRes.getAnalysisInfo(&F);
+        auto funcInputDep = inputDepRes->getAnalysisInfo(&F);
         if (funcInputDep == nullptr) {
             llvm::dbgs() << "No input dependency info for function " << F.getName() << " in module " << module_name << "\n";
             continue;
         }
         llvm::dbgs() << F.getName() << "\n";
         for (auto& B : F) {
-            if (inputDepRes.isInputDependent(&B)) {
+            if (inputDepRes->isInputDependent(&B)) {
                 recorder.record(&B);
             }
             for (auto& I : B) {

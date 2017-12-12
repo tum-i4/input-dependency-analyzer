@@ -2,15 +2,12 @@
 
 #include "Analysis/Statistics.h"
 #include "Analysis/InputDependencyStatistics.h"
+#include "Analysis/InputDependencyAnalysis.h"
 
 #include "llvm/Pass.h"
 
 #include <memory>
 #include <unordered_set>
-
-namespace input_dependency {
-class InputDependencyAnalysis;
-}
 
 namespace oh {
 class ExtractionStatistics : public input_dependency::Statistics

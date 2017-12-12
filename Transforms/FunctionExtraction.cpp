@@ -368,15 +368,15 @@ char FunctionExtractionPass::ID = 0;
 void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
-    AU.addRequired<input_dependency::InputDependencyAnalysis>();
+    AU.addRequired<input_dependency::InputDependencyAnalysisPass>();
 }
 
 bool FunctionExtractionPass::runOnModule(llvm::Module& M)
 {
     bool modified = false;
-    auto& input_dep = getAnalysis<input_dependency::InputDependencyAnalysis>();
+    auto input_dep = getAnalysis<input_dependency::InputDependencyAnalysisPass>().getInputDependencyAnalysis();
 
-    createStatistics(M, input_dep);
+    createStatistics(M, *input_dep);
     m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
     m_coverageStatistics->reportInputDepFunctionCoverage();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
@@ -386,7 +386,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             llvm::dbgs() << "Skip: Declaration function " << F.getName() << "\n";
             continue;
         }
-        auto input_dep_info = input_dep.getAnalysisInfo(&F);
+        auto input_dep_info = input_dep->getAnalysisInfo(&F);
         if (input_dep_info == nullptr) {
             llvm::dbgs() << "Skip: No input dep info for function " << F.getName() << "\n";
             continue;
@@ -410,7 +410,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         llvm::Function* extracted_f = f.first;
         m_extracted_functions.insert(extracted_f);
         llvm::dbgs() << extracted_f->getName() << "\n";
-        input_dep.insertAnalysisInfo(
+        input_dep->insertAnalysisInfo(
                 extracted_f, input_dependency::InputDependencyAnalysis::InputDepResType(new
                 input_dependency::InputDependentFunctionAnalysisResult(extracted_f)));
         if (stats) {

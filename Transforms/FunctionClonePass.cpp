@@ -53,7 +53,7 @@ char FunctionClonePass::ID = 0;
 
 void FunctionClonePass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
-    AU.addRequired<input_dependency::InputDependencyAnalysis>();
+    AU.addRequired<input_dependency::InputDependencyAnalysisPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.setPreservesAll();
 }
@@ -62,7 +62,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 {
     llvm::dbgs() << "Running function clonning transofrmation pass\n";
     bool isChanged = true;
-    IDA = &getAnalysis<input_dependency::InputDependencyAnalysis>();
+    IDA = getAnalysis<input_dependency::InputDependencyAnalysisPass>().getInputDependencyAnalysis();
 
     createStatistics(M);
     m_coverageStatistics->setSectionName("input_indep_coverage_before_clonning");
@@ -104,6 +104,10 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             const auto& callSites = f_analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
+                    continue;
+                }
+                if (f_analysisInfo->isInputDepFunction()) {
+                    original_uses[callSite] = true;
                     continue;
                 }
                 original_uses.insert(std::make_pair(callSite, false));

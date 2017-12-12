@@ -26,7 +26,7 @@ namespace {
 		virtual bool runOnFunction(Function &F){
 			bool didModify = false;
 			for (auto& B : F) {
-                                auto FI = getAnalysis<input_dependency::InputDependencyAnalysis>().getAnalysisInfo(&F);
+                auto FI = getAnalysis<input_dependency::InputDependencyAnalysisPass>().getInputDependencyAnalysis()->getAnalysisInfo(&F);
 				//std::vector<const char*> CutVertices=getAnalysis<CutVerticesPass>().getArray();
 				//if(!CutVertices.empty()&& std::find(CutVertices.begin(),CutVertices.end(),
 				//	B.getName())!=CutVertices.end()){
@@ -62,7 +62,7 @@ namespace {
 
 		virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 			//AU.addRequired<CutVerticesPass>();
-			AU.addRequired<input_dependency::InputDependencyAnalysis>();
+			AU.addRequired<input_dependency::InputDependencyAnalysisPass>();
 			AU.setPreservesAll();
 		}
 
@@ -169,7 +169,7 @@ char OHPass::ID = 0;
 // http://adriansampson.net/blog/clangpass.html
 static void registerOHPass(const PassManagerBuilder &,
 		legacy::PassManagerBase &PM) {
-    PM.add(new input_dependency::InputDependencyAnalysis());
+    PM.add(new input_dependency::InputDependencyAnalysisPass());
     //PM.add(new CutVerticesPass());
     PM.add(new OHPass());
 }

@@ -60,21 +60,48 @@ void configure_run()
     InputDepConfig().get().set_lib_config_file(libfunction_config);
 }
 
-char InputDependencyAnalysis::ID = 0;
-
-bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
+InputDependencyAnalysis::InputDependencyAnalysis(llvm::Module* M)
+    : m_module(M)
 {
-    llvm::dbgs() << "Running input dependency analysis pass\n";
-    configure_run();
+}
 
-    m_module = &M;
-    llvm::Optional<llvm::BasicAAResult> BAR;
-    llvm::Optional<llvm::AAResults> AAR;
-    auto AARGetter = [&](llvm::Function &F) -> llvm::AAResults & {
-        BAR.emplace(llvm::createLegacyPMBasicAAResult(*this, F));
-        AAR.emplace(llvm::createLegacyPMAAResults(*this, F, *BAR));
-        return *AAR;
-    };
+void InputDependencyAnalysis::setCallGraph(llvm::CallGraph& callGraph)
+{
+    m_callGraph = &callGraph;
+}
+
+void InputDependencyAnalysis::setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallSiteAnalysisRes)
+{
+    m_virtualCallSiteAnalysisRes = virtualCallSiteAnalysisRes;
+}
+
+void InputDependencyAnalysis::setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallSiteAnalysisRes)
+{
+    m_indirectCallSiteAnalysisRes = indirectCallSiteAnalysisRes;
+}
+
+void InputDependencyAnalysis::setAliasAnalysisInfoGetter(const AliasAnalysisInfoGetter& aliasAnalysisInfoGetter)
+{
+    m_aliasAnalysisInfoGetter = aliasAnalysisInfoGetter;
+}
+
+void InputDependencyAnalysis::setLoopInfoGetter(const LoopInfoGetter& loopInfoGetter)
+{
+    m_loopInfoGetter = loopInfoGetter;
+}
+
+void InputDependencyAnalysis::setPostDominatorTreeGetter(const PostDominatorTreeGetter& postDomTreeGetter)
+{
+    m_postDomTreeGetter = postDomTreeGetter;
+}
+
+void InputDependencyAnalysis::setDominatorTreeGetter(const DominatorTreeGetter& domTreeGetter)
+{
+    m_domTreeGetter = domTreeGetter;
+}
+
+void InputDependencyAnalysis::run()
+{
     auto FAGetter = [&] (llvm::Function* F) -> FunctionAnaliser* {
         auto pos = m_functionAnalisers.find(F);
         if (pos == m_functionAnalisers.end()) {
@@ -84,12 +111,8 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
         return f_analiser;
     };
 
-    const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
-    const VirtualCallSiteAnalysisResult& virtualCallsInfo = indirectCallAnalysis.getVirtualsAnalysisResult();
-    const IndirectCallSitesAnalysisResult& indirectCallsInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
-    llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
-    llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(&CG);
-    llvm::CallGraphSCC CurSCC(CG, &CGI);
+    llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(m_callGraph);
+    llvm::CallGraphSCC CurSCC(*m_callGraph, &CGI);
     while (!CGI.isAtEnd()) {
         // Copy the current SCC and increment past it so that the pass can hack
         // on the SCC if it wants to without invalidating our iterator.
@@ -98,58 +121,43 @@ bool InputDependencyAnalysis::runOnModule(llvm::Module& M)
 
         for (llvm::CallGraphNode* node : CurSCC) {
             llvm::Function* F = node->getFunction();
-            if (F == nullptr || Utils::isLibraryFunction(F, &M)) {
+            if (F == nullptr || Utils::isLibraryFunction(F, m_module)) {
                 continue;
             }
             llvm::dbgs() << "Processing function " << F->getName() << "\n";
             m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
-            llvm::AAResults& AAR = AARGetter(*F);
-            llvm::LoopInfo& LI = getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
-            const llvm::PostDominatorTree& PDom = getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
-            const llvm::DominatorTree& dom = getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
+            llvm::AAResults* AAR = m_aliasAnalysisInfoGetter(F);
+            llvm::LoopInfo* LI = m_loopInfoGetter(F);
+            const llvm::PostDominatorTree* PDom = m_postDomTreeGetter(F);
+            const llvm::DominatorTree* dom = m_domTreeGetter(F);
             InputDepResType analiser(new FunctionAnaliser(F, FAGetter));
             auto res = m_functionAnalisers.insert(std::make_pair(F, analiser));
             assert(res.second);
             auto analizer = res.first->second->toFunctionAnalysisResult();
-            analizer->setAAResults(&AAR);
-            analizer->setLoopInfo(&LI);
-            analizer->setPostDomTree(&PDom);
-            analizer->setDomTree(&dom);
-            analizer->setVirtualCallSiteAnalysisResult(&virtualCallsInfo);
-            analizer->setIndirectCallSiteAnalysisResult(&indirectCallsInfo);
+            analizer->setAAResults(AAR);
+            analizer->setLoopInfo(LI);
+            analizer->setPostDomTree(PDom);
+            analizer->setDomTree(dom);
+            analizer->setVirtualCallSiteAnalysisResult(m_virtualCallSiteAnalysisRes);
+            analizer->setIndirectCallSiteAnalysisResult(m_indirectCallSiteAnalysisRes);
             analizer->analize();
             const auto& calledFunctions = analizer->getCallSitesData();
             mergeCallSitesData(F, calledFunctions);
         }
         ++CGI;
     }
-    doFinalization(CG);
+    doFinalization();
     llvm::dbgs() << "Finished input dependency analysis\n\n";
     if (stats) {
         std::string file_name = stats_file;
         if (file_name.empty()) {
             file_name = "stats";
         }
-        InputDependencyStatistics stats(stats_format, file_name, &M, &m_functionAnalisers);
+        InputDependencyStatistics stats(stats_format, file_name, m_module, &m_functionAnalisers);
         stats.setSectionName("inputdep_stats");
         stats.report();
         stats.flush();
     }
-    return false;
-}
-
-void InputDependencyAnalysis::getAnalysisUsage(llvm::AnalysisUsage& AU) const
-{
-    AU.setPreservesCFG();
-    AU.addRequired<IndirectCallSitesAnalysis>();
-    AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
-    llvm::getAAResultsAnalysisUsage(AU);
-    AU.addRequired<llvm::CallGraphWrapperPass>();
-    AU.addPreserved<llvm::CallGraphWrapperPass>();
-    AU.addRequired<llvm::LoopInfoWrapperPass>();
-    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
-    AU.addRequired<llvm::DominatorTreeWrapperPass>();
-    AU.setPreservesAll();
 }
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
@@ -207,8 +215,7 @@ bool InputDependencyAnalysis::insertAnalysisInfo(llvm::Function* F, InputDepResT
     return true;
 }
 
-// doFinalize is called once
-bool InputDependencyAnalysis::doFinalization(llvm::CallGraph &CG)
+bool InputDependencyAnalysis::doFinalization()
 {
     for (auto F : m_moduleFunctions) {
         auto pos = m_functionAnalisers.find(F);
@@ -367,7 +374,63 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
     }
 }
 
-static llvm::RegisterPass<InputDependencyAnalysis> X("input-dep","runs input dependency analysis");
+char InputDependencyAnalysisPass::ID = 0;
+
+bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
+{
+    llvm::dbgs() << "Running input dependency analysis pass\n";
+    configure_run();
+
+    llvm::Optional<llvm::BasicAAResult> BAR;
+    llvm::Optional<llvm::AAResults> AAR;
+    auto AARGetter = [&](llvm::Function* F) -> llvm::AAResults* {
+        BAR.emplace(llvm::createLegacyPMBasicAAResult(*this, *F));
+        AAR.emplace(llvm::createLegacyPMAAResults(*this, *F, *BAR));
+        return &*AAR;
+    };
+    llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
+    const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
+    const VirtualCallSiteAnalysisResult& virtualCallsInfo = indirectCallAnalysis.getVirtualsAnalysisResult();
+    const IndirectCallSitesAnalysisResult& indirectCallsInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
+    const auto& loopInfoGetter = [this] (llvm::Function* F)
+                {
+                    return &this->getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
+                };
+    const auto& postDomTreeGetter = [this] (llvm::Function* F)
+                {
+                    return &this->getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
+                };
+    const auto& domTreeGetter = [this] (llvm::Function* F)
+                {
+                    return &this->getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
+                };
+    m_analysis.reset(new InputDependencyAnalysis(&M));
+    m_analysis->setCallGraph(CG);
+    m_analysis->setVirtualCallSiteAnalysisResult(&virtualCallsInfo);
+    m_analysis->setIndirectCallSiteAnalysisResult(&indirectCallsInfo);
+    m_analysis->setAliasAnalysisInfoGetter(AARGetter);
+    m_analysis->setLoopInfoGetter(loopInfoGetter);
+    m_analysis->setPostDominatorTreeGetter(postDomTreeGetter);
+    m_analysis->setDominatorTreeGetter(domTreeGetter);
+    m_analysis->run();
+    return false;
+}
+
+void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
+{
+    AU.setPreservesCFG();
+    AU.addRequired<IndirectCallSitesAnalysis>();
+    AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
+    llvm::getAAResultsAnalysisUsage(AU);
+    AU.addRequired<llvm::CallGraphWrapperPass>();
+    AU.addPreserved<llvm::CallGraphWrapperPass>();
+    AU.addRequired<llvm::LoopInfoWrapperPass>();
+    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+    AU.addRequired<llvm::DominatorTreeWrapperPass>();
+    AU.setPreservesAll();
+}
+
+static llvm::RegisterPass<InputDependencyAnalysisPass> X("input-dep","runs input dependency analysis");
 
 }
 

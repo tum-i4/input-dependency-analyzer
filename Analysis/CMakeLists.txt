@@ -50,10 +50,6 @@ set_target_properties(InputDependency PROPERTIES
     COMPILE_FLAGS "-fno-rtti -g"
 )
 
-find_library(JSONCPP_LINK_FLAGS "libjsoncpp.a")
-message("aa" "${JSONCPP_LINK_FLAGS}")
-target_link_libraries(InputDependency ${JSONCPP_LINK_FLAGS})
-
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)

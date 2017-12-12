@@ -25,7 +25,7 @@ void InputDependentFunctionsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) cons
     AU.setPreservesAll();
     AU.setPreservesCFG();
     AU.addRequired<IndirectCallSitesAnalysis>();
-    AU.addRequired<InputDependencyAnalysis>();
+    AU.addRequired<InputDependencyAnalysisPass>();
     AU.addRequired<FunctionDominanceTreePass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addPreserved<llvm::CallGraphWrapperPass>();
@@ -184,7 +184,7 @@ std::vector<llvm::Function*> InputDependentFunctionsPass::collect_functons(llvm:
 bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
 {
     auto module_functions = collect_functons(M);
-    const auto& inputDepAnalysis = getAnalysis<InputDependencyAnalysis>();
+    const auto& inputDepAnalysis = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();
     const auto& domTree = getAnalysis<FunctionDominanceTreePass>().get_dominance_tree();
     FunctionSet processed_functions;
     for (auto& F : module_functions) {
@@ -196,7 +196,7 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
         }
         const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
-        process_function(F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
+        process_function(F, indirectCallSitesInfo, *inputDepAnalysis, domTree, processed_functions);
     }
     // go through others
     for (auto& F : M) {
@@ -208,7 +208,7 @@ bool InputDependentFunctionsPass::runOnModule(llvm::Module& M)
         }
         const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
         const auto& indirectCallSitesInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
-        process_function(&F, indirectCallSitesInfo, inputDepAnalysis, domTree, processed_functions);
+        process_function(&F, indirectCallSitesInfo, *inputDepAnalysis, domTree, processed_functions);
     }
     for (auto& F : M) {
         if (functions_called_in_non_det_blocks.find(&F) == functions_called_in_non_det_blocks.end()

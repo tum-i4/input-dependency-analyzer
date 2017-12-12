@@ -159,9 +159,9 @@ bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
     if (Utils::isLibraryFunction(&F, F.getParent())) {
         return false;
     }
-    auto& Analysis = getAnalysis<InputDependencyAnalysis>();
+    auto Analysis = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();
 
-    const auto& analysis_res = Analysis.getAnalysisInfo(&F);
+    const auto& analysis_res = Analysis->getAnalysisInfo(&F);
     if (analysis_res == nullptr) {
         llvm::errs() << "Can't find analysis info for function\n";
         return false;
@@ -191,7 +191,7 @@ bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
 void FunctionDOTGraphPrinter::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
-    AU.addRequired<InputDependencyAnalysis>();
+    AU.addRequired<InputDependencyAnalysisPass>();
 }
 
 static llvm::RegisterPass<FunctionDOTGraphPrinter> X("print-dot","Print dot with input dependency results");

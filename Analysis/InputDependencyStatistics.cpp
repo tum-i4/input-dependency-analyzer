@@ -331,18 +331,18 @@ char InputDependencyStatisticsPass::ID = 0;
 
 void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
-    AU.addRequired<InputDependencyAnalysis>();
+    AU.addRequired<InputDependencyAnalysisPass>();
     AU.setPreservesAll();
 }
 
 bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
 {
-    auto& IDA = getAnalysis<InputDependencyAnalysis>();
+    auto IDA = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();
     std::string file_name = stats_file;
     if (stats_file.empty()) {
         file_name = "stats";
     }
-    InputDependencyStatistics statistics(stats_format, stats_file, &M, &IDA.getAnalysisInfo());
+    InputDependencyStatistics statistics(stats_format, stats_file, &M, &IDA->getAnalysisInfo());
     statistics.report();
     statistics.flush();
     return false;

@@ -246,9 +246,11 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         }
         auto alias = m_AAR.alias(val, valDep.first);
         if (alias == llvm::AliasResult::MayAlias) {
+            //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.mergeDependencies(value_instr, info)
                         : valDep.second.mergeDependencies(info);
         } else if (alias == llvm::AliasResult::MustAlias) {
+            //llvm::dbgs() << "Must aliases " << *valDep.first << "\n";
             value_instr ? valDep.second.updateValueDep(value_instr, info)
                         : valDep.second.updateValueDep(info);
         }

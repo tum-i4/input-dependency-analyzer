@@ -2,7 +2,6 @@
 
 #include "DependencyAnaliser.h"
 #include "DependencyAnalysisResult.h"
-#include "definitions.h"
 
 namespace llvm {
 

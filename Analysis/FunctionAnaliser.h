@@ -2,7 +2,6 @@
 
 #include "FunctionInputDependencyResultInterface.h"
 #include "DependencyAnaliser.h"
-#include "definitions.h"
 
 #include <memory>
 

@@ -35,6 +35,7 @@ add_library(InputDependency MODULE
     BasicBlocksUtils.cpp
     LibraryInfoFromConfigFile.cpp
     Statistics.cpp
+    constants.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

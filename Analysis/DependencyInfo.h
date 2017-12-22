@@ -1,7 +1,6 @@
 #pragma once
 
 #include "definitions.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/IR/Value.h"
 
 namespace input_dependency {

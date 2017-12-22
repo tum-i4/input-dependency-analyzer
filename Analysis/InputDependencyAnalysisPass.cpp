@@ -5,6 +5,7 @@
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepConfig.h"
 #include "InputDepInstructionsRecorder.h"
+#include "constants.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -81,6 +82,7 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
 
     if (cache && has_cached_input_dependency()) {
         create_cached_input_dependency_analysis();
+        return false;
     } else {
         create_input_dependency_analysis(AARGetter);
     }
@@ -110,8 +112,17 @@ void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) cons
 
 bool InputDependencyAnalysisPass::has_cached_input_dependency() const
 {
-    // TODO: implement
-    return false;
+    bool is_cached = false;
+    if (llvm::Metadata* flag = m_module->getModuleFlag(metadata_strings::cached_input_dep)) {
+        if (auto* constAsMd = llvm::dyn_cast<llvm::ConstantAsMetadata>(flag)) {
+            if (llvm::Value* val = constAsMd->getValue()) {
+                if (auto* constInt = llvm::dyn_cast<llvm::ConstantInt>(val)) {
+                    is_cached = constInt->getValue().getBoolValue();
+                }
+            }
+        }
+    }
+    return is_cached;
 }
 
 void InputDependencyAnalysisPass::create_input_dependency_analysis(const InputDependencyAnalysisInterface::AliasAnalysisInfoGetter& AARGetter)

@@ -7,6 +7,7 @@
 #include "InputDepInstructionsRecorder.h"
 #include "FunctionInputDependencyResultInterface.h"
 #include "Utils.h"
+#include "constants.h"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -24,21 +25,6 @@
 
 
 namespace input_dependency {
-
-// metadata names used in caching
-namespace metadata {
-
-const std::string& cached_input_dep = "cached_input_dep";
-const std::string& input_dep_function = "input_dep_function";
-const std::string& input_indep_function = "input_indep_function";
-const std::string& input_dep_block = "input_dep_block";
-const std::string& input_indep_block = "input_indep_block";
-const std::string& input_dep_instr = "input_dep_instr";
-const std::string& input_indep_instr = "input_indep_instr";
-const std::string& unknown = "unknown";
-const std::string& unreachable = "unreachable";
-
-}
 
 InputDependencyAnalysis::InputDependencyAnalysis(llvm::Module* M)
     : m_module(M)
@@ -113,54 +99,54 @@ void InputDependencyAnalysis::run()
 
 void InputDependencyAnalysis::cache()
 {
-    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata::cached_input_dep, true);
-    auto* input_dep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_function);
+    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata_strings::cached_input_dep, true);
+    auto* input_dep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_function);
     llvm::MDNode* input_dep_function_md = llvm::MDNode::get(m_module->getContext(), input_dep_function_md_str);
-    auto* input_indep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_function);
+    auto* input_indep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_function);
     llvm::MDNode* input_indep_function_md = llvm::MDNode::get(m_module->getContext(), input_indep_function_md_str);
 
-    auto* input_dep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_block);
+    auto* input_dep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_block);
     llvm::MDNode* input_dep_block_md = llvm::MDNode::get(m_module->getContext(), input_dep_block_md_str);
-    auto* input_indep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_block);
+    auto* input_indep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_block);
     llvm::MDNode* input_indep_block_md = llvm::MDNode::get(m_module->getContext(), input_indep_block_md_str);
 
-    auto* input_dep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_instr);
+    auto* input_dep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_instr);
     llvm::MDNode* input_dep_instr_md = llvm::MDNode::get(m_module->getContext(), input_dep_instr_md_str);
-    auto* input_indep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_instr);
+    auto* input_indep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_instr);
     llvm::MDNode* input_indep_instr_md = llvm::MDNode::get(m_module->getContext(), input_indep_instr_md_str);
 
-    auto* unknown_node_name = llvm::MDString::get(m_module->getContext(), metadata::unknown);
+    auto* unknown_node_name = llvm::MDString::get(m_module->getContext(), metadata_strings::unknown);
     llvm::MDNode* unknown_md = llvm::MDNode::get(m_module->getContext(), unknown_node_name);
-    auto* unreachable_node_name = llvm::MDString::get(m_module->getContext(), metadata::unreachable);
+    auto* unreachable_node_name = llvm::MDString::get(m_module->getContext(), metadata_strings::unreachable);
     llvm::MDNode* unreachable_md = llvm::MDNode::get(m_module->getContext(), unreachable_node_name);
 
     for (auto& FA_item : m_functionAnalisers) {
         llvm::Function* F = FA_item.first;
         auto& FA = FA_item.second;
-        llvm::dbgs() << "Add metadata to function " << F->getName() << "\n";
+        llvm::dbgs() << "Caching input dependenct for function " << F->getName() << "\n";
         if (FA->isInputDepFunction()) {
-            F->setMetadata(metadata::input_dep_function, input_dep_function_md);
+            F->setMetadata(metadata_strings::input_dep_function, input_dep_function_md);
         } else {
-            F->setMetadata(metadata::input_indep_function, input_indep_function_md);
+            F->setMetadata(metadata_strings::input_indep_function, input_indep_function_md);
         }
         for (auto& B : *F) {
             if (FA->isInputDependentBlock(&B)) {
-                B.begin()->setMetadata(metadata::input_dep_block, input_dep_block_md);
-                // don't add metadata to instructions as they'll all be input dep
+                B.begin()->setMetadata(metadata_strings::input_dep_block, input_dep_block_md);
+                // don't add metadata_strings to instructions as they'll all be input dep
                 continue;
             } else if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
-                B.begin()->setMetadata(metadata::unreachable, unreachable_md);
+                B.begin()->setMetadata(metadata_strings::unreachable, unreachable_md);
                 continue;
             } else {
-                B.begin()->setMetadata(metadata::input_indep_block, input_indep_block_md);
+                B.begin()->setMetadata(metadata_strings::input_indep_block, input_indep_block_md);
             }
             for (auto& I : B) {
                 if (FA->isInputDependent(&I)) {
-                    I.setMetadata(metadata::input_dep_instr, input_dep_instr_md);
+                    I.setMetadata(metadata_strings::input_dep_instr, input_dep_instr_md);
                 } else if (FA->isInputIndependent(&I)) {
-                    I.setMetadata(metadata::input_indep_instr, input_indep_instr_md);
+                    I.setMetadata(metadata_strings::input_indep_instr, input_indep_instr_md);
                 } else {
-                    I.setMetadata(metadata::unknown, unknown_md);
+                    I.setMetadata(metadata_strings::unknown, unknown_md);
                 }
             }
         }

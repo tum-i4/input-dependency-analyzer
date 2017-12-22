@@ -15,5 +15,5 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
 add_subdirectory(Analysis)  # Use your pass name here.
 add_subdirectory(Transforms)  # Use your pass name here.
-add_subdirectory(OH)  # Use your pass name here.
+#add_subdirectory(OH)  # Use your pass name here.
 #add_subdirectory(CutVertice)  # Use your pass name here.

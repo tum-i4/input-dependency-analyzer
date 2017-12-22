@@ -1,6 +1,6 @@
 #pragma once
 
-#include "InputDependencyResult.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "BasicBlocksUtils.h"
 
 #include "llvm/IR/Function.h"
@@ -8,7 +8,7 @@
 
 namespace input_dependency {
 
-class InputDependentFunctionAnalysisResult : public InputDependencyResult
+class InputDependentFunctionAnalysisResult final : public FunctionInputDependencyResultInterface
 {
 public:
     InputDependentFunctionAnalysisResult(llvm::Function* F)

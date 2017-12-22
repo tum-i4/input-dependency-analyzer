@@ -1,6 +1,6 @@
 #pragma once
 
-#include "InputDependencyResult.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "DependencyAnaliser.h"
 #include "definitions.h"
 
@@ -18,7 +18,7 @@ namespace input_dependency {
 class IndirectCallSitesAnalysisResult;
 class VirtualCallSiteAnalysisResult;
 
-class FunctionAnaliser : public InputDependencyResult
+class FunctionAnaliser final : public FunctionInputDependencyResultInterface
 {
 public:
     FunctionAnaliser(llvm::Function* F,
@@ -34,7 +34,7 @@ public:
     void setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallsInfo);
     void setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallsInfo);
 
-    /// \name InputDependencyResult interface
+    /// \name FunctionInputDependencyResultInterface implementation
     /// \{
 public:
     llvm::Function* getFunction() override;
@@ -114,7 +114,7 @@ public:
     const GlobalsSet& getModifiedGlobals() const;
     /// \}
 
-    InputDependencyResult* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
+    FunctionInputDependencyResultInterface* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     /// \name debug interface
     /// \{
     void dump() const;

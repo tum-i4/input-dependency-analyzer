@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FunctionClone.h"
-#include "Analysis/InputDependencyAnalysis.h"
+#include "Analysis/InputDependencyAnalysisPass.h"
 #include "Analysis/Statistics.h"
 #include "Analysis/InputDependencyStatistics.h"
 

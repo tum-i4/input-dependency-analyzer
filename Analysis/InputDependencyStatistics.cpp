@@ -1,4 +1,6 @@
 #include "InputDependencyStatistics.h"
+#include "InputDependencyAnalysisPass.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "Utils.h"
 
 #include "llvm/IR/Function.h"

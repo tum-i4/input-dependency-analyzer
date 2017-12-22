@@ -7,6 +7,7 @@ add_library(InputDependency MODULE
     FunctionCallDepInfo.cpp
     FunctionDOTGraphPrinter.cpp
     IndirectCallSitesAnalysis.cpp
+    InputDependencyAnalysisPass.cpp
     InputDependencyAnalysis.cpp
     InputDependencyDebugInfoPrinter.cpp
     InputDependencyStatistics.cpp
@@ -26,7 +27,6 @@ add_library(InputDependency MODULE
     InputDepInstructionsRecorder.cpp
     DotPrinter.cpp
     value_dependence_graph.cpp
-    InputDependentFunctions.cpp
     FunctionDominanceTree.cpp
     ValueDepInfo.cpp
     LoopTraversalPath.cpp

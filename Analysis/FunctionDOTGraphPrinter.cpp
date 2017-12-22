@@ -1,4 +1,6 @@
 #include "FunctionDOTGraphPrinter.h"
+#include "InputDependencyAnalysisPass.h"
+#include "InputDependencyAnalysis.h"
 
 #include "FunctionAnaliser.h"
 

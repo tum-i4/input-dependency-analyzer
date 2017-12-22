@@ -1,7 +1,9 @@
 #include "InputDependencyDebugInfoPrinter.h"
 
+#include "InputDependencyAnalysisPass.h"
 #include "InputDependencyAnalysis.h"
 #include "InputDepInstructionsRecorder.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "LoggingUtils.h"
 
 #include "llvm/IR/BasicBlock.h"

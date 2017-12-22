@@ -5,7 +5,7 @@
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepConfig.h"
 #include "InputDepInstructionsRecorder.h"
-#include "InputDependencyStatistics.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "Utils.h"
 
 #include "llvm/ADT/SCCIterator.h"
@@ -22,51 +22,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/PassRegistry.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
-
-#include <cassert>
 
 namespace input_dependency {
-
-static llvm::cl::opt<bool> goto_unsafe(
-    "goto-unsafe",
-    llvm::cl::desc("Process irregular CFG in an unsafe way"),
-    llvm::cl::value_desc("boolean flag"));
-
-static llvm::cl::opt<std::string> libfunction_config(
-    "lib-config",
-    llvm::cl::desc("Configuration file for library functions"),
-    llvm::cl::value_desc("file name"));
-
-static llvm::cl::opt<bool> stats(
-    "dependency-stats",
-    llvm::cl::desc("Dump statistics"),
-    llvm::cl::value_desc("boolean flag"));
-
-static llvm::cl::opt<std::string> stats_format(
-    "dependency-stats-format",
-    llvm::cl::desc("Statistics format"),
-    llvm::cl::value_desc("format name"));
-
-static llvm::cl::opt<std::string> stats_file(
-    "dependency-stats-file",
-    llvm::cl::desc("Statistics file"),
-    llvm::cl::value_desc("file name"));
-
-static llvm::cl::opt<bool> cache(
-    "transparent-caching",
-    llvm::cl::desc("Cache input dependency results"),
-    llvm::cl::value_desc("boolean flag"));
-
-void configure_run()
-{
-    InputDepInstructionsRecorder::get().set_record();
-    InputDepConfig::get().set_goto_unsafe(goto_unsafe);
-    InputDepConfig::get().set_lib_config_file(libfunction_config);
-    InputDepConfig::get().set_cache_input_dependency(cache);
-}
 
 // metadata names used in caching
 namespace metadata {
@@ -96,9 +53,9 @@ InputDependencyAnalysis::InputDependencyAnalysis(llvm::Module* M)
     };
 }
 
-void InputDependencyAnalysis::setCallGraph(llvm::CallGraph& callGraph)
+void InputDependencyAnalysis::setCallGraph(llvm::CallGraph* callGraph)
 {
-    m_callGraph = &callGraph;
+    m_callGraph = callGraph;
 }
 
 void InputDependencyAnalysis::setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallSiteAnalysisRes)
@@ -152,13 +109,64 @@ void InputDependencyAnalysis::run()
     }
     doFinalization();
     llvm::dbgs() << "Finished input dependency analysis\n\n";
-    if (InputDepConfig::get().is_cache_input_dep()) {
-        cache_input_dependency();
-    }
-    if (stats) {
-        dump_statistics();
+}
+
+void InputDependencyAnalysis::cache()
+{
+    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata::cached_input_dep, true);
+    auto* input_dep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_function);
+    llvm::MDNode* input_dep_function_md = llvm::MDNode::get(m_module->getContext(), input_dep_function_md_str);
+    auto* input_indep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_function);
+    llvm::MDNode* input_indep_function_md = llvm::MDNode::get(m_module->getContext(), input_indep_function_md_str);
+
+    auto* input_dep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_block);
+    llvm::MDNode* input_dep_block_md = llvm::MDNode::get(m_module->getContext(), input_dep_block_md_str);
+    auto* input_indep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_block);
+    llvm::MDNode* input_indep_block_md = llvm::MDNode::get(m_module->getContext(), input_indep_block_md_str);
+
+    auto* input_dep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_instr);
+    llvm::MDNode* input_dep_instr_md = llvm::MDNode::get(m_module->getContext(), input_dep_instr_md_str);
+    auto* input_indep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_instr);
+    llvm::MDNode* input_indep_instr_md = llvm::MDNode::get(m_module->getContext(), input_indep_instr_md_str);
+
+    auto* unknown_node_name = llvm::MDString::get(m_module->getContext(), metadata::unknown);
+    llvm::MDNode* unknown_md = llvm::MDNode::get(m_module->getContext(), unknown_node_name);
+    auto* unreachable_node_name = llvm::MDString::get(m_module->getContext(), metadata::unreachable);
+    llvm::MDNode* unreachable_md = llvm::MDNode::get(m_module->getContext(), unreachable_node_name);
+
+    for (auto& FA_item : m_functionAnalisers) {
+        llvm::Function* F = FA_item.first;
+        auto& FA = FA_item.second;
+        llvm::dbgs() << "Add metadata to function " << F->getName() << "\n";
+        if (FA->isInputDepFunction()) {
+            F->setMetadata(metadata::input_dep_function, input_dep_function_md);
+        } else {
+            F->setMetadata(metadata::input_indep_function, input_indep_function_md);
+        }
+        for (auto& B : *F) {
+            if (FA->isInputDependentBlock(&B)) {
+                B.begin()->setMetadata(metadata::input_dep_block, input_dep_block_md);
+                // don't add metadata to instructions as they'll all be input dep
+                continue;
+            } else if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
+                B.begin()->setMetadata(metadata::unreachable, unreachable_md);
+                continue;
+            } else {
+                B.begin()->setMetadata(metadata::input_indep_block, input_indep_block_md);
+            }
+            for (auto& I : B) {
+                if (FA->isInputDependent(&I)) {
+                    I.setMetadata(metadata::input_dep_instr, input_dep_instr_md);
+                } else if (FA->isInputIndependent(&I)) {
+                    I.setMetadata(metadata::input_indep_instr, input_indep_instr_md);
+                } else {
+                    I.setMetadata(metadata::unknown, unknown_md);
+                }
+            }
+        }
     }
 }
+
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
 {
@@ -249,73 +257,6 @@ void InputDependencyAnalysis::doFinalization()
         llvm::dbgs() << "Finalizing " << F->getName() << "\n";
         finalizeForGlobals(F, pos->second);
         finalizeForArguments(F, pos->second);
-    }
-}
-
-void InputDependencyAnalysis::dump_statistics()
-{
-    std::string file_name = stats_file;
-    if (file_name.empty()) {
-        file_name = "stats";
-    }
-    InputDependencyStatistics stats(stats_format, file_name, m_module, &m_functionAnalisers);
-    stats.setSectionName("inputdep_stats");
-    stats.report();
-}
-
-void InputDependencyAnalysis::cache_input_dependency()
-{
-    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata::cached_input_dep, true);
-    auto* input_dep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_function);
-    llvm::MDNode* input_dep_function_md = llvm::MDNode::get(m_module->getContext(), input_dep_function_md_str);
-    auto* input_indep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_function);
-    llvm::MDNode* input_indep_function_md = llvm::MDNode::get(m_module->getContext(), input_indep_function_md_str);
-
-    auto* input_dep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_block);
-    llvm::MDNode* input_dep_block_md = llvm::MDNode::get(m_module->getContext(), input_dep_block_md_str);
-    auto* input_indep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_block);
-    llvm::MDNode* input_indep_block_md = llvm::MDNode::get(m_module->getContext(), input_indep_block_md_str);
-
-    auto* input_dep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_dep_instr);
-    llvm::MDNode* input_dep_instr_md = llvm::MDNode::get(m_module->getContext(), input_dep_instr_md_str);
-    auto* input_indep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata::input_indep_instr);
-    llvm::MDNode* input_indep_instr_md = llvm::MDNode::get(m_module->getContext(), input_indep_instr_md_str);
-
-    auto* unknown_node_name = llvm::MDString::get(m_module->getContext(), metadata::unknown);
-    llvm::MDNode* unknown_md = llvm::MDNode::get(m_module->getContext(), unknown_node_name);
-    auto* unreachable_node_name = llvm::MDString::get(m_module->getContext(), metadata::unreachable);
-    llvm::MDNode* unreachable_md = llvm::MDNode::get(m_module->getContext(), unreachable_node_name);
-
-    for (auto& FA_item : m_functionAnalisers) {
-        llvm::Function* F = FA_item.first;
-        auto& FA = FA_item.second;
-        llvm::dbgs() << "Add metadata to function " << F->getName() << "\n";
-        if (FA->isInputDepFunction()) {
-            F->setMetadata(metadata::input_dep_function, input_dep_function_md);
-        } else {
-            F->setMetadata(metadata::input_indep_function, input_indep_function_md);
-        }
-        for (auto& B : *F) {
-            if (FA->isInputDependentBlock(&B)) {
-                B.begin()->setMetadata(metadata::input_dep_block, input_dep_block_md);
-                // don't add metadata to instructions as they'll all be input dep
-                continue;
-            } else if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
-                B.begin()->setMetadata(metadata::unreachable, unreachable_md);
-                continue;
-            } else {
-                B.begin()->setMetadata(metadata::input_indep_block, input_indep_block_md);
-            }
-            for (auto& I : B) {
-                if (FA->isInputDependent(&I)) {
-                    I.setMetadata(metadata::input_dep_instr, input_dep_instr_md);
-                } else if (FA->isInputIndependent(&I)) {
-                    I.setMetadata(metadata::input_indep_instr, input_indep_instr_md);
-                } else {
-                    I.setMetadata(metadata::unknown, unknown_md);
-                }
-            }
-        }
     }
 }
 
@@ -463,63 +404,6 @@ void InputDependencyAnalysis::addMissingGlobalsInfo(llvm::Function* F, Dependenc
     }
 }
 
-char InputDependencyAnalysisPass::ID = 0;
 
-bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
-{
-    llvm::dbgs() << "Running input dependency analysis pass\n";
-    configure_run();
-
-    llvm::Optional<llvm::BasicAAResult> BAR;
-    llvm::Optional<llvm::AAResults> AAR;
-    auto AARGetter = [&](llvm::Function* F) -> llvm::AAResults* {
-        BAR.emplace(llvm::createLegacyPMBasicAAResult(*this, *F));
-        AAR.emplace(llvm::createLegacyPMAAResults(*this, *F, *BAR));
-        return &*AAR;
-    };
-    llvm::CallGraph& CG = getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
-    const auto& indirectCallAnalysis = getAnalysis<IndirectCallSitesAnalysis>();
-    const VirtualCallSiteAnalysisResult& virtualCallsInfo = indirectCallAnalysis.getVirtualsAnalysisResult();
-    const IndirectCallSitesAnalysisResult& indirectCallsInfo = indirectCallAnalysis.getIndirectsAnalysisResult();
-    const auto& loopInfoGetter = [this] (llvm::Function* F)
-                {
-                    return &this->getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
-                };
-    const auto& postDomTreeGetter = [this] (llvm::Function* F)
-                {
-                    return &this->getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
-                };
-    const auto& domTreeGetter = [this] (llvm::Function* F)
-                {
-                    return &this->getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
-                };
-    m_analysis.reset(new InputDependencyAnalysis(&M));
-    m_analysis->setCallGraph(CG);
-    m_analysis->setVirtualCallSiteAnalysisResult(&virtualCallsInfo);
-    m_analysis->setIndirectCallSiteAnalysisResult(&indirectCallsInfo);
-    m_analysis->setAliasAnalysisInfoGetter(AARGetter);
-    m_analysis->setLoopInfoGetter(loopInfoGetter);
-    m_analysis->setPostDominatorTreeGetter(postDomTreeGetter);
-    m_analysis->setDominatorTreeGetter(domTreeGetter);
-    m_analysis->run();
-    return false;
-}
-
-void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
-{
-    AU.setPreservesCFG();
-    AU.addRequired<IndirectCallSitesAnalysis>();
-    AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
-    llvm::getAAResultsAnalysisUsage(AU);
-    AU.addRequired<llvm::CallGraphWrapperPass>();
-    AU.addPreserved<llvm::CallGraphWrapperPass>();
-    AU.addRequired<llvm::LoopInfoWrapperPass>();
-    AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
-    AU.addRequired<llvm::DominatorTreeWrapperPass>();
-    AU.setPreservesAll();
-}
-
-static llvm::RegisterPass<InputDependencyAnalysisPass> X("input-dep","runs input dependency analysis");
-
-}
+} // namespace input_dependency
 

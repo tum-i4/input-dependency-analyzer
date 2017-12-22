@@ -1,7 +1,10 @@
-#include "InputDependencyAnalysis.h"
+#pragma once
+
+#include "llvm/Pass.h"
 
 namespace llvm {
 class Function;
+class AnalysisUsage;
 }
 
 namespace input_dependency {

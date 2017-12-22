@@ -17,8 +17,6 @@
 #include "Utils.h"
 #include "Analysis/FunctionAnaliser.h"
 #include "Analysis/InputDependentFunctionAnalysisResult.h"
-#include "Analysis/InputDependencyAnalysis.h"
-#include "Analysis/InputDependentFunctions.h"
 #include "Analysis/BasicBlocksUtils.h"
 
 #include <vector>
@@ -431,7 +429,7 @@ const std::unordered_set<llvm::Function*>& FunctionExtractionPass::get_extracted
     return m_extracted_functions;
 }
 
-void FunctionExtractionPass::createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysis& IDA)
+void FunctionExtractionPass::createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysisInterface& IDA)
 {
     if (!stats) {
         m_extractionStatistics = ExtractionStatisticsType(new DummyExtractionStatistics());

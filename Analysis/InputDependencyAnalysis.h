@@ -1,12 +1,7 @@
 #pragma once
 
+#include "InputDependencyAnalysisInterface.h"
 #include "DependencyAnaliser.h"
-#include "InputDependencyResult.h"
-
-#include "llvm/Pass.h"
-
-#include <memory>
-#include <unordered_map>
 
 namespace llvm {
 class CallGraph;
@@ -25,21 +20,17 @@ namespace input_dependency {
 class VirtualCallSiteAnalysisResult;
 class IndirectCallSitesAnalysisResult;
 
-class InputDependencyAnalysis
+class InputDependencyAnalysis final : public InputDependencyAnalysisInterface
 {
 public:
-    using InputDepResType = std::shared_ptr<InputDependencyResult>;
-    using InputDependencyAnalysisInfo = std::unordered_map<llvm::Function*, InputDepResType>;
-
     using LoopInfoGetter = std::function<llvm::LoopInfo* (llvm::Function* F)>;
-    using AliasAnalysisInfoGetter = std::function<llvm::AAResults* (llvm::Function* F)>;
     using PostDominatorTreeGetter = std::function<const llvm::PostDominatorTree* (llvm::Function* F)>;
     using DominatorTreeGetter = std::function<const llvm::DominatorTree* (llvm::Function* F)>;
 
 public:
     InputDependencyAnalysis(llvm::Module* M);
 
-    void setCallGraph(llvm::CallGraph& callGraph);
+    void setCallGraph(llvm::CallGraph* callGraph);
     void setVirtualCallSiteAnalysisResult(const VirtualCallSiteAnalysisResult* virtualCallSiteAnalysisRes);
     void setIndirectCallSiteAnalysisResult(const IndirectCallSitesAnalysisResult* indirectCallSiteAnalysisRes);
     void setAliasAnalysisInfoGetter(const AliasAnalysisInfoGetter& aliasAnalysisInfoGetter);
@@ -47,32 +38,32 @@ public:
     void setPostDominatorTreeGetter(const PostDominatorTreeGetter& postDomTreeGetter);
     void setDominatorTreeGetter(const DominatorTreeGetter& domTreeGetter);
 
-    void run();
+public:
+    void run() override;
+    void cache() override;
 
-    bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const;
-    bool isInputDependent(llvm::Instruction* instr) const;
-    bool isInputDependent(llvm::BasicBlock* block) const;
+    bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::BasicBlock* block) const override;
 
-    const InputDependencyAnalysisInfo& getAnalysisInfo() const
+    const InputDependencyAnalysisInfo& getAnalysisInfo() const override
     {
         return m_functionAnalisers;
     }
 
-    InputDependencyAnalysisInfo& getAnalysisInfo()
+    InputDependencyAnalysisInfo& getAnalysisInfo() override
     {
         return m_functionAnalisers;
     }
 
-    InputDepResType getAnalysisInfo(llvm::Function* F);
-    const InputDepResType getAnalysisInfo(llvm::Function* F) const;
+    InputDepResType getAnalysisInfo(llvm::Function* F) override;
+    const InputDepResType getAnalysisInfo(llvm::Function* F) const override;
 
-    bool insertAnalysisInfo(llvm::Function* F, InputDepResType analysis_info);
+    bool insertAnalysisInfo(llvm::Function* F, InputDepResType analysis_info) override;
 
 private:
     void runOnFunction(llvm::Function* F);
     void doFinalization();
-    void dump_statistics();
-    void cache_input_dependency();
 
     void finalizeForArguments(llvm::Function* F, InputDepResType& FA);
     void finalizeForGlobals(llvm::Function* F, InputDepResType& FA);
@@ -102,37 +93,6 @@ private:
     std::vector<llvm::Function*> m_moduleFunctions;
 }; // class InputDependencyAnalysis
 
-class InputDependencyAnalysisPass : public llvm::ModulePass
-{
-public:
-    using InputDependencyAnalysisType = std::shared_ptr<InputDependencyAnalysis>;
 
-public:
-    static char ID;
-
-    InputDependencyAnalysisPass()
-        : llvm::ModulePass(ID)
-    {
-    }
-
-public:
-    void getAnalysisUsage(llvm::AnalysisUsage& AU) const override;
-    bool runOnModule(llvm::Module& M) override;
-
-public:
-    InputDependencyAnalysisType getInputDependencyAnalysis()
-    {
-        return m_analysis;
-    }
-
-    const InputDependencyAnalysisType& getInputDependencyAnalysis() const
-    {
-        return m_analysis;
-    }
-    
-private:
-    InputDependencyAnalysisType m_analysis;
-};
-
-}
+} // namespace input_dependency
 

@@ -2,7 +2,7 @@
 
 #include "Analysis/Statistics.h"
 #include "Analysis/InputDependencyStatistics.h"
-#include "Analysis/InputDependencyAnalysis.h"
+#include "Analysis/InputDependencyAnalysisPass.h"
 
 #include "llvm/Pass.h"
 
@@ -96,7 +96,7 @@ public:
     const std::unordered_set<llvm::Function*>& get_extracted_functions() const;
 
 private:
-    void createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysis& IDA);
+    void createStatistics(llvm::Module& M, input_dependency::InputDependencyAnalysisInterface& IDA);
 
 private:
     std::unordered_set<llvm::Function*> m_extracted_functions;

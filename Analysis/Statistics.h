@@ -1,6 +1,6 @@
 #pragma once
 
-#include "InputDependencyAnalysis.h"
+#include "InputDependencyAnalysisPass.h"
 
 #include <fstream>
 #include <vector>

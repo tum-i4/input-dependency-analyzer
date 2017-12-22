@@ -19,8 +19,13 @@ class ClonedFunctionAnalysisResult;
 class InputDependentFunctionAnalysisResult;
 
 /// Defines interface to request for input dependency information
-class InputDependencyResult
+class FunctionInputDependencyResultInterface
 {
+public:
+    virtual ~FunctionInputDependencyResultInterface()
+    {
+    }
+
 public:
     virtual llvm::Function* getFunction() = 0;
     virtual const llvm::Function* getFunction() const = 0;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "InputDependencyResult.h"
+#include "FunctionInputDependencyResultInterface.h"
 
 namespace llvm {
 
@@ -11,7 +11,7 @@ class BasicBlock;
 
 namespace input_dependency {
 
-class ClonedFunctionAnalysisResult : public InputDependencyResult
+class ClonedFunctionAnalysisResult final : public FunctionInputDependencyResultInterface
 {
 public:
     ClonedFunctionAnalysisResult(llvm::Function* F);

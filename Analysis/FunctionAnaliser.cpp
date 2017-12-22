@@ -216,7 +216,7 @@ public:
     long unsigned get_input_dep_count() const;
     long unsigned get_input_indep_count() const;
     long unsigned get_input_unknowns_count() const;
-    InputDependencyResult* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
+    FunctionInputDependencyResultInterface* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     void dump() const;
 
 private:
@@ -587,7 +587,8 @@ long unsigned FunctionAnaliser::Impl::get_input_unknowns_count() const
     return count;
 }
 
-InputDependencyResult* FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
+FunctionInputDependencyResultInterface*
+FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
 {
     llvm::ValueToValueMapTy VMap;
     llvm::Function* newF = llvm::CloneFunction(m_F, VMap);
@@ -1264,7 +1265,8 @@ long unsigned FunctionAnaliser::get_input_unknowns_count() const
     return m_analiser->get_input_unknowns_count();
 }
 
-InputDependencyResult* FunctionAnaliser::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
+FunctionInputDependencyResultInterface*
+FunctionAnaliser::cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs)
 {
     m_analiser->cloneForArguments(inputDepArgs);
 }

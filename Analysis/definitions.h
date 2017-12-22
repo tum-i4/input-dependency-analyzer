@@ -38,7 +38,6 @@ using ArgumentSet = std::unordered_set<llvm::Argument*>;
 using FunctionAnalysisGetter = std::function<FunctionAnaliser* (llvm::Function*)>;
 using FunctionSet = std::unordered_set<llvm::Function*>;
 using CalleeCallersMap = std::unordered_map<llvm::Function*, FunctionSet>;
-
 typedef std::unordered_set<llvm::Instruction*> InstrSet;
 
 } // namespace input_dependency

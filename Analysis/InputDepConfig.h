@@ -27,6 +27,16 @@ public:
         goto_unsafe = g_unsafe;
     }
 
+    bool is_cache_input_dep() const
+    {
+        return cache_input_dep;
+    }
+
+    void set_cache_input_dependency(bool cache)
+    {
+        cache_input_dep = cache;
+    }
+
     void set_lib_config_file(const std::string& config_file)
     {
         lib_config_file = config_file;
@@ -44,6 +54,7 @@ public:
 
 private:
     bool goto_unsafe;
+    bool cache_input_dep;
     std::string lib_config_file;
 };
 

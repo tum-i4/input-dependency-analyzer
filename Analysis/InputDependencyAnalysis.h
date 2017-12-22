@@ -69,7 +69,11 @@ public:
     bool insertAnalysisInfo(llvm::Function* F, InputDepResType analysis_info);
 
 private:
-    bool doFinalization();
+    void runOnFunction(llvm::Function* F);
+    void doFinalization();
+    void dump_statistics();
+    void cache_input_dependency();
+
     void finalizeForArguments(llvm::Function* F, InputDepResType& FA);
     void finalizeForGlobals(llvm::Function* F, InputDepResType& FA);
     using FunctionArgumentsDependencies = std::unordered_map<llvm::Function*, DependencyAnaliser::ArgumentDependenciesMap>;
@@ -83,6 +87,7 @@ private:
 
 private:
     llvm::Module* m_module;
+    FunctionAnalysisGetter m_functionAnalysisGetter;
     llvm::CallGraph* m_callGraph;
     const VirtualCallSiteAnalysisResult* m_virtualCallSiteAnalysisRes;
     const IndirectCallSitesAnalysisResult* m_indirectCallSiteAnalysisRes;

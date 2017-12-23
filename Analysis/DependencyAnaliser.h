@@ -46,7 +46,7 @@ public:
     /// \name Interface to start analysis
     /// \{
 public:
-    virtual void analize() = 0;
+    virtual void analyze() = 0;
     virtual void finalize(const ArgumentDependenciesMap& dependentArgs);
     virtual void finalize(const GlobalVariableDependencyMap& globalDeps);
     virtual void dump() const;

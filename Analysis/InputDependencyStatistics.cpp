@@ -48,6 +48,7 @@ void InputDependencyStatistics::report()
 
 void InputDependencyStatistics::reportInputDependencyInfo()
 {
+    llvm::dbgs() << "input_dependency_info\n";
     setStatsTypeName("input_dependency_info");
     unsigned module_instructions = 0;
     unsigned module_inputdep_instrs = 0;
@@ -77,6 +78,7 @@ void InputDependencyStatistics::reportInputInDepCoverage()
     for (auto& F : *m_module) {
         auto FA_pos = m_IDA->find(&F);
         if (FA_pos == m_IDA->end()) {
+            llvm::dbgs() << "No information for function " << F.getName() << "\n";
             continue;
         }
         auto cached_input_indep_data = m_function_input_indep_coverage_data.find(&F);

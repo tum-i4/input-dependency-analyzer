@@ -219,15 +219,15 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
     InputDepResType analiser(new FunctionAnaliser(F, m_functionAnalysisGetter));
     auto res = m_functionAnalisers.insert(std::make_pair(F, analiser));
     assert(res.second);
-    auto analizer = res.first->second->toFunctionAnalysisResult();
-    analizer->setAAResults(AAR);
-    analizer->setLoopInfo(LI);
-    analizer->setPostDomTree(PDom);
-    analizer->setDomTree(dom);
-    analizer->setVirtualCallSiteAnalysisResult(m_virtualCallSiteAnalysisRes);
-    analizer->setIndirectCallSiteAnalysisResult(m_indirectCallSiteAnalysisRes);
-    analizer->analize();
-    const auto& calledFunctions = analizer->getCallSitesData();
+    auto analyzer = res.first->second->toFunctionAnalysisResult();
+    analyzer->setAAResults(AAR);
+    analyzer->setLoopInfo(LI);
+    analyzer->setPostDomTree(PDom);
+    analyzer->setDomTree(dom);
+    analyzer->setVirtualCallSiteAnalysisResult(m_virtualCallSiteAnalysisRes);
+    analyzer->setIndirectCallSiteAnalysisResult(m_indirectCallSiteAnalysisRes);
+    analyzer->analyze();
+    const auto& calledFunctions = analyzer->getCallSitesData();
     mergeCallSitesData(F, calledFunctions);
 }
 
@@ -298,7 +298,7 @@ DependencyAnaliser::ArgumentDependenciesMap InputDependencyAnalysis::getFunction
         }
         auto callInfo = f_analiser->getCallArgumentInfo(F);
         if (!f_analiser->areArgumentsFinalized()) {
-            // if callee is finalized before caller, means caller was analized before callee.
+            // if callee is finalized before caller, means caller was analyzed before callee.
             // this on its turn means callee callArgumentDeps should be input dep.
             // proper fix would be making sure caller is finalized before callee
             for (auto& item : callInfo) {

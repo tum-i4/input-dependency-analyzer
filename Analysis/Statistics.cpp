@@ -49,7 +49,6 @@ public:
 
     void write_entry(const key& k, unsigned value) override
     {
-
         write(k, value);
     }
 

@@ -2,7 +2,8 @@
 #include "InputDependencyAnalysisPass.h"
 #include "InputDependencyAnalysis.h"
 
-#include "FunctionAnaliser.h"
+#include "FunctionInputDependencyResultInterface.h"
+#include "FunctionInputDependencyResultInterface.h"
 
 #include "Utils.h"
 
@@ -19,39 +20,39 @@
 namespace llvm {
 
 template <>
-struct GraphTraits<input_dependency::FunctionAnaliser*> : public GraphTraits<BasicBlock*>
+struct GraphTraits<input_dependency::FunctionInputDependencyResultInterface*> : public GraphTraits<BasicBlock*>
 {
-    static NodeType* getEntryNode(input_dependency::FunctionAnaliser* FA) {return &FA->getFunction()->getEntryBlock();}
+    static NodeType* getEntryNode(input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
     typedef Function::iterator nodes_iterator;
-    static nodes_iterator nodes_begin(input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->begin();}
-    static nodes_iterator nodes_end(input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->end();}
-    static size_t size(input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->size();}
+    static nodes_iterator nodes_begin(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->begin();}
+    static nodes_iterator nodes_end(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->end();}
+    static size_t size(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->size();}
 };
 
 template<>
-struct GraphTraits<const input_dependency::FunctionAnaliser*> : public GraphTraits<const BasicBlock*>
+struct GraphTraits<const input_dependency::FunctionInputDependencyResultInterface*> : public GraphTraits<const BasicBlock*>
 {
-    static NodeType* getEntryNode(const input_dependency::FunctionAnaliser* FA) {return &FA->getFunction()->getEntryBlock();}
+    static NodeType* getEntryNode(const input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
     typedef Function::const_iterator nodes_iterator;
-    static nodes_iterator nodes_begin(const input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->begin();}
-    static nodes_iterator nodes_end(const input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->end();}
-    static size_t size(const input_dependency::FunctionAnaliser* FA) {return FA->getFunction()->size();}
+    static nodes_iterator nodes_begin(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->begin();}
+    static nodes_iterator nodes_end(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->end();}
+    static size_t size(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->size();}
 };
 
 template<>
-class DOTGraphTraits<const input_dependency::FunctionAnaliser*> : public DefaultDOTGraphTraits
+class DOTGraphTraits<const input_dependency::FunctionInputDependencyResultInterface*> : public DefaultDOTGraphTraits
 {
 public:
     DOTGraphTraits (bool isSimple=false)
         : DefaultDOTGraphTraits(isSimple)
     {}
 
-    static std::string getGraphName(const input_dependency::FunctionAnaliser* F) {
+    static std::string getGraphName(const input_dependency::FunctionInputDependencyResultInterface* F) {
         return "CFG for '" + F->getFunction()->getName().str() + "' function";
     }
 
     static std::string getSimpleNodeLabel(const BasicBlock *Node,
-                                          const input_dependency::FunctionAnaliser* analiser)
+                                          const input_dependency::FunctionInputDependencyResultInterface* analiser)
     {
         if (!Node->getName().empty()) {
             return Node->getName().str();
@@ -65,7 +66,7 @@ public:
     }
 
     static std::string getCompleteNodeLabel(const BasicBlock *Node,
-                                            const input_dependency::FunctionAnaliser* analiser)
+                                            const input_dependency::FunctionInputDependencyResultInterface* analiser)
     {
         enum { MaxColumns = 80 };
         std::string Str;
@@ -140,7 +141,7 @@ public:
     }
 
     std::string getNodeLabel(const BasicBlock* Node,
-                             const input_dependency::FunctionAnaliser* Graph)
+                             const input_dependency::FunctionInputDependencyResultInterface* Graph)
     {
         if (isSimple()) {
             return getSimpleNodeLabel(Node, Graph);
@@ -168,23 +169,21 @@ bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
         llvm::errs() << "Can't find analysis info for function\n";
         return false;
     }
-    const FunctionAnaliser* Graph = analysis_res->toFunctionAnalysisResult();
-    if (!Graph) {
-        return false;
-    }
+    const FunctionInputDependencyResultInterface* Graph = &*analysis_res;
     std::string Filename = "cfg." + F.getName().str() + ".dot";
     std::error_code EC;
 
     llvm::errs() << "Writing '" << Filename << "'...";
 
     llvm::raw_fd_ostream File(Filename, EC, llvm::sys::fs::F_Text);
-    std::string GraphName = llvm::DOTGraphTraits<const FunctionAnaliser*>::getGraphName(Graph);
+    std::string GraphName = llvm::DOTGraphTraits<const FunctionInputDependencyResultInterface*>::getGraphName(Graph);
     std::string Title = GraphName + " for '" + F.getName().str() + "' function";
 
-    if (!EC)
+    if (!EC) {
         llvm::WriteGraph(File, Graph, false, Title);
-    else
+    } else {
         llvm::errs() << "  error opening file for writing!";
+    }
     llvm::errs() << "\n";
 
     return false;

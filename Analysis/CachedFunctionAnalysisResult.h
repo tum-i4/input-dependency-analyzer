@@ -21,7 +21,7 @@ public:
 public:
     CachedFunctionAnalysisResult(llvm::Function* F);
 
-    void analize();
+    void analyze();
     
 public:
     llvm::Function* getFunction() override;
@@ -43,6 +43,13 @@ public:
     long unsigned get_input_dep_count() const override;
     long unsigned get_input_indep_count() const override;
     long unsigned get_input_unknowns_count() const override;
+
+private:
+    void parse_function_input_dep_metadata();
+    void parse_block_input_dep_metadata(llvm::BasicBlock& B);
+    void parse_block_instructions_input_dep_metadata(llvm::BasicBlock& B);
+    void add_all_instructions_to(llvm::BasicBlock& B, Instructions& instructions);
+    void parse_instruction_input_dep_metadata(llvm::Instruction& I);
 
 private:
     llvm::Function* m_F;

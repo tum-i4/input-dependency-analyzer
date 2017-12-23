@@ -1,5 +1,7 @@
 #include "CachedFunctionAnalysisResult.h"
 
+#include "constants.h"
+
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -14,9 +16,68 @@ CachedFunctionAnalysisResult::CachedFunctionAnalysisResult(llvm::Function* F)
 {
 }
 
-void CachedFunctionAnalysisResult::analize()
+void CachedFunctionAnalysisResult::analyze()
 {
-    // TODO: implement
+    parse_function_input_dep_metadata();
+    for (auto& B : *m_F) {
+        parse_block_input_dep_metadata(B);
+        parse_block_instructions_input_dep_metadata(B);
+    }
+}
+
+void CachedFunctionAnalysisResult::parse_function_input_dep_metadata()
+{
+    if (auto* input_dep_function_md = m_F->getMetadata(metadata_strings::input_dep_function)) {
+        m_is_inputDep = true;
+    }
+    // no need to look for input indep md
+}
+
+void CachedFunctionAnalysisResult::parse_block_input_dep_metadata(llvm::BasicBlock& B)
+{
+    const llvm::Instruction& first_instr = *B.begin();
+    if (auto* input_dep_block = first_instr.getMetadata(metadata_strings::input_dep_block)) {
+        m_inputDepBlocks.insert(&B);
+    } else if (auto* input_indep_block = first_instr.getMetadata(metadata_strings::input_indep_block)) {
+        m_inputInDepBlocks.insert(&B);
+    } else if (auto* unreachable_block = first_instr.getMetadata(metadata_strings::unreachable)) {
+        m_unreachableBlocks.insert(&B);
+    } else {
+        assert(false);
+    }
+}
+
+void CachedFunctionAnalysisResult::parse_block_instructions_input_dep_metadata(llvm::BasicBlock& B)
+{
+    if (m_inputDepBlocks.find(&B) != m_inputDepBlocks.end()) {
+        add_all_instructions_to(B, m_inputDepInstructions);
+    } else if (m_unreachableBlocks.find(&B) != m_unreachableBlocks.end()) {
+        add_all_instructions_to(B, m_unreachableInstructions);
+    } else {
+        for (auto& I : B) {
+            parse_instruction_input_dep_metadata(I);
+        }
+    }
+}
+
+void CachedFunctionAnalysisResult::add_all_instructions_to(llvm::BasicBlock& B, Instructions& instructions)
+{
+    for (auto& I : B) {
+        instructions.insert(&I);
+    }
+}
+
+void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::Instruction& I)
+{
+    if (auto* input_dep_instr = I.getMetadata(metadata_strings::input_dep_instr)) {
+        m_inputDepInstructions.insert(&I);
+    } else if (auto* input_indep_instr = I.getMetadata(metadata_strings::input_indep_instr)) {
+        m_inputIndepInstructions.insert(&I);
+    } else if (auto* unknown_instr = I.getMetadata(metadata_strings::unknown)) {
+        m_unknownInstructions.insert(&I);
+    } else {
+        assert(false);
+    }
 }
 
 llvm::Function* CachedFunctionAnalysisResult::getFunction()

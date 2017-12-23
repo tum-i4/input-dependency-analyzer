@@ -206,7 +206,7 @@ public:
     const GlobalsSet& getReferencedGlobals() const;
     const GlobalsSet& getModifiedGlobals() const;
 
-    void analize();
+    void analyze();
     void finalizeArguments(const ArgumentDependenciesMap& dependentArgNos);
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps);
     long unsigned get_input_dep_blocks_count() const;
@@ -465,7 +465,7 @@ const GlobalsSet& FunctionAnaliser::Impl::getModifiedGlobals() const
     return m_modifiedGlobals;
 }
 
-void FunctionAnaliser::Impl::analize()
+void FunctionAnaliser::Impl::analyze()
 {
     typedef std::chrono::high_resolution_clock Clock;
     auto tic = Clock::now();
@@ -754,7 +754,7 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
                 std::string msg = B->getName();
                 msg += " predecessor ";
                 msg +=  pb->getName();
-                msg += " has not been analized.";
+                msg += " has not been analyzed.";
                 llvm::dbgs() << msg << "\n";
                 throw IrregularCFGException(msg);
             }
@@ -1113,9 +1113,9 @@ void FunctionAnaliser::setIndirectCallSiteAnalysisResult(const IndirectCallSites
     m_analiser->setIndirectCallSiteAnalysisResult(indirectCallsInfo);
 }
 
-void FunctionAnaliser::analize()
+void FunctionAnaliser::analyze()
 {
-    m_analiser->analize();
+    m_analiser->analyze();
 }
 
 void FunctionAnaliser::finalizeArguments(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgNos)

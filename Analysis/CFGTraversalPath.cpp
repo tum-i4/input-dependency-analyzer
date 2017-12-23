@@ -176,7 +176,7 @@ void CFGTraversalPathCreator::construct_with_cfg()
                     ++pred_it;
                     continue;
                 }
-                // predecessor is unreachable, don't wait for it to be analized
+                // predecessor is unreachable, don't wait for it to be analyzed
                 if (isBlockUnreachable(pred)) {
                     ++pred_it;
                     continue;

@@ -78,20 +78,20 @@ public:
      * Collects function call site dependency info.
      * \note Assumes that function arguments are user inputs.
      */
-    void analize();
+    void analyze();
 
     /**
-     * \brief Refines results of the \link analize by performing context-sensitive analysis given set of input dep arguments.
+     * \brief Refines results of the \link analyze by performing context-sensitive analysis given set of input dep arguments.
      * \param[in] inputDepArgs Arguments which are actually input dependent.
      * 
-     * \note \link analize function should be called before calling this function.
+     * \note \link analyze function should be called before calling this function.
      */
     void finalizeArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
 
     /**
      * \brief Refines results of analysis given set of input dependent globals.
      * \param[in] globalsDeps global variables that are input dependent.
-     * \note \link analize function should be called before calling this function.
+     * \note \link analyze function should be called before calling this function.
      */
     void finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps);
 

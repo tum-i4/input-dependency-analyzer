@@ -18,12 +18,13 @@ CachedInputDependencyAnalysis::CachedInputDependencyAnalysis(llvm::Module* M)
 
 void CachedInputDependencyAnalysis::run()
 {
+    llvm::dbgs() << "Analyze cached input dependency\n";
     for (auto& F : *m_module) {
         if (Utils::isLibraryFunction(&F, m_module)) {
             continue;
         }
         CachedFunctionAnalysisResult* cached_function = new CachedFunctionAnalysisResult(&F);
-        cached_function->analize();
+        cached_function->analyze();
         auto res = m_functionAnalisers.insert(std::make_pair(&F, InputDepResType(cached_function)));
         assert(res.second);
     }

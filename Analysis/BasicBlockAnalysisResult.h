@@ -53,7 +53,7 @@ public:
     void dumpResults() const override;
 
 public:
-    void analize() override;
+    void analyze() override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{

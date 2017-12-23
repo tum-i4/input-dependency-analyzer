@@ -37,7 +37,7 @@ DepInfo BasicBlockAnalysisResult::getBlockDependencies() const
 
 void BasicBlockAnalysisResult::gatherResults()
 {
-    analize();
+    analyze();
 }
 
 void BasicBlockAnalysisResult::finalizeResults(const ArgumentDependenciesMap& dependentArgs)
@@ -56,7 +56,7 @@ void BasicBlockAnalysisResult::dumpResults() const
     dump();
 }
 
-void BasicBlockAnalysisResult::analize()
+void BasicBlockAnalysisResult::analyze()
 {
     //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {

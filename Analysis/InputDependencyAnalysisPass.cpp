@@ -92,6 +92,9 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
     if (InputDepConfig::get().is_cache_input_dep()) {
         m_analysis->cache();
     }
+    if (stats) {
+        dump_statistics();
+    }
 
     return false;
 }
@@ -168,6 +171,7 @@ void InputDependencyAnalysisPass::dump_statistics()
     InputDependencyStatistics stats(stats_format, file_name, m_module, &m_analysis->getAnalysisInfo());
     stats.setSectionName("inputdep_stats");
     stats.report();
+    stats.flush();
 }
 
 static llvm::RegisterPass<InputDependencyAnalysisPass> X("input-dep","runs input dependency analysis");

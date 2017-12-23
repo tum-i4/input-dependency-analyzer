@@ -69,6 +69,7 @@ public:
 
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override
     {
+        return FunctionCallDepInfo();
     }
 
     InputDependentFunctionAnalysisResult* toInputDependentFunctionAnalysisResult() override

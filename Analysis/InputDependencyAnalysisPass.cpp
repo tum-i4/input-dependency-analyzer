@@ -1,6 +1,7 @@
 #include "InputDependencyAnalysisPass.h"
 
 #include "InputDependencyAnalysis.h"
+#include "CachedInputDependencyAnalysis.h"
 #include "InputDependencyStatistics.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepConfig.h"
@@ -82,7 +83,6 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
 
     if (cache && has_cached_input_dependency()) {
         create_cached_input_dependency_analysis();
-        return false;
     } else {
         create_input_dependency_analysis(AARGetter);
     }
@@ -156,7 +156,7 @@ void InputDependencyAnalysisPass::create_input_dependency_analysis(const InputDe
 
 void InputDependencyAnalysisPass::create_cached_input_dependency_analysis()
 {
-    // TODO: implement
+    m_analysis.reset(new CachedInputDependencyAnalysis(m_module));
 }
 
 void InputDependencyAnalysisPass::dump_statistics()

@@ -16,6 +16,7 @@ namespace input_dependency {
 class FunctionAnaliser;
 class ClonedFunctionAnalysisResult;
 class InputDependentFunctionAnalysisResult;
+class CachedFunctionAnalysisResult;
 
 /// Defines interface to request for input dependency information
 class FunctionInputDependencyResultInterface
@@ -69,6 +70,11 @@ public:
     }
 
     virtual InputDependentFunctionAnalysisResult* toInputDependentFunctionAnalysisResult()
+    {
+        return nullptr;
+    }
+
+    virtual CachedFunctionAnalysisResult* toCachedInputDependentFunctionAnalysisResult()
     {
         return nullptr;
     }

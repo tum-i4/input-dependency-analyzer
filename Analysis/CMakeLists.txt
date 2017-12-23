@@ -3,12 +3,14 @@ add_library(InputDependency MODULE
     CLibraryInfo.cpp
     DependencyAnaliser.cpp
     FunctionAnaliser.cpp
+    CachedFunctionAnalysisResult.cpp
     ClonedFunctionAnalysisResult.cpp
     FunctionCallDepInfo.cpp
     FunctionDOTGraphPrinter.cpp
     IndirectCallSitesAnalysis.cpp
     InputDependencyAnalysisPass.cpp
     InputDependencyAnalysis.cpp
+    CachedInputDependencyAnalysis.cpp
     InputDependencyDebugInfoPrinter.cpp
     InputDependencyStatistics.cpp
     InputDependentBasicBlockAnaliser.cpp

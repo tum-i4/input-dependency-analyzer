@@ -360,6 +360,11 @@ void IndirectCallSitesAnalysisResult::addIndirectInvokeTargets(llvm::InvokeInst*
     m_indirectCallTargets[invoke].insert(targets.begin(), targets.end());
 }
 
+bool IndirectCallSitesAnalysisResult::hasIndirectTargets(llvm::Instruction* instr) const
+{
+    return m_indirectCallTargets.find(instr) != m_indirectCallTargets.end();
+}
+
 bool IndirectCallSitesAnalysisResult::hasIndirectCallTargets(llvm::CallInst* call) const
 {
     return m_indirectCallTargets.find(call) != m_indirectCallTargets.end();
@@ -367,7 +372,7 @@ bool IndirectCallSitesAnalysisResult::hasIndirectCallTargets(llvm::CallInst* cal
 
 const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectCallTargets(llvm::CallInst* call) const
 {
-    return getTargets(call);
+    return getIndirectTargets(call);
 }
 
 bool IndirectCallSitesAnalysisResult::hasIndirectInvokeTargets(llvm::InvokeInst* invoke) const
@@ -377,7 +382,7 @@ bool IndirectCallSitesAnalysisResult::hasIndirectInvokeTargets(llvm::InvokeInst*
 
 const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectInvokeTargets(llvm::InvokeInst* invoke) const
 {
-    return getTargets(invoke);
+    return getIndirectTargets(invoke);
 }
 
 void IndirectCallSitesAnalysisResult::dump()
@@ -390,7 +395,7 @@ void IndirectCallSitesAnalysisResult::dump()
     }
 }
 
-const FunctionSet& IndirectCallSitesAnalysisResult::getTargets(llvm::Instruction* instr) const
+const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(llvm::Instruction* instr) const
 {
     auto pos = m_indirectCallTargets.find(instr);
     return pos->second;

@@ -42,6 +42,9 @@ public:
     void addIndirectInvokeTarget(llvm::InvokeInst* invoke, llvm::Function* target);
     void addIndirectInvokeTargets(llvm::InvokeInst* invoke, const FunctionSet& targets);
 
+    bool hasIndirectTargets(llvm::Instruction* instr) const;
+    const FunctionSet& getIndirectTargets(llvm::Instruction* instr) const;
+    // TODO: remove these functions and replace their usages with more generic functions above
     bool hasIndirectCallTargets(llvm::CallInst* call) const;
     const FunctionSet& getIndirectCallTargets(llvm::CallInst* call) const;
     bool hasIndirectInvokeTargets(llvm::InvokeInst* invoke) const;
@@ -49,9 +52,6 @@ public:
 
 public:
     void dump();
-
-private:
-    const FunctionSet& getTargets(llvm::Instruction* instr) const;
 
 private:
     std::unordered_map<llvm::Instruction*, FunctionSet> m_indirectCallTargets;

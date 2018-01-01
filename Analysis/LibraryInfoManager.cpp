@@ -3,6 +3,7 @@
 #include "CLibraryInfo.h"
 #include "STLStringInfo.h"
 #include "LibraryInfoFromConfigFile.h"
+#include "LLVMIntrinsicsInfo.h"
 #include "InputDepConfig.h"
 
 #include <cassert>
@@ -32,6 +33,9 @@ void LibraryInfoManager::setup()
 
     STLStringInfo stlStringInfo(libFunctionCollector);
     stlStringInfo.setup();
+
+    LLVMIntrinsicsInfo llvmIntrinsicsInfo(libFunctionCollector);
+    llvmIntrinsicsInfo.setup();
 
     if (InputDepConfig::get().has_config_file()) {
         LibraryInfoFromConfigFile configInfo(libFunctionCollector, InputDepConfig::get().get_config_file());

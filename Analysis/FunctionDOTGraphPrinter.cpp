@@ -157,9 +157,18 @@ namespace input_dependency {
 
 char FunctionDOTGraphPrinter::ID = 0;
 
+static llvm::cl::opt<std::string> function_name(
+    "function",
+    llvm::cl::desc("function to print dot for"),
+    llvm::cl::value_desc("name"));
+
+
 bool FunctionDOTGraphPrinter::runOnFunction(llvm::Function &F)
 {
     if (Utils::isLibraryFunction(&F, F.getParent())) {
+        return false;
+    }
+    if (!function_name.empty() && F.getName() != function_name) {
         return false;
     }
     auto Analysis = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();

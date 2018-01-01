@@ -3,6 +3,7 @@
 #include "InputDepInstructionsRecorder.h"
 #include "FunctionAnaliser.h"
 #include "LibFunctionInfo.h"
+#include "LLVMIntrinsicsInfo.h"
 #include "LibraryInfoManager.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "Utils.h"
@@ -420,9 +421,7 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
         }
         return;
     }
-    if (F->isIntrinsic()) {
-        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_INDEP));
-    } else if (Utils::isLibraryFunction(F, m_F->getParent())) {
+    if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionInvokeSiteInfo(invokeInst, F);
         updateLibFunctionInvokeInstOutArgDependencies(invokeInst, argDepMap);
         updateLibFunctionInvokeInstructionDependencies(invokeInst, argDepMap);
@@ -752,6 +751,12 @@ void DependencyAnaliser::updateLibFunctionCallInstructionDependencies(llvm::Call
         // log msg
         // Try with non-demangled name
         Fname = F->getName();
+    }
+    if (F->isIntrinsic()) {
+        const auto& intrinsic_name = LLVMIntrinsicsInfo::get_intrinsic_name(Fname);
+        if (!intrinsic_name.empty()) {
+            Fname = intrinsic_name;
+        }
     }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {

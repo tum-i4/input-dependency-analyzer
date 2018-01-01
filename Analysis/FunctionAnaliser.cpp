@@ -501,7 +501,7 @@ void FunctionAnaliser::Impl::analyze()
     m_inputs.clear();
     auto toc = Clock::now();
     if (getenv("INPUT_DEP_TIME")) {
-        llvm::dbgs() << "Elapsed time input-dep " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+        llvm::dbgs() << "Input dep elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
     }
 }
 

@@ -120,8 +120,9 @@ void LoopAnalysisResult::gatherResults()
     reflectValueDepsOnLoopDeps();
 
     auto toc = Clock::now();
-    if (getenv("LOOP_TIME")) {
-        llvm::dbgs() << "Elapsed time loop " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
+    // only for outer most loops, as it includes analysis of child loops
+    if (getenv("LOOP_TIME") && m_L.getLoopDepth() == 1) {
+        llvm::dbgs() << "Loop elapsed time " << std::chrono::duration_cast<std::chrono::nanoseconds>(toc - tic).count() << "\n";
     }
 }
 

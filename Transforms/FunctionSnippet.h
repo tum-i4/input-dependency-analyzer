@@ -44,6 +44,7 @@ public:
     }
     virtual bool intersects(const Snippet& snippet) const = 0;
     virtual void expand() = 0;
+    virtual void adjust_end() = 0;
     virtual void collect_used_values() = 0;
     virtual bool merge(const Snippet& snippet) = 0;
     virtual llvm::Function* to_function() = 0;
@@ -83,6 +84,7 @@ public:
     bool is_single_instr_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
+    void adjust_end() override;
     void collect_used_values() override;
     bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;
@@ -105,6 +107,7 @@ public:
 
 private:
     using InstructionSet = std::unordered_set<llvm::Instruction*>;
+    void compute_indices();
     void snippet_instructions(InstructionSet& instrs) const;
     void expand_for_instruction(llvm::Instruction* instr,
                                 InstructionSet& instructions);
@@ -137,6 +140,7 @@ public:
     unsigned get_instructions_number() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
+    void adjust_end() override;
     void collect_used_values() override;
     bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;

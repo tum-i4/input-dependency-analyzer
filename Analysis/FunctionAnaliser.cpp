@@ -773,7 +773,6 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
     if (postdominates_all_predecessors) {
         return DepInfo(DepInfo::INPUT_INDEP);
     }
-
     return dep;
 }
 

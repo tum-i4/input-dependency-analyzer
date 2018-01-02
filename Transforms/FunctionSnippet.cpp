@@ -267,8 +267,9 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
             continue;
         }
 
+        llvm::dbgs() << "Remap instr: " << instr << "\n";
         mapper.remapInstruction(instr);
-        //llvm::dbgs() << "Remaped instr: " << instr << "\n";
+        llvm::dbgs() << "Remaped instr: " << instr << "\n";
     }
 }
 
@@ -307,9 +308,9 @@ llvm::CallInst* create_call_to_snippet_function(llvm::Function* F,
     return callInst;
 }
 
-void erase_snippet(llvm::BasicBlock* block,
-                   llvm::BasicBlock::iterator begin,
-                   llvm::BasicBlock::iterator end)
+void erase_instruction_snippet(llvm::BasicBlock* block,
+                               llvm::BasicBlock::iterator begin,
+                               llvm::BasicBlock::iterator end)
 {
     assert(InstructionsSnippet::is_valid_snippet(begin, end, block));
     if (end == begin->getParent()->end()) {
@@ -362,11 +363,11 @@ bool get_block_users(llvm::BasicBlock* block,
     return true;
 }
 
-void erase_snippet(llvm::Function* function,
-                   bool erase_begin,
-                   llvm::Function::iterator begin,
-                   llvm::Function::iterator end,
-                   const BasicBlocksSnippet::BlockSet& blocks)
+void erase_block_snippet(llvm::Function* function,
+                         bool erase_begin,
+                         llvm::Function::iterator begin,
+                         llvm::Function::iterator end,
+                         const BasicBlocksSnippet::BlockSet& blocks)
 {
     assert(BasicBlocksSnippet::is_valid_snippet(begin, end, function));
 
@@ -457,14 +458,12 @@ InstructionsSnippet::InstructionsSnippet(llvm::BasicBlock* block,
     , m_begin_idx(-1)
     , m_end_idx(-1)
 {
-    m_begin_idx = Utils::get_instruction_index(&*m_begin);
-    m_end_idx = Utils::get_instruction_index(&*m_end);
+    compute_indices();
     if (m_end != block->end()) {
         m_returnInst = llvm::dyn_cast<llvm::ReturnInst>(&*end);
     } else {
         m_returnInst = nullptr;
     }
-    m_instruction_number = m_end_idx - m_begin_idx;
 }
 
 bool InstructionsSnippet::is_valid_snippet() const
@@ -509,7 +508,19 @@ void InstructionsSnippet::expand()
             break;
         }
     } while (it-- != m_begin);
+}
 
+void InstructionsSnippet::adjust_end()
+{
+    // do not end instruction snippet with branch instruction, if the blocks of branch are not included in a snippet
+    if (m_end != m_block->end()) {
+        llvm::Instruction* end_instr = &*m_end;
+        if (llvm::dyn_cast<llvm::BranchInst>(end_instr)) {
+            auto prev_node = m_block->getInstList().getPrevNode(*m_end);
+            m_end = prev_node->getIterator();
+            compute_indices();
+        }
+    }
 }
 
 void InstructionsSnippet::collect_used_values()
@@ -603,7 +614,7 @@ llvm::Function* InstructionsSnippet::to_function()
     if (m_returnInst) {
         auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
     }
-    erase_snippet(m_block, m_begin, m_end);
+    erase_instruction_snippet(m_block, m_begin, m_end);
     return new_F;
 }
 
@@ -693,6 +704,13 @@ bool InstructionsSnippet::is_valid_snippet(iterator begin,
 bool InstructionsSnippet::is_single_instr_snippet() const
 {
     return m_begin == m_end;
+}
+
+void InstructionsSnippet::compute_indices()
+{
+    m_begin_idx = Utils::get_instruction_index(&*m_begin);
+    m_end_idx = Utils::get_instruction_index(&*m_end);
+    m_instruction_number = m_end_idx - m_begin_idx;
 }
 
 void InstructionsSnippet::snippet_instructions(InstructionSet& instrs) const
@@ -824,6 +842,11 @@ void BasicBlocksSnippet::expand()
         m_begin = m_start.get_block()->getIterator();
         m_start.clear();
     }
+}
+
+void BasicBlocksSnippet::adjust_end()
+{
+    // Nothing to do for now
 }
 
 void BasicBlocksSnippet::collect_used_values()
@@ -962,7 +985,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     if (has_start_snippet) {
         auto insert_before = m_start.get_begin();
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
-        erase_snippet(m_start.get_block(), m_start.get_begin(), m_start.get_end());
+        erase_instruction_snippet(m_start.get_block(), m_start.get_begin(), m_start.get_end());
         auto branch_inst = llvm::BranchInst::Create(&*m_end);
         m_start.get_block()->getInstList().push_back(branch_inst);
     } else {
@@ -994,7 +1017,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
     }
 
-    erase_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks);
+    erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks);
     return new_F;
 }
 

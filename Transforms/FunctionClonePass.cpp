@@ -305,8 +305,9 @@ void FunctionClonePass::dump() const
     }
 }
 
+//Transformation pass to duplicate functions with different set ot input dependent arguments
 static llvm::RegisterPass<FunctionClonePass> X(
                                 "clone-functions",
-                                "Transformation pass to duplicate functions with different set ot input dependent arguments");
+                                "Function Cloning");
 }
 

@@ -61,7 +61,8 @@ public:
 
 private:
     snippet_list collect_block_snippets(llvm::Function::iterator block_it);
-    bool derive_input_dependency_from_args(llvm::CallInst* I) const;
+    template <class T>
+    bool derive_input_dependency_from_args(T* I) const;
     bool can_root_blocks_snippet(llvm::BasicBlock* block) const;
     BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos);
     llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block);
@@ -131,6 +132,7 @@ void SnippetsCreator::expand_snippets()
     for (auto& snippet : m_snippets) {
         //snippet->dump();
         snippet->expand();
+        snippet->adjust_end();
     }
     if (m_snippets.size() == 1) {
         if ((*m_snippets.begin())->is_single_instr_snippet()) {
@@ -180,8 +182,14 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
         if (!is_input_dep) {
             // TODO: what other instructions might be intresting?
             if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
-                if (callInst->getFunctionType()->getReturnType()->isVoidTy()) {
+                llvm::Function* called_f = callInst->getCalledFunction();
+                if (called_f && !called_f->isIntrinsic() && called_f->getReturnType()->isVoidTy()) {
                     is_input_dep = derive_input_dependency_from_args(callInst);
+                }
+            } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(I)) {
+                llvm::Function* called_f = invokeInst->getCalledFunction();
+                if (called_f && !called_f->isIntrinsic() && called_f->getReturnType()->isVoidTy()) {
+                    is_input_dep = derive_input_dependency_from_args(invokeInst);
                 }
             }
         }
@@ -214,7 +222,8 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
     return snippets;
 }
 
-bool SnippetsCreator::derive_input_dependency_from_args(llvm::CallInst* I) const
+template <class T>
+bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
 {
     // return true if all arguments are input dependent
     bool is_input_dep = true;
@@ -447,8 +456,9 @@ void FunctionExtractionPass::createStatistics(llvm::Module& M, input_dependency:
     m_extractionStatistics->set_module_name(M.getName());
 }
 
+//Transformation pass to extract input dependent snippets into separate functions
 static llvm::RegisterPass<FunctionExtractionPass> X(
                                 "extract-functions",
-                                "Transformation pass to extract input dependent snippets into separate functions");
+                                "Function Extraction");
 }
 

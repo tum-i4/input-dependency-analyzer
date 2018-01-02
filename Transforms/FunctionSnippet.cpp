@@ -267,9 +267,9 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
             continue;
         }
 
-        llvm::dbgs() << "Remap instr: " << instr << "\n";
+        //llvm::dbgs() << "Remap instr: " << instr << "\n";
         mapper.remapInstruction(instr);
-        llvm::dbgs() << "Remaped instr: " << instr << "\n";
+        //llvm::dbgs() << "Remaped instr: " << instr << "\n";
     }
 }
 
@@ -367,23 +367,22 @@ void erase_block_snippet(llvm::Function* function,
                          bool erase_begin,
                          llvm::Function::iterator begin,
                          llvm::Function::iterator end,
-                         const BasicBlocksSnippet::BlockSet& blocks)
+                         const BasicBlocksSnippet::BlockSet& blocks,
+                         const std::vector<llvm::BasicBlock*>& blocks_in_erase_order)
 {
     assert(BasicBlocksSnippet::is_valid_snippet(begin, end, function));
 
     // change all predecessors from self blocks to link dummy_block
     llvm::BasicBlock* dummy_block = llvm::BasicBlock::Create(function->getParent()->getContext(), "dummy", function);
-    std::vector<llvm::BasicBlock*> blocks_to_erase;
     InstructionSet users_to_remap;
     bool erase_blocks = true;
 
     llvm::ValueToValueMapTy block_map;
-    for (const auto& block : blocks) {
+    for (const auto& block : blocks_in_erase_order) {
         if ((block == &*begin && !erase_begin) ||  block == &*end) {
             continue;
         }
         block_map.insert(std::make_pair(block, llvm::WeakVH(dummy_block)));
-        blocks_to_erase.push_back(block);
 
         // add all phi nodes, as those are not reported as use :[[
         // note this is not necessarily solving the problem with other uses
@@ -403,7 +402,6 @@ void erase_block_snippet(llvm::Function* function,
     }
 
     block_map.insert(std::make_pair(&*end, llvm::WeakVH(dummy_block)));
-
     auto user_it = users_to_remap.begin();
     while (user_it != users_to_remap.end()) {
         llvm::Instruction* term = *user_it;
@@ -416,10 +414,13 @@ void erase_block_snippet(llvm::Function* function,
         mapper.remapInstruction(*term);
     }
 
-    auto it = blocks_to_erase.begin();
-    while (it != blocks_to_erase.end()) {
+    auto it = blocks_in_erase_order.begin();
+    while (it != blocks_in_erase_order.end()) {
         llvm::BasicBlock* block = *it;
         ++it;
+        if (block == &*begin && !erase_begin) {
+            continue;
+        }
         llvm::dbgs() << "Erase block " << block->getName() << "\n";
         block->eraseFromParent();
     }
@@ -935,6 +936,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
 {
 
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
+    const auto& blocks_in_erase_order = Utils::get_blocks_in_bfs(m_begin, m_end);
     collect_used_values();
 
     llvm::LLVMContext& Ctx = m_function->getParent()->getContext();
@@ -1017,7 +1019,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
     }
 
-    erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks);
+    erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
     return new_F;
 }
 

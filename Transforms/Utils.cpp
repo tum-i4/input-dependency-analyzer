@@ -2,6 +2,12 @@
 
 #include "llvm/IR/CFG.h"
 
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
+
+
+#include <list>
+
 namespace oh {
 
 namespace {
@@ -64,6 +70,35 @@ std::unordered_set<llvm::BasicBlock*> Utils::get_blocks_in_range(llvm::Function:
     return blocks;
 }
 
+std::vector<llvm::BasicBlock*> Utils::get_blocks_in_bfs(llvm::Function::iterator begin, llvm::Function::iterator end)
+{
+    std::unordered_set<llvm::BasicBlock*> processed_blocks;
+    std::list<llvm::BasicBlock*> work_list;
+    std::vector<llvm::BasicBlock*> blocks;
+    if (&*begin == &*end) {
+        return blocks;
+    }
+    work_list.push_back(&*begin);
+    while (!work_list.empty()) {
+        llvm::BasicBlock* block = work_list.front();
+        work_list.pop_front();
+        if (!processed_blocks.insert(block).second) {
+            continue;
+        }
+        if (block == &*end) {
+            continue;
+        }
+        blocks.insert(blocks.begin(), block);
+        auto it = succ_begin(block);
+        while (it != succ_end(block)) {
+            llvm::dbgs() << "succ of " << block->getName() << " " << (*it)->getName() << "\n";
+            work_list.push_back(*it);
+            ++it;
+        }
+    }
+    return blocks;
+}
+
 unsigned Utils::get_function_instrs_count(llvm::Function& F)
 {
     unsigned count = 0;
@@ -75,4 +110,4 @@ unsigned Utils::get_function_instrs_count(llvm::Function& F)
 
 }
 
-
+;

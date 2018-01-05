@@ -53,7 +53,7 @@ static llvm::cl::opt<std::string> stats_file(
     llvm::cl::value_desc("file name"));
 
 static llvm::cl::opt<bool> cache(
-    "transparent-caching",
+    "use-cache",
     llvm::cl::desc("Cache input dependency results"),
     llvm::cl::value_desc("boolean flag"));
 
@@ -84,14 +84,13 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
     if (cache && has_cached_input_dependency()) {
         create_cached_input_dependency_analysis();
     } else {
+        if (cache) {
+            llvm::dbgs() << "Bitcode does not contain cached information. Running normal input dependency\n";
+        }
         create_input_dependency_analysis(AARGetter);
     }
 
     m_analysis->run();
-
-    if (InputDepConfig::get().is_cache_input_dep()) {
-        m_analysis->cache();
-    }
     if (stats) {
         dump_statistics();
     }

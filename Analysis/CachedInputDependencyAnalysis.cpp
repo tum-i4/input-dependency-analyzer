@@ -30,10 +30,6 @@ void CachedInputDependencyAnalysis::run()
     }
 }
 
-void CachedInputDependencyAnalysis::cache()
-{
-}
-
 bool CachedInputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
 {
     auto pos = m_functionAnalisers.find(F);

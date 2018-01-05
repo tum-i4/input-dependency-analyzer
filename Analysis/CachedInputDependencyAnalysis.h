@@ -18,7 +18,6 @@ public:
 
 public:
     void run() override;
-    void cache() override;
 
     bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const override;
     bool isInputDependent(llvm::Instruction* instr) const override;

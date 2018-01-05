@@ -30,7 +30,6 @@ public:
 
 public:
     virtual void run() = 0;
-    virtual void cache() = 0;
     virtual bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const = 0;
     virtual bool isInputDependent(llvm::Instruction* instr) const = 0;
     virtual bool isInputDependent(llvm::BasicBlock* block) const = 0;

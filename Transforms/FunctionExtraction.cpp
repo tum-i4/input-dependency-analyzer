@@ -375,6 +375,9 @@ char FunctionExtractionPass::ID = 0;
 void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+    // FunctionExtractionPass does not preserve results of InputDependency Analysis.
+    // While it adds extracted functions as input dependent functions, the CFG of old functions change, thus input
+    // dependency results are invalidated.
     AU.addRequired<input_dependency::InputDependencyAnalysisPass>();
 }
 

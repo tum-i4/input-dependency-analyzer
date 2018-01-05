@@ -96,63 +96,6 @@ void InputDependencyAnalysis::run()
     llvm::dbgs() << "Finished input dependency analysis\n\n";
 }
 
-void InputDependencyAnalysis::cache()
-{
-    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata_strings::cached_input_dep, true);
-    auto* input_dep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_function);
-    llvm::MDNode* input_dep_function_md = llvm::MDNode::get(m_module->getContext(), input_dep_function_md_str);
-    auto* input_indep_function_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_function);
-    llvm::MDNode* input_indep_function_md = llvm::MDNode::get(m_module->getContext(), input_indep_function_md_str);
-
-    auto* input_dep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_block);
-    llvm::MDNode* input_dep_block_md = llvm::MDNode::get(m_module->getContext(), input_dep_block_md_str);
-    auto* input_indep_block_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_block);
-    llvm::MDNode* input_indep_block_md = llvm::MDNode::get(m_module->getContext(), input_indep_block_md_str);
-
-    auto* input_dep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_dep_instr);
-    llvm::MDNode* input_dep_instr_md = llvm::MDNode::get(m_module->getContext(), input_dep_instr_md_str);
-    auto* input_indep_instr_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::input_indep_instr);
-    llvm::MDNode* input_indep_instr_md = llvm::MDNode::get(m_module->getContext(), input_indep_instr_md_str);
-
-    auto* unknown_node_name = llvm::MDString::get(m_module->getContext(), metadata_strings::unknown);
-    llvm::MDNode* unknown_md = llvm::MDNode::get(m_module->getContext(), unknown_node_name);
-    auto* unreachable_node_name = llvm::MDString::get(m_module->getContext(), metadata_strings::unreachable);
-    llvm::MDNode* unreachable_md = llvm::MDNode::get(m_module->getContext(), unreachable_node_name);
-
-    for (auto& FA_item : m_functionAnalisers) {
-        llvm::Function* F = FA_item.first;
-        auto& FA = FA_item.second;
-        llvm::dbgs() << "Caching input dependenct for function " << F->getName() << "\n";
-        if (FA->isInputDepFunction()) {
-            F->setMetadata(metadata_strings::input_dep_function, input_dep_function_md);
-        } else {
-            F->setMetadata(metadata_strings::input_indep_function, input_indep_function_md);
-        }
-        for (auto& B : *F) {
-            if (FA->isInputDependentBlock(&B)) {
-                B.begin()->setMetadata(metadata_strings::input_dep_block, input_dep_block_md);
-                // don't add metadata_strings to instructions as they'll all be input dep
-                continue;
-            } else if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
-                B.begin()->setMetadata(metadata_strings::unreachable, unreachable_md);
-                continue;
-            } else {
-                B.begin()->setMetadata(metadata_strings::input_indep_block, input_indep_block_md);
-            }
-            for (auto& I : B) {
-                if (FA->isInputDependent(&I)) {
-                    I.setMetadata(metadata_strings::input_dep_instr, input_dep_instr_md);
-                } else if (FA->isInputIndependent(&I)) {
-                    I.setMetadata(metadata_strings::input_indep_instr, input_indep_instr_md);
-                } else {
-                    I.setMetadata(metadata_strings::unknown, unknown_md);
-                }
-            }
-        }
-    }
-}
-
-
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
 {
     auto pos = m_functionAnalisers.find(F);

@@ -76,7 +76,7 @@ public:
     /// Note that this function will not add input dependent instructions/blocks that are in input independent
     /// functions. The information collected by this function will be cached for further uses and can be invalidated
     /// by a call to \a invalidate_stats_data function.
-    virtual void reportInputDepFunctionCoverage();
+    virtual void reportInputDepFunctionCoverage(bool use_cached_data);
 
     /// Reports ratio of input dependent instructions over all instructions, as well as ratio of input dependent basic
     /// blocks over all basic blocks.
@@ -113,7 +113,7 @@ public:
     void reportInputDependencyInfo() override {}
     void reportInputInDepCoverage() override {}
     void reportInputInDepFunctionCoverage() override {}
-    void reportInputDepFunctionCoverage() override {}
+    void reportInputDepFunctionCoverage(bool use_cached_data) override {}
     void reportInputDepCoverage() override {}
     void invalidate_stats_data() override {}
 

@@ -41,7 +41,7 @@ void InputDependencyStatistics::report()
 {
     reportInputDependencyInfo();
     reportInputDepCoverage();
-    reportInputDepFunctionCoverage();
+    reportInputDepFunctionCoverage(true);
     reportInputInDepCoverage();
     reportInputInDepFunctionCoverage();
 }
@@ -206,7 +206,7 @@ void InputDependencyStatistics::reportInputDepCoverage()
     unsetStatsTypeName();
 }
 
-void InputDependencyStatistics::reportInputDepFunctionCoverage()
+void InputDependencyStatistics::reportInputDepFunctionCoverage(bool use_cached_data)
 {
     setStatsTypeName("input_dep_function_coverage");
     input_dep_coverage_data module_coverage_data{m_module->getName(), 0, 0, 0, 0, 0, 0};
@@ -216,14 +216,16 @@ void InputDependencyStatistics::reportInputDepFunctionCoverage()
         if (FA_pos == m_IDA->end()) {
             continue;
         }
-        auto cached_input_dep_data = m_function_input_dep_function_coverage_data.find(&F);
-        if (cached_input_dep_data != m_function_input_dep_function_coverage_data.end()) {
-            report_input_dep_coverage_data(cached_input_dep_data->second);
-            update_module_coverage_data(module_coverage_data, cached_input_dep_data->second);
-            continue;
+        if (use_cached_data) {
+            auto cached_input_dep_data = m_function_input_dep_function_coverage_data.find(&F);
+            if (cached_input_dep_data != m_function_input_dep_function_coverage_data.end()) {
+                report_input_dep_coverage_data(cached_input_dep_data->second);
+                update_module_coverage_data(module_coverage_data, cached_input_dep_data->second);
+                continue;
+            }
         }
         auto cached_pos = m_function_input_indep_coverage_data.find(&F);
-        bool has_cached_data = cached_pos != m_function_input_indep_coverage_data.end();
+        bool has_cached_data = use_cached_data && cached_pos != m_function_input_indep_coverage_data.end();
         input_indep_coverage_data cov_data;
         if (has_cached_data) {
             cov_data = cached_pos->second;

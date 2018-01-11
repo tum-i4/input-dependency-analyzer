@@ -88,6 +88,7 @@ llvm::Type* get_value_type(llvm::Value* val)
 }
 
 void collect_values(llvm::Value* val,
+                    const BlockSet& skip_blocks_values,
                     Snippet::ValueSet& values)
 {
     if (!val) {
@@ -98,23 +99,29 @@ void collect_values(llvm::Value* val,
         return;
     }
     if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
-        values.insert(instr);
+        if (skip_blocks_values.empty()
+            || skip_blocks_values.find(instr->getParent()) == skip_blocks_values.end()) {
+            values.insert(instr);
+        } else {
+            llvm::dbgs() << "**** Skip value as alloca is inside snippet " << *instr << "\n";
+        }
         return;
     }
     for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
-        collect_values(instr->getOperand(i), values);
+        collect_values(instr->getOperand(i), skip_blocks_values, values);
     }
 }
 
 void collect_values(InstructionsSnippet::iterator begin,
                     InstructionsSnippet::iterator end,
+                    const BlockSet& skip_blocks_values,
                     Snippet::ValueSet& values)
 {
     auto it = begin;
     while (it != end) {
         auto instr = &*it;
         ++it;
-        collect_values(instr, values);
+        collect_values(instr, skip_blocks_values, values);
     }
 }
 
@@ -423,6 +430,19 @@ void erase_block_snippet(llvm::Function* function,
             continue;
         }
         //llvm::dbgs() << "Erase block " << block->getName() << "\n";
+        // ******** DEBUG - test uses of all instructions in a block to be erased
+        //for (auto& I : *block) {
+        //    for (auto user : I.users()) {
+        //        if (auto instr = llvm::dyn_cast<llvm::Instruction>(user)) {
+        //            if (instr->getParent() != block) {
+        //                llvm::dbgs() << "**** Instr: " << I << "\n";
+        //                llvm::dbgs() << "**** Has user in block different than " << block->getName() << "\n";
+        //                llvm::dbgs() << "**** User: " << *instr << "\n";
+        //            }
+        //        }
+        //    }
+        //}
+        // ***** DEBUG END
         block->eraseFromParent();
     }
     // all predecessors of dummy_block were the ones erased from snippet
@@ -531,7 +551,7 @@ void InstructionsSnippet::collect_used_values()
         // already collected
         return;
     }
-    collect_values(m_begin, m_end++, m_used_values);
+    collect_values(m_begin, m_end++, BlockSet(), m_used_values);
 }
 
 bool InstructionsSnippet::merge(const Snippet& snippet)
@@ -617,6 +637,11 @@ llvm::Function* InstructionsSnippet::to_function()
         auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
     }
     erase_instruction_snippet(m_block, m_begin, m_end);
+
+    //if (m_block->getParent()->getName() == "") {
+    //    //llvm::dbgs() << "******** Instruction snippet - Extracted function is\n";
+    //    //llvm::dbgs() << *new_F << "\n\n";
+    //}
     return new_F;
 }
 
@@ -856,14 +881,20 @@ void BasicBlocksSnippet::collect_used_values()
     if (!m_used_values.empty()) {
         return;
     }
-    m_start.collect_used_values();
-    auto used_in_start = m_start.get_used_values();
-    m_used_values.insert(used_in_start.begin(), used_in_start.end());
+    if (m_start.is_valid_snippet()) {
+        m_start.collect_used_values();
+        auto used_in_start = m_start.get_used_values();
+        m_used_values.insert(used_in_start.begin(), used_in_start.end());
+    }
+    BlockSet blocks_to_skip(m_blocks.begin(), m_blocks.end());
+    if (m_start.is_valid_snippet()) {
+        blocks_to_skip.erase(&*m_begin);
+    }
     for (const auto& block : m_blocks) {
-        collect_values(block->begin(), block->end(), m_used_values);
+        collect_values(block->begin(), block->end(), blocks_to_skip, m_used_values);
     }
     if (m_blocks.find(&*m_begin) == m_blocks.end()) {
-        collect_values(m_begin->begin(), m_begin->end(), m_used_values);
+        collect_values(m_begin->begin(), m_begin->end(), blocks_to_skip, m_used_values);
     }
 }
 

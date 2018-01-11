@@ -1,5 +1,7 @@
 #include "Utils.h"
 
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/CFG.h"
 
 #include "llvm/Support/Debug.h"
@@ -91,7 +93,6 @@ std::vector<llvm::BasicBlock*> Utils::get_blocks_in_bfs(llvm::Function::iterator
         blocks.insert(blocks.begin(), block);
         auto it = succ_begin(block);
         while (it != succ_end(block)) {
-            llvm::dbgs() << "succ of " << block->getName() << " " << (*it)->getName() << "\n";
             work_list.push_back(*it);
             ++it;
         }
@@ -106,6 +107,28 @@ unsigned Utils::get_function_instrs_count(llvm::Function& F)
         count += B.getInstList().size();
     }
     return count;
+}
+
+void Utils::check_module(const llvm::Module& M)
+{
+    llvm::dbgs() << "Check Module " << M.getName() << "\n";
+    for (auto& F : M) {
+        llvm::dbgs() << "---Function: " << F.getName() << "\n";
+        for (auto& B : F) {
+            if (!B.getTerminator()) {
+                llvm::dbgs() << "-----Invalid Block. No Terminator " << B.getName() << "\n"; 
+            } else if (auto retInstr = llvm::dyn_cast<llvm::ReturnInst>(B.getTerminator())) {
+                auto* returnValue = retInstr->getReturnValue();
+                if (returnValue) {
+                    if (returnValue->getType()->getTypeID() != F.getReturnType()->getTypeID()) {
+                        llvm::dbgs() << "Invalid return type. Return type " << *F.getReturnType()
+                            << ". Return value type: " << *returnValue->getType() << "\n";
+                        llvm::dbgs() << F << "\n";
+                    }
+                }
+            }
+        }
+    }
 }
 
 }

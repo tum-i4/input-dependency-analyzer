@@ -397,6 +397,7 @@ void erase_block_snippet(llvm::Function* function,
     }
     if (!erase_blocks) {
         llvm::dbgs() << "Basic blocks have uses: do not erase snippet\n";
+        dummy_block->eraseFromParent();
         users_to_remap.clear();
         return;
     }
@@ -421,7 +422,7 @@ void erase_block_snippet(llvm::Function* function,
         if (block == &*begin && !erase_begin) {
             continue;
         }
-        llvm::dbgs() << "Erase block " << block->getName() << "\n";
+        //llvm::dbgs() << "Erase block " << block->getName() << "\n";
         block->eraseFromParent();
     }
     // all predecessors of dummy_block were the ones erased from snippet
@@ -540,8 +541,8 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
         return false;
     }
     llvm::dbgs() << "Merging\n";
-    dump();
-    snippet.dump();
+    //dump();
+    //snippet.dump();
     // expand this to include given snippet
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
@@ -873,8 +874,8 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
         return false;
     }
     llvm::dbgs() << "Merging\n";
-    dump();
-    snippet.dump();
+    //dump();
+    //snippet.dump();
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
         return m_start.merge(snippet);
@@ -883,7 +884,7 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
     if (m_start.is_valid_snippet()) {
         m_start.merge(block_snippet->get_start_snippet());
-        m_start.dump();
+        //m_start.dump();
     }
     if (!contains_block(block_snippet->get_begin_block()) && block_snippet->contains_block(&*m_begin)) {
         m_begin = block_snippet->get_begin();
@@ -914,8 +915,6 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     if (modified) {
         m_blocks.clear();
         m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
-        llvm::dbgs() << "After merge\n";
-        dump();
         return true;
     }
     return false;
@@ -934,7 +933,6 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
 // TODO: extract the common code with instruction snippet
 llvm::Function* BasicBlocksSnippet::to_function()
 {
-
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
     const auto& blocks_in_erase_order = Utils::get_blocks_in_bfs(m_begin, m_end);
     collect_used_values();
@@ -1020,6 +1018,14 @@ llvm::Function* BasicBlocksSnippet::to_function()
     }
 
     erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
+    //if (m_function->getName() == "context_push") {
+    //    llvm::dbgs() << "context_push\n";
+    //    llvm::dbgs() << "Original function\n";
+    //    llvm::dbgs() << *m_function << "\n";
+    //    llvm::dbgs() << "********\n";
+    //    llvm::dbgs() << *new_F << "\n";
+    //}
+
     return new_F;
 }
 

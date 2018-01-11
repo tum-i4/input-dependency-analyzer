@@ -29,7 +29,7 @@ namespace {
 class SnippetsCreator
 {
 public:
-    using InputDependencyAnalysisInfo = input_dependency::FunctionAnaliser;
+    using InputDependencyAnalysisInfo = input_dependency::InputDependencyAnalysisInterface::InputDepResType;
     using Snippet_type = std::shared_ptr<Snippet>;
     using BasicBlockRange = std::pair<BasicBlocksSnippet::iterator, BasicBlocksSnippet::iterator>;
     using snippet_list = std::vector<Snippet_type>;
@@ -40,7 +40,7 @@ public:
     {
     }
 
-    void set_input_dep_info(InputDependencyAnalysisInfo* info)
+    void set_input_dep_info(const InputDependencyAnalysisInfo& info)
     {
         m_input_dep_info = info;
     }
@@ -72,7 +72,7 @@ private:
 
 private:
     llvm::Function& m_F;
-    InputDependencyAnalysisInfo* m_input_dep_info;
+    InputDependencyAnalysisInfo m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
     snippet_list m_snippets;
 };
@@ -113,9 +113,6 @@ void SnippetsCreator::collect_snippets(bool expand)
                                                                blocks_range.second,
                                                                *back->to_instrSnippet()));
             block_snippets.push_back(blocks_snippet);
-            if (m_F.getName() == "main") {
-                blocks_snippet->dump();
-            }
         }
         // for some blocks will run insert twice
         processed_blocks.insert(B);
@@ -151,8 +148,6 @@ void SnippetsCreator::expand_snippets()
             }
             break;
         }
-        (*it)->dump();
-        (*next_it)->dump();
         if ((*it)->intersects(**next_it)) {
             if ((*next_it)->merge(**it)) {
                 to_erase.push_back(it);
@@ -163,7 +158,6 @@ void SnippetsCreator::expand_snippets()
         }
     }
     for (auto& elem : to_erase) {
-        (*elem)->dump();
         m_snippets.erase(elem);
     }
 }
@@ -183,12 +177,12 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
             // TODO: what other instructions might be intresting?
             if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
                 llvm::Function* called_f = callInst->getCalledFunction();
-                if (called_f && !called_f->isIntrinsic() && called_f->getReturnType()->isVoidTy()) {
+                if (called_f && called_f->getReturnType()->isVoidTy()) {
                     is_input_dep = derive_input_dependency_from_args(callInst);
                 }
             } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(I)) {
                 llvm::Function* called_f = invokeInst->getCalledFunction();
-                if (called_f && !called_f->isIntrinsic() && called_f->getReturnType()->isVoidTy()) {
+                if (called_f && called_f->getReturnType()->isVoidTy()) {
                     is_input_dep = derive_input_dependency_from_args(invokeInst);
                 }
             }
@@ -225,7 +219,7 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
 template <class T>
 bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
 {
-    // return true if all arguments are input dependent
+    // return true if at least one argument are input dependent
     bool is_input_dep = true;
     for (unsigned i = 0; i < I->getNumArgOperands(); ++i) {
         auto op = I->getArgOperand(i);
@@ -320,7 +314,7 @@ void SnippetsCreator::update_processed_blocks(const llvm::BasicBlock* block,
 
 void run_on_function(llvm::Function& F,
                      llvm::PostDominatorTree* PDom,
-                     SnippetsCreator::InputDependencyAnalysisInfo* input_dep_info,
+                     const SnippetsCreator::InputDependencyAnalysisInfo& input_dep_info,
                      std::unordered_map<llvm::Function*, unsigned>& extracted_functions)
 {
     // map from block to snippets?
@@ -337,9 +331,10 @@ void run_on_function(llvm::Function& F,
             snippet->dump();
             continue;
         }
-        llvm::dbgs() << "to function\n";
-        snippet->dump();
+        //llvm::dbgs() << "To Function\n";
+        //snippet->dump();
         auto extracted_function = snippet->to_function();
+        //llvm::dbgs() << "Extracted to function " << *extracted_function << "\n";
         extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));
     }
 }
@@ -396,12 +391,12 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             llvm::dbgs() << "Skip: Declaration function " << F.getName() << "\n";
             continue;
         }
-        auto input_dep_info = input_dep->getAnalysisInfo(&F);
-        if (input_dep_info == nullptr) {
+        auto f_input_dep_info = input_dep->getAnalysisInfo(&F);
+        if (f_input_dep_info == nullptr) {
             llvm::dbgs() << "Skip: No input dep info for function " << F.getName() << "\n";
             continue;
         }
-        auto f_input_dep_info = input_dep_info->toFunctionAnalysisResult();
+        //auto f_input_dep_info = input_dep_info->toFunctionAnalysisResult();
         if (!f_input_dep_info) {
             continue;
         }
@@ -433,6 +428,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     m_coverageStatistics->setSectionName("input_dep_coverage_after_extraction");
     m_coverageStatistics->reportInputDepFunctionCoverage(false);
     m_extractionStatistics->report();
+
+    //Utils::check_module(M);
     return modified;
 }
 

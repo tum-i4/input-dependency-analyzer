@@ -539,8 +539,10 @@ void InstructionsSnippet::adjust_end()
         llvm::Instruction* end_instr = &*m_end;
         if (llvm::dyn_cast<llvm::BranchInst>(end_instr)) {
             auto prev_node = m_block->getInstList().getPrevNode(*m_end);
-            m_end = prev_node->getIterator();
-            compute_indices();
+            if (prev_node) {
+                m_end = prev_node->getIterator();
+                compute_indices();
+            }
         }
     }
 }
@@ -1049,14 +1051,6 @@ llvm::Function* BasicBlocksSnippet::to_function()
     }
 
     erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
-    //if (m_function->getName() == "context_push") {
-    //    llvm::dbgs() << "context_push\n";
-    //    llvm::dbgs() << "Original function\n";
-    //    llvm::dbgs() << *m_function << "\n";
-    //    llvm::dbgs() << "********\n";
-    //    llvm::dbgs() << *new_F << "\n";
-    //}
-
     return new_F;
 }
 

@@ -635,15 +635,19 @@ llvm::Function* InstructionsSnippet::to_function()
 
     auto insert_before = m_begin;
     auto callInst = create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
-    if (m_returnInst) {
+    if (m_returnInst && !m_returnInst->getType()->isVoidTy()) {
         auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
     }
     erase_instruction_snippet(m_block, m_begin, m_end);
-
+    // **** DEBUG
     //if (m_block->getParent()->getName() == "") {
-    //    //llvm::dbgs() << "******** Instruction snippet - Extracted function is\n";
-    //    //llvm::dbgs() << *new_F << "\n\n";
+    //    llvm::dbgs() << "After extraction: \n";
+    //    llvm::dbgs() << *m_block->getParent() << "\n\n";
+
+    //    llvm::dbgs() << "Extracted function\n";
+    //    llvm::dbgs() << *new_F << "\n\n";
     //}
+    // **** DEBUG END
     return new_F;
 }
 
@@ -1049,8 +1053,17 @@ llvm::Function* BasicBlocksSnippet::to_function()
         --insert_before;
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
     }
-
     erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
+
+    // **** DEBUG
+    //if (m_function->getName() == "") {
+    //    llvm::dbgs() << "After extraction: \n";
+    //    llvm::dbgs() << *m_function << "\n\n";
+
+    //    llvm::dbgs() << "Extracted function\n";
+    //    llvm::dbgs() << *new_F << "\n\n";
+    //}
+    // **** DEBUG END
     return new_F;
 }
 

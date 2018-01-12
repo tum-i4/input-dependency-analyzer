@@ -113,11 +113,15 @@ void Utils::check_module(const llvm::Module& M)
 {
     llvm::dbgs() << "Check Module " << M.getName() << "\n";
     for (auto& F : M) {
+        unsigned ret_count = 0;
         llvm::dbgs() << "---Function: " << F.getName() << "\n";
-        for (auto& B : F) {
+                for (auto& B : F) {
             if (!B.getTerminator()) {
                 llvm::dbgs() << "-----Invalid Block. No Terminator " << B.getName() << "\n"; 
+                llvm::dbgs() << B << "\n\n";
             } else if (auto retInstr = llvm::dyn_cast<llvm::ReturnInst>(B.getTerminator())) {
+                //llvm::dbgs() << "Ret instr: " << *retInstr << "\n";
+                ++ret_count;
                 auto* returnValue = retInstr->getReturnValue();
                 if (returnValue) {
                     if (returnValue->getType()->getTypeID() != F.getReturnType()->getTypeID()) {
@@ -127,6 +131,9 @@ void Utils::check_module(const llvm::Module& M)
                     }
                 }
             }
+        }
+        if (ret_count > 1) {
+            llvm::dbgs() << "more than one ret\n";
         }
     }
 }

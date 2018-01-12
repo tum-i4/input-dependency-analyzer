@@ -331,10 +331,12 @@ void run_on_function(llvm::Function& F,
             snippet->dump();
             continue;
         }
+        // **** DEBUG
         //if (F.getName() == "") {
         //    llvm::dbgs() << "To Function\n";
         //    snippet->dump();
         //}
+        // **** DEBUG END
         auto extracted_function = snippet->to_function();
         //llvm::dbgs() << "Extracted to function " << *extracted_function << "\n";
         extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));

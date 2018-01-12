@@ -433,7 +433,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     m_coverageStatistics->reportInputDepFunctionCoverage(false);
     m_extractionStatistics->report();
 
-    //Utils::check_module(M);
+    Utils::check_module(M);
     return modified;
 }
 

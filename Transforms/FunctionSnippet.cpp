@@ -635,8 +635,14 @@ llvm::Function* InstructionsSnippet::to_function()
 
     auto insert_before = m_begin;
     auto callInst = create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
-    if (m_returnInst && !m_returnInst->getType()->isVoidTy()) {
-        auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
+    if (m_returnInst) {
+        if (!return_type->isVoidTy()) {
+            llvm::dbgs() << "Create Non void Return\n";
+            auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
+        } else {
+            llvm::dbgs() << "Create void Return\n";
+            auto ret = llvm::ReturnInst::Create(Ctx, m_block);
+        }
     }
     erase_instruction_snippet(m_block, m_begin, m_end);
     // **** DEBUG

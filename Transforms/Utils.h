@@ -16,7 +16,7 @@ class Utils {
 public:
     static llvm::BasicBlock::iterator get_instruction_pos(llvm::Instruction* I);
     static llvm::Function::iterator get_block_pos(llvm::BasicBlock* block);
-    static unsigned get_instruction_index(llvm::Instruction* I);
+    static unsigned get_instruction_index(const llvm::Instruction* I);
     static std::unordered_set<llvm::BasicBlock*> get_blocks_in_range(llvm::Function::iterator begin, llvm::Function::iterator end);
     static std::vector<llvm::BasicBlock*> get_blocks_in_bfs(llvm::Function::iterator begin, llvm::Function::iterator end);
     static unsigned get_function_instrs_count(llvm::Function& F);

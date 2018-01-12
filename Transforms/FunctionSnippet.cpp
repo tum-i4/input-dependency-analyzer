@@ -627,7 +627,7 @@ llvm::Function* InstructionsSnippet::to_function()
     create_value_to_value_map(value_ptr_map, value_to_value_map);
     clone_snippet_to_function(entry_block, m_begin, m_end, value_to_value_map);
     remap_instructions_in_new_function(entry_block, setup_size, value_to_value_map);
-    if (!new_F->getReturnType() || new_F->getReturnType()->isVoidTy()) {
+    if ((!new_F->getReturnType() || new_F->getReturnType()->isVoidTy()) && !entry_block->getTerminator()) {
         auto retInst = llvm::ReturnInst::Create(new_F->getParent()->getContext());
         entry_block->getInstList().push_back(retInst);
     }
@@ -639,7 +639,7 @@ llvm::Function* InstructionsSnippet::to_function()
         if (!return_type->isVoidTy()) {
             llvm::dbgs() << "Create Non void Return\n";
             auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
-        } else {
+        }   else {
             llvm::dbgs() << "Create void Return\n";
             auto ret = llvm::ReturnInst::Create(Ctx, m_block);
         }

@@ -53,7 +53,7 @@ llvm::Function::iterator Utils::get_block_pos(llvm::BasicBlock* block)
     return it;
 }
 
-unsigned Utils::get_instruction_index(llvm::Instruction* I)
+unsigned Utils::get_instruction_index(const llvm::Instruction* I)
 {
     unsigned idx = 0;
     auto it = I->getParent()->begin();
@@ -115,11 +115,13 @@ void Utils::check_module(const llvm::Module& M)
     for (auto& F : M) {
         unsigned ret_count = 0;
         llvm::dbgs() << "---Function: " << F.getName() << "\n";
-                for (auto& B : F) {
-            if (!B.getTerminator()) {
+        //llvm::dbgs() << F << "\n";
+        for (auto& B : F) {
+            auto terminator = B.getTerminator();
+            if (!terminator) {
                 llvm::dbgs() << "-----Invalid Block. No Terminator " << B.getName() << "\n"; 
                 llvm::dbgs() << B << "\n\n";
-            } else if (auto retInstr = llvm::dyn_cast<llvm::ReturnInst>(B.getTerminator())) {
+            } else if (auto retInstr = llvm::dyn_cast<llvm::ReturnInst>(terminator)) {
                 //llvm::dbgs() << "Ret instr: " << *retInstr << "\n";
                 ++ret_count;
                 auto* returnValue = retInstr->getReturnValue();
@@ -129,6 +131,17 @@ void Utils::check_module(const llvm::Module& M)
                             << ". Return value type: " << *returnValue->getType() << "\n";
                         llvm::dbgs() << F << "\n";
                     }
+                }
+            }
+            for (auto& I : B) {
+                auto* term_instr = llvm::dyn_cast<llvm::TerminatorInst>(&I);
+                if (term_instr && term_instr != terminator) {
+                    llvm::dbgs() << "Terminator found in the middle of a basic block! " << B.getName() << "\n";
+                    if (terminator) {
+                        llvm::dbgs() << *term_instr << "------- " << *terminator << "\n";
+                    }
+                    llvm::dbgs() << F << "\n";
+                    return;
                 }
             }
         }

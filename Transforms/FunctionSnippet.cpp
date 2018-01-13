@@ -88,7 +88,7 @@ llvm::Type* get_value_type(llvm::Value* val)
 }
 
 void collect_values(llvm::Value* val,
-                    const BlockSet& skip_blocks_values,
+                    const Snippet& snippet,
                     Snippet::ValueSet& values)
 {
     if (!val) {
@@ -99,29 +99,32 @@ void collect_values(llvm::Value* val,
         return;
     }
     if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
-        if (skip_blocks_values.empty()
-            || skip_blocks_values.find(instr->getParent()) == skip_blocks_values.end()) {
+        if (!snippet.contains_block(instr->getParent())) {
             values.insert(instr);
         } else {
             llvm::dbgs() << "**** Skip value as alloca is inside snippet " << *instr << "\n";
         }
         return;
+    } else if (!snippet.contains_instruction(instr)) {
+        values.insert(instr);
+        return;
     }
+
     for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
-        collect_values(instr->getOperand(i), skip_blocks_values, values);
+        collect_values(instr->getOperand(i), snippet, values);
     }
 }
 
 void collect_values(InstructionsSnippet::iterator begin,
                     InstructionsSnippet::iterator end,
-                    const BlockSet& skip_blocks_values,
+                    const Snippet& snippet,
                     Snippet::ValueSet& values)
 {
     auto it = begin;
     while (it != end) {
         auto instr = &*it;
         ++it;
-        collect_values(instr, skip_blocks_values, values);
+        collect_values(instr, snippet, values);
     }
 }
 
@@ -155,19 +158,25 @@ void setup_function_mappings(llvm::Function* new_F,
         const std::string arg_name = "arg" + std::to_string(i);
         arg_it->setName(arg_name);
         auto ptr_type = llvm::dyn_cast<llvm::PointerType>(arg_it->getType());
-        assert(ptr_type != nullptr);
+        //assert(ptr_type != nullptr);
         llvm::Value* val = arg_index_to_value[i];
         auto val_type = get_value_type(val);
 
-        auto new_ptr_val = builder.CreateAlloca(ptr_type, nullptr,  arg_name + ".ptr");
-        builder.CreateStore(&*arg_it, new_ptr_val);
-        auto new_val = builder.CreateAlloca(ptr_type->getElementType(), nullptr, arg_name + ".el");
-        auto ptr_load = builder.CreateLoad(new_ptr_val);
-        auto load = builder.CreateLoad(ptr_load);
-        builder.CreateStore(load, new_val);
-        value_map[new_ptr_val] = new_val;
-        value_ptr_map[val] = new_val;
-
+        if (ptr_type) {
+            auto new_ptr_val = builder.CreateAlloca(ptr_type, nullptr,  arg_name + ".ptr");
+            builder.CreateStore(&*arg_it, new_ptr_val);
+            auto new_val = builder.CreateAlloca(ptr_type->getElementType(), nullptr, arg_name + ".el");
+            auto ptr_load = builder.CreateLoad(new_ptr_val);
+            auto load = builder.CreateLoad(ptr_load);
+            builder.CreateStore(load, new_val);
+            value_map[new_ptr_val] = new_val;
+            value_ptr_map[val] = new_val;
+        } else {
+            auto new_val = builder.CreateAlloca(arg_it->getType(), nullptr, arg_name + ".el");
+            builder.CreateStore(&*arg_it, new_val);
+            auto load = builder.CreateLoad(new_val);
+            value_ptr_map[val] = load;
+        }
         ++arg_it;
         ++i;
     }
@@ -262,10 +271,6 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
                                         unsigned skip_instr_count,
                                         llvm::ValueToValueMapTy& value_to_value_map)
 {
-    //for (const auto& map_entry : value_to_value_map) {
-    //    llvm::dbgs() << "mapped " << *map_entry.first << " to " << *map_entry.second << "\n";
-    //}
-
     llvm::ValueMapper mapper(value_to_value_map);
     //std::vector<llvm::Instruction*> not_mapped_instrs;
     unsigned skip = 0;
@@ -458,11 +463,14 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
     std::vector<llvm::Type*> arg_types;
     int i = 0;
     for (auto& val : used_values) {
-        //llvm::dbgs() << "Used value " << *val << "\n";
         arg_values[i] = val;
         ++i;
         auto type = get_value_type(val);
-        arg_types.push_back(type->getPointerTo());
+        if (!llvm::dyn_cast<llvm::AllocaInst>(val)) {
+            arg_types.push_back(type);
+        } else {
+            arg_types.push_back(type->getPointerTo());
+        }
     }
     llvm::ArrayRef<llvm::Type*> params(arg_types);
     llvm::FunctionType* f_type = llvm::FunctionType::get(return_type, params, false);
@@ -496,6 +504,17 @@ bool InstructionsSnippet::is_valid_snippet() const
 unsigned InstructionsSnippet::get_instructions_number() const
 {
     return m_instruction_number;
+}
+
+bool InstructionsSnippet::contains_instruction(llvm::Instruction* instr) const
+{
+    int instr_idx = Utils::get_instruction_index(instr);
+    return m_begin_idx <= instr_idx  && instr_idx <= m_end_idx;
+}
+
+bool InstructionsSnippet::contains_block(llvm::BasicBlock* block) const
+{
+    return false;
 }
 
 bool InstructionsSnippet::intersects(const Snippet& snippet) const
@@ -553,7 +572,8 @@ void InstructionsSnippet::collect_used_values()
         // already collected
         return;
     }
-    collect_values(m_begin, m_end++, BlockSet(), m_used_values);
+    collect_values(m_begin, m_end++, *this, m_used_values);
+
 }
 
 bool InstructionsSnippet::merge(const Snippet& snippet)
@@ -562,7 +582,7 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
         llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
         return false;
     }
-    llvm::dbgs() << "Merging\n";
+    //llvm::dbgs() << "Merging\n";
     //dump();
     //snippet.dump();
     // expand this to include given snippet
@@ -588,18 +608,14 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
 
 llvm::Function* InstructionsSnippet::to_function()
 {
-    //llvm::dbgs() << "used values\n";
-    //for (const auto& val : m_used_values) {
-    //    llvm::dbgs() << *val << "\n";
-    //}
-    
+    // update begin and end indices
+    compute_indices();
     // create function type
     llvm::LLVMContext& Ctx = m_block->getModule()->getContext();
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
     llvm::Type* return_type = m_returnInst ? m_block->getParent()->getReturnType() : llvm::Type::getVoidTy(Ctx);
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, return_type, arg_index_to_value);
-    //llvm::dbgs() << "Function type " << *type << "\n";
 
     std::string f_name = unique_name_generator::get().get_unique(m_block->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
@@ -637,16 +653,14 @@ llvm::Function* InstructionsSnippet::to_function()
     auto callInst = create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
     if (m_returnInst) {
         if (!return_type->isVoidTy()) {
-            llvm::dbgs() << "Create Non void Return\n";
             auto ret = llvm::ReturnInst::Create(Ctx, callInst, m_block);
         }   else {
-            llvm::dbgs() << "Create void Return\n";
             auto ret = llvm::ReturnInst::Create(Ctx, m_block);
         }
     }
     erase_instruction_snippet(m_block, m_begin, m_end);
     // **** DEBUG
-    //if (m_block->getParent()->getName() == "") {
+    //if (m_block->getParent()->getName() == "main") {
     //    llvm::dbgs() << "After extraction: \n";
     //    llvm::dbgs() << *m_block->getParent() << "\n\n";
 
@@ -847,6 +861,25 @@ unsigned BasicBlocksSnippet::get_instructions_number() const
     return m_instruction_number;
 }
 
+bool BasicBlocksSnippet::contains_instruction(llvm::Instruction* instr) const
+{
+    if (!m_start.is_valid_snippet()) {
+        return m_blocks.find(instr->getParent()) != m_blocks.end();
+    }
+    bool contains = m_start.contains_instruction(instr);
+    contains |= (m_blocks.find(instr->getParent()) != m_blocks.end() && m_start.get_block() != instr->getParent());
+    return contains;
+}
+
+bool BasicBlocksSnippet::contains_block(llvm::BasicBlock* block) const
+{
+    bool contains = m_blocks.find(block) != m_blocks.end();
+    if (m_start.is_valid_snippet()) {
+        contains &= (block != m_start.get_block());
+    }
+    return contains;
+}
+
 bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
 {
     llvm::dbgs() << "Intersects " << get_begin_block()->getName() << " \n";
@@ -898,15 +931,14 @@ void BasicBlocksSnippet::collect_used_values()
         auto used_in_start = m_start.get_used_values();
         m_used_values.insert(used_in_start.begin(), used_in_start.end());
     }
-    BlockSet blocks_to_skip(m_blocks.begin(), m_blocks.end());
-    if (m_start.is_valid_snippet()) {
-        blocks_to_skip.erase(&*m_begin);
-    }
     for (const auto& block : m_blocks) {
-        collect_values(block->begin(), block->end(), blocks_to_skip, m_used_values);
+        if (m_start.is_valid_snippet() && block == m_start.get_block()) {
+            continue;
+        }
+        collect_values(block->begin(), block->end(), *this, m_used_values);
     }
     if (m_blocks.find(&*m_begin) == m_blocks.end()) {
-        collect_values(m_begin->begin(), m_begin->end(), blocks_to_skip, m_used_values);
+        collect_values(m_begin->begin(), m_begin->end(), *this, m_used_values);
     }
 }
 
@@ -916,7 +948,7 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
         llvm::dbgs() << "Snippets do not intersect. Will not merge\n";
         return false;
     }
-    llvm::dbgs() << "Merging\n";
+    //llvm::dbgs() << "Merging\n";
     //dump();
     //snippet.dump();
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
@@ -976,6 +1008,9 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
 // TODO: extract the common code with instruction snippet
 llvm::Function* BasicBlocksSnippet::to_function()
 {
+    if (m_start.is_valid_snippet()) {
+        m_start.compute_indices();
+    }
     m_blocks = Utils::get_blocks_in_range(m_begin, m_end);
     const auto& blocks_in_erase_order = Utils::get_blocks_in_bfs(m_begin, m_end);
     collect_used_values();
@@ -984,7 +1019,6 @@ llvm::Function* BasicBlocksSnippet::to_function()
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, llvm::Type::getVoidTy(Ctx), arg_index_to_value);
-    //llvm::dbgs() << "Function type " << *type << "\n";
     std::string f_name = unique_name_generator::get().get_unique(m_begin->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
                                                    llvm::GlobalValue::LinkageTypes::ExternalLinkage,
@@ -1062,7 +1096,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
 
     // **** DEBUG
-    //if (m_function->getName() == "") {
+    //if (m_function->getName() == "main") {
     //    llvm::dbgs() << "After extraction: \n";
     //    llvm::dbgs() << *m_function << "\n\n";
 
@@ -1096,11 +1130,6 @@ llvm::BasicBlock* BasicBlocksSnippet::get_end_block() const
 const InstructionsSnippet& BasicBlocksSnippet::get_start_snippet() const
 {
     return m_start;
-}
-
-bool BasicBlocksSnippet::contains_block(llvm::BasicBlock* block) const
-{
-    return m_blocks.find(block) != m_blocks.end();
 }
 
 BasicBlocksSnippet* BasicBlocksSnippet::to_blockSnippet()

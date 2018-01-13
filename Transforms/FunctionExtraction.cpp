@@ -127,7 +127,9 @@ void SnippetsCreator::collect_snippets(bool expand)
 void SnippetsCreator::expand_snippets()
 {
     for (auto& snippet : m_snippets) {
-        //snippet->dump();
+        if (!snippet) {
+            continue;
+        }
         snippet->expand();
         snippet->adjust_end();
     }
@@ -137,28 +139,28 @@ void SnippetsCreator::expand_snippets()
         }
     }
 
-    auto it = m_snippets.begin();
-    std::vector<snippet_list::iterator> to_erase;
-    while (it != m_snippets.end()) {
-        auto next_it = it + 1;
-        if (next_it == m_snippets.end()) {
-            // last snippet and is one instruction snippet
-            if ((*it)->is_single_instr_snippet()) {
-                m_snippets.erase(it);
+    std::vector<int> to_erase;
+    for (unsigned i = 0; i < m_snippets.size(); ++i) {
+        if (!m_snippets[i]) {
+            continue;
+        }
+        unsigned next = i + 1;
+        if (next == m_snippets.size()) {
+            if (m_snippets[i]->is_single_instr_snippet()) {
+                to_erase.push_back(i);
             }
             break;
         }
-        if ((*it)->intersects(**next_it)) {
-            if ((*next_it)->merge(**it)) {
-                to_erase.push_back(it);
+        if (m_snippets[i]->intersects(*m_snippets[next])) {
+            if (m_snippets[next]->merge(*m_snippets[i])) {
+                to_erase.push_back(i);
             }
-            ++it;
-        } else {
-            ++it;
         }
     }
-    for (auto& elem : to_erase) {
-        m_snippets.erase(elem);
+
+    for (const auto& idx : to_erase) {
+        // don't erase as is expensive. Replace with nulls
+        m_snippets[idx].reset();
     }
 }
 
@@ -326,6 +328,9 @@ void run_on_function(llvm::Function& F,
 
     llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
     for (auto& snippet : snippets) {
+        if (!snippet) {
+            continue;
+        }
         if (snippet->is_single_instr_snippet()) {
             llvm::dbgs() << "Do not extract single instruction snippet\n";
             snippet->dump();

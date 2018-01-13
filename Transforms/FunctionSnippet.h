@@ -38,6 +38,8 @@ public:
 
     virtual bool is_valid_snippet() const = 0;
     virtual unsigned get_instructions_number() const = 0;
+    virtual bool contains_instruction(llvm::Instruction* instr) const = 0;
+    virtual bool contains_block(llvm::BasicBlock* block) const = 0;
     virtual bool is_single_instr_snippet() const
     {
         return false;
@@ -81,6 +83,9 @@ public:
 public:
     bool is_valid_snippet() const override;
     unsigned get_instructions_number() const override;
+    bool contains_instruction(llvm::Instruction* instr) const override;
+    bool contains_block(llvm::BasicBlock* block) const override;
+
     bool is_single_instr_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
@@ -100,6 +105,7 @@ public:
     llvm::Instruction* get_end_instr() const;
     bool is_block() const;
     llvm::BasicBlock* get_block() const;
+    void compute_indices();
     void clear();
 
 public:
@@ -107,7 +113,6 @@ public:
 
 private:
     using InstructionSet = std::unordered_set<llvm::Instruction*>;
-    void compute_indices();
     void snippet_instructions(InstructionSet& instrs) const;
     void expand_for_instruction(llvm::Instruction* instr,
                                 InstructionSet& instructions);
@@ -138,6 +143,8 @@ public:
 public:
     bool is_valid_snippet() const override;
     unsigned get_instructions_number() const override;
+    bool contains_instruction(llvm::Instruction* instr) const override;
+    bool contains_block(llvm::BasicBlock* block) const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void adjust_end() override;
@@ -148,7 +155,6 @@ public:
     virtual BasicBlocksSnippet* to_blockSnippet() override;
 
     const InstructionsSnippet& get_start_snippet() const;
-    bool contains_block(llvm::BasicBlock* block) const;
     iterator get_begin() const;
     iterator get_end() const;
     llvm::BasicBlock* get_begin_block() const;

@@ -18,6 +18,7 @@
 #include "Analysis/FunctionAnaliser.h"
 #include "Analysis/InputDependentFunctionAnalysisResult.h"
 #include "Analysis/BasicBlocksUtils.h"
+#include "Analysis/InputDepConfig.h"
 
 #include <vector>
 #include <memory>
@@ -351,6 +352,7 @@ void run_on_function(llvm::Function& F,
         //}
         // **** DEBUG END
         auto extracted_function = snippet->to_function();
+        input_dependency::InputDepConfig::get().add_skip_input_dep_function(extracted_function);
         //llvm::dbgs() << "Extracted to function " << *extracted_function << "\n";
         extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));
     }

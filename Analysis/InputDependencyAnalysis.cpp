@@ -1,11 +1,12 @@
 #include "InputDependencyAnalysis.h"
 
-#include "FunctionAnaliser.h"
 #include "BasicBlocksUtils.h"
+#include "FunctionAnaliser.h"
+#include "FunctionInputDependencyResultInterface.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepConfig.h"
 #include "InputDepInstructionsRecorder.h"
-#include "FunctionInputDependencyResultInterface.h"
+#include "InputDependentFunctionAnalysisResult.h"
 #include "Utils.h"
 #include "constants.h"
 
@@ -154,6 +155,11 @@ bool InputDependencyAnalysis::insertAnalysisInfo(llvm::Function* F, InputDepResT
 void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
 {
     llvm::dbgs() << "Processing function " << F->getName() << "\n";
+    if (InputDepConfig::get().is_skip_input_dep_function(F)) {
+        llvm::dbgs() << "Don't analyze. Input dependent function\n";
+        m_functionAnalisers.insert(std::make_pair(F, InputDepResType(new InputDependentFunctionAnalysisResult(F))));
+        return;
+    }
     m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
     llvm::AAResults* AAR = m_aliasAnalysisInfoGetter(F);
     llvm::LoopInfo* LI = m_loopInfoGetter(F);

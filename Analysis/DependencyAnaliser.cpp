@@ -385,7 +385,7 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         updateFunctionCallSiteInfo(callInst, F);
         // cyclic call
         // analysis result of callee is not available. e.g cyclic calls, recursive calls
-        if (m_FAG(F) == nullptr) {
+        if (m_FAG(F) == nullptr || m_FAG(F)->isInputDepFunction()) {
             updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
             updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
@@ -428,7 +428,7 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
     } else {
         updateFunctionInvokeSiteInfo(invokeInst, F);
         // cyclic call
-        if (m_FAG(F) == nullptr) {
+        if (m_FAG(F) == nullptr || m_FAG(F)->isInputDepFunction()) {
             updateInvokeInputDependentOutArgDependencies(invokeInst);
             updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
             updateValueDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP), false);

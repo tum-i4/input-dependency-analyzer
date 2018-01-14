@@ -52,7 +52,7 @@ static llvm::cl::opt<std::string> stats_file(
     llvm::cl::desc("Statistics file"),
     llvm::cl::value_desc("file name"));
 
-static llvm::cl::opt<bool> cache(
+static llvm::cl::opt<bool> use_cache(
     "use-cache",
     llvm::cl::desc("Cache input dependency results"),
     llvm::cl::value_desc("boolean flag"));
@@ -62,7 +62,7 @@ void configure_run()
     InputDepInstructionsRecorder::get().set_record();
     InputDepConfig::get().set_goto_unsafe(goto_unsafe);
     InputDepConfig::get().set_lib_config_file(libfunction_config);
-    InputDepConfig::get().set_cache_input_dependency(cache);
+    InputDepConfig::get().set_use_cache(use_cache);
 }
 
 char InputDependencyAnalysisPass::ID = 0;
@@ -81,10 +81,10 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
         return &*AAR;
     };
 
-    if (cache && has_cached_input_dependency()) {
+    if (use_cache && has_cached_input_dependency()) {
         create_cached_input_dependency_analysis();
     } else {
-        if (cache) {
+        if (use_cache) {
             llvm::dbgs() << "Bitcode does not contain cached information. Running normal input dependency\n";
         }
         create_input_dependency_analysis(AARGetter);

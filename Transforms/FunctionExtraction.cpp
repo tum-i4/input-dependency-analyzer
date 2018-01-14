@@ -154,6 +154,12 @@ void SnippetsCreator::expand_snippets()
         if (m_snippets[i]->intersects(*m_snippets[next])) {
             if (m_snippets[next]->merge(*m_snippets[i])) {
                 to_erase.push_back(i);
+            } else if (m_snippets[i]->merge(*m_snippets[next])) {
+                // swap
+                auto tmp = m_snippets[next];
+                m_snippets[next] = m_snippets[i];
+                m_snippets[i] = tmp;
+                to_erase.push_back(i);
             }
         }
     }
@@ -222,18 +228,20 @@ template <class T>
 bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
 {
     // return true if at least one argument are input dependent
-    bool is_input_dep = true;
+    bool is_input_dep = false;
     for (unsigned i = 0; i < I->getNumArgOperands(); ++i) {
         auto op = I->getArgOperand(i);
         if (auto op_inst = llvm::dyn_cast<llvm::Instruction>(op)) {
             is_input_dep = m_input_dep_info->isInputDependent(op_inst);
-            if (!is_input_dep) {
+            if (is_input_dep) {
+                is_input_dep = true;
                 break;
             }
-        } else if (llvm::dyn_cast<llvm::Constant>(op)) {
-            is_input_dep = false;
-            break;
         }
+        //else if (llvm::dyn_cast<llvm::Constant>(op)) {
+        //    is_input_dep = false;
+        //    break;
+        //}
     }
     return is_input_dep;
 }

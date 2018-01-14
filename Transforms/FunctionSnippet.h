@@ -44,6 +44,8 @@ public:
     {
         return false;
     }
+    virtual llvm::BasicBlock* get_begin_block() const = 0;
+    virtual llvm::BasicBlock* get_end_block() const = 0;
     virtual bool intersects(const Snippet& snippet) const = 0;
     virtual void expand() = 0;
     virtual void adjust_end() = 0;
@@ -78,6 +80,7 @@ public:
     using iterator = llvm::BasicBlock::iterator;
 
 public:
+    InstructionsSnippet();
     InstructionsSnippet(llvm::BasicBlock* block, iterator begin, iterator end);
 
 public:
@@ -85,7 +88,8 @@ public:
     unsigned get_instructions_number() const override;
     bool contains_instruction(llvm::Instruction* instr) const override;
     bool contains_block(llvm::BasicBlock* block) const override;
-
+    llvm::BasicBlock* get_begin_block() const override;
+    llvm::BasicBlock* get_end_block() const override;
     bool is_single_instr_snippet() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
@@ -157,8 +161,8 @@ public:
     const InstructionsSnippet& get_start_snippet() const;
     iterator get_begin() const;
     iterator get_end() const;
-    llvm::BasicBlock* get_begin_block() const;
-    llvm::BasicBlock* get_end_block() const;
+    llvm::BasicBlock* get_begin_block() const override;
+    llvm::BasicBlock* get_end_block() const override;
 
 public:
     static bool is_valid_snippet(iterator begin, iterator end, llvm::Function* F);
@@ -168,6 +172,7 @@ private:
     iterator m_begin;
     iterator m_end;
     InstructionsSnippet m_start;
+    InstructionsSnippet m_tail;
     BlockSet m_blocks;
 };
 

@@ -48,7 +48,7 @@ private:
 
 // checks if snippet1 is predecessor snippet for snippet2,
 //meaning begin block of snippet2 is successor node for end block of snippet1
-bool is_predecessing_block_snippet(const BasicBlocksSnippet& snippet1, const BasicBlocksSnippet& snippet2)
+bool is_predecessing_block_snippet(const Snippet& snippet1, const Snippet& snippet2)
 {
     auto snippet_end = snippet1.get_end_block();
     if (snippet_end == &*snippet1.get_begin_block()->getParent()->end()) {
@@ -479,6 +479,13 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
 
 }
 
+InstructionsSnippet::InstructionsSnippet()
+    : m_block(nullptr)
+    , m_begin_idx(-1)
+    , m_end_idx(-1)
+{
+}
+
 InstructionsSnippet::InstructionsSnippet(llvm::BasicBlock* block,
                                          iterator begin,
                                          iterator end)
@@ -600,7 +607,6 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
         m_used_values.insert(used_values.begin(), used_values.end());
         return true;
     }
-    llvm::dbgs() << "Do not merge instruction snippet with basic block snippet.\n";
     return false;
     // do not merge instruction snippet with block snippet,
     // as block snippet should be turn into instruction snippet
@@ -754,6 +760,16 @@ bool InstructionsSnippet::is_valid_snippet(iterator begin,
     return valid;
 }
 
+llvm::BasicBlock* InstructionsSnippet::get_begin_block() const
+{
+    return m_block;
+}
+
+llvm::BasicBlock* InstructionsSnippet::get_end_block() const
+{
+    return m_block;
+}
+
 bool InstructionsSnippet::is_single_instr_snippet() const
 {
     return m_begin == m_end;
@@ -902,7 +918,14 @@ bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
     if (!m_start.is_valid_snippet()) {
         return false;
     }
-    return m_start.intersects(snippet);
+    auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
+    if (contains_block(instr_snippet->get_block())) {
+        return true;
+    }
+    if (instr_snippet->get_begin_index() == 0 && is_predecessing_block_snippet(*this, *instr_snippet)) {
+        return true;
+    }
+    return false;
 }
 
 void BasicBlocksSnippet::expand()
@@ -931,6 +954,7 @@ void BasicBlocksSnippet::collect_used_values()
         auto used_in_start = m_start.get_used_values();
         m_used_values.insert(used_in_start.begin(), used_in_start.end());
     }
+
     for (const auto& block : m_blocks) {
         if (m_start.is_valid_snippet() && block == m_start.get_block()) {
             continue;
@@ -939,6 +963,11 @@ void BasicBlocksSnippet::collect_used_values()
     }
     if (m_blocks.find(&*m_begin) == m_blocks.end()) {
         collect_values(m_begin->begin(), m_begin->end(), *this, m_used_values);
+    }
+    if (m_tail.is_valid_snippet()) {
+        m_tail.collect_used_values();
+        auto used_in_start = m_start.get_used_values();
+        m_used_values.insert(used_in_start.begin(), used_in_start.end());
     }
 }
 
@@ -953,7 +982,16 @@ bool BasicBlocksSnippet::merge(const Snippet& snippet)
     //snippet.dump();
     auto instr_snippet = const_cast<Snippet&>(snippet).to_instrSnippet();
     if (instr_snippet) {
-        return m_start.merge(snippet);
+        if (instr_snippet->get_begin_index() == 0 && is_predecessing_block_snippet(*this, *instr_snippet)) {
+            if (instr_snippet->is_block()) {
+                m_end = Utils::get_block_pos(instr_snippet->get_block());
+                m_blocks.insert(&*m_end);
+            } else {
+                m_tail = *instr_snippet;
+            }
+            return true;
+        }
+        return false;
     }
     bool modified = false;
     auto block_snippet = const_cast<Snippet&>(snippet).to_blockSnippet();
@@ -1050,6 +1088,11 @@ llvm::Function* BasicBlocksSnippet::to_function()
         auto entry_terminator = llvm::BranchInst::Create(begin_block);
         entry_block->getInstList().push_back(entry_terminator);
     }
+    if (m_tail.is_valid_snippet()) {
+        auto tail_block_pos = value_to_value_map.find(m_tail.get_block());
+        llvm::BasicBlock* tail_block = llvm::dyn_cast<llvm::BasicBlock>(&*tail_block_pos->second);
+        clone_snippet_to_function(tail_block, m_tail.get_begin(), m_tail.get_end(), value_to_value_map);
+    }
 
     // create new exit block
     auto exit_block_entry = value_to_value_map.find(&*m_end);
@@ -1092,6 +1135,9 @@ llvm::Function* BasicBlocksSnippet::to_function()
         auto insert_before = call_block->end();
         --insert_before;
         create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
+    }
+    if (m_tail.is_valid_snippet()) {
+        erase_instruction_snippet(m_tail.get_block(), m_tail.get_begin(), m_tail.get_end());
     }
     erase_block_snippet(m_function, !has_start_snippet, m_begin, m_end, m_blocks, blocks_in_erase_order);
 
@@ -1161,6 +1207,9 @@ void BasicBlocksSnippet::dump() const
         } else {
             llvm::dbgs() << "End block " << m_end->getName() << "\n";
         }
+    }
+    if (m_tail.is_valid_snippet()) {
+        m_tail.dump();
     }
     llvm::dbgs() << "*********\n";
 }

@@ -1,0 +1,16 @@
+{
+    "functions": [
+    {
+        "name": "pthread_create",
+         "deps": [
+         {
+             "0": ["dep"],
+             "1": ["indep"],
+             "3": ["indep"],
+             "return": ["dep"]
+         }
+         ],
+         "callback_arguments": [2]
+    }
+    ]
+}

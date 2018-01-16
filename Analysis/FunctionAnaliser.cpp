@@ -786,12 +786,14 @@ void FunctionAnaliser::Impl::updateFunctionInputDependencies()
         if (m_is_inputDep) {
             if (calledFA) {
                 calledFA->setIsInputDepFunction(true);
+                InputDepConfig::get().add_skip_input_dep_function(calledF);
             }
         } else {
             const auto& callDepInfo = getFunctionCallDepInfo(calledF);
             for (const auto& callSite : callDepInfo.getCallSites()) {
                 if (isInputDependentBlock(callSite->getParent())) {
                     calledFA->setIsInputDepFunction(true);
+                    InputDepConfig::get().add_skip_input_dep_function(calledF);
                 }
             }
         }

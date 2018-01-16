@@ -364,13 +364,11 @@ void BasicBlockAnalysisResult::markFunctionsForValue(llvm::Value* value)
     for (auto& F : functions) {
         auto FA = m_FAG(F);
         // if no FA save for later point?
+        llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
         if (FA) {
-            llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
             FA->setIsInputDepFunction(true);
-        } else {
-            llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
-            InputDepConfig::get().add_skip_input_dep_function(F);
         }
+        InputDepConfig::get().add_skip_input_dep_function(F);
     }
 }
 

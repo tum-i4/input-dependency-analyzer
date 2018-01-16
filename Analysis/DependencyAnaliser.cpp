@@ -1,6 +1,7 @@
 #include "DependencyAnaliser.h"
 
 #include "InputDepInstructionsRecorder.h"
+#include "InputDepConfig.h"
 #include "FunctionAnaliser.h"
 #include "LibFunctionInfo.h"
 #include "LLVMIntrinsicsInfo.h"
@@ -1111,7 +1112,16 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
             llvm::dbgs() << "No actual value for formal argument " << arg << "\n";
         }
         if (libFInfo.isCallbackArgument(&arg)) {
-            markCallbackFunctionsForValue(actualArg);
+            if (auto* arg_F = llvm::dyn_cast<llvm::Function>(actualArg)) {
+                llvm::dbgs() << "Set input dependency of a function " << arg_F->getName() << "\n";
+                auto arg_FA = m_FAG(arg_F);
+                if (arg_FA) {
+                    arg_FA->setIsInputDepFunction(true);
+                }
+                InputDepConfig::get().add_skip_input_dep_function(arg_F);
+            } else {
+                markCallbackFunctionsForValue(actualArg);
+            }
         }
         if (!arg.getType()->isPointerTy()) {
             continue;

@@ -17,6 +17,7 @@ void LibraryInfoFromConfigFile::setup()
     }
     json root;
     ifs >> root;
+    llvm::dbgs() << "Parsing library functions config\n";
     const json functions = root["functions"];
     for (unsigned i = 0; i < functions.size(); ++i) {
         const json function_val = functions[i];

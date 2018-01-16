@@ -6,6 +6,10 @@
 
 #include <memory>
 
+namespace llvm {
+class FunctionType;
+}
+
 namespace input_dependency {
 
 class VirtualCallSiteAnalysisResult
@@ -37,26 +41,22 @@ private:
 class IndirectCallSitesAnalysisResult
 {
 public:
-    void addIndirectCallTarget(llvm::CallInst* call, llvm::Function* target);
-    void addIndirectCallTargets(llvm::CallInst* call, const FunctionSet& targets);
-    void addIndirectInvokeTarget(llvm::InvokeInst* invoke, llvm::Function* target);
-    void addIndirectInvokeTargets(llvm::InvokeInst* invoke, const FunctionSet& targets);
+    void addIndirectCallTarget(llvm::FunctionType* type, llvm::Function* target);
+    void addIndirectCallTargets(llvm::FunctionType* type, const FunctionSet& targets);
 
-    bool hasIndirectTargets(llvm::Instruction* instr) const;
-    const FunctionSet& getIndirectTargets(llvm::Instruction* instr) const;
-    // TODO: remove these functions and replace their usages with more generic functions above
-    bool hasIndirectCallTargets(llvm::CallInst* call) const;
-    const FunctionSet& getIndirectCallTargets(llvm::CallInst* call) const;
-    bool hasIndirectInvokeTargets(llvm::InvokeInst* invoke) const;
-    const FunctionSet& getIndirectInvokeTargets(llvm::InvokeInst* invoke) const;
+    bool hasIndirectTargets(llvm::FunctionType* func_ty) const;
+    const FunctionSet& getIndirectTargets(llvm::FunctionType* func_ty) const;
+    template <class CallInstTy>
+    bool hasIndirectTargets(CallInstTy* instr) const;
+    template <class CallInstTy>
+    const FunctionSet& getIndirectTargets(CallInstTy* instr) const;
 
 public:
     void dump();
 
 private:
-    std::unordered_map<llvm::Instruction*, FunctionSet> m_indirectCallTargets;
+    std::unordered_map<llvm::FunctionType*, FunctionSet> m_indirectCallTargets;
 }; // class IndirectCallSitesAnalysisResult
-
 
 class IndirectCallSitesAnalysis : public llvm::ModulePass
 {

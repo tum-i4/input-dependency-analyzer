@@ -550,8 +550,8 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
         if (calledF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
-            } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
-                targets = m_indirectCallsInfo.getIndirectCallTargets(callInst);
+            } else if (m_indirectCallsInfo.hasIndirectTargets(callInst)) {
+                targets = m_indirectCallsInfo.getIndirectTargets(callInst);
             } else {
                 continue;
             }
@@ -590,8 +590,8 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionReferencedGlobals(llvm
         if (calledF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
-            } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
-                targets = m_indirectCallsInfo.getIndirectCallTargets(callInst);
+            } else if (m_indirectCallsInfo.hasIndirectTargets(callInst)) {
+                targets = m_indirectCallsInfo.getIndirectTargets(callInst);
             } else {
                 continue;
             }
@@ -633,8 +633,8 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
         if (invokedF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualInvokeCandidates(invokeInst)) {
                 targets = m_virtualCallsInfo.getVirtualInvokeCandidates(invokeInst);
-            } else if (m_indirectCallsInfo.hasIndirectInvokeTargets(invokeInst)) {
-                targets = m_indirectCallsInfo.getIndirectInvokeTargets(invokeInst);
+            } else if (m_indirectCallsInfo.hasIndirectTargets(invokeInst)) {
+                targets = m_indirectCallsInfo.getIndirectTargets(invokeInst);
             } else {
                 continue;
             }

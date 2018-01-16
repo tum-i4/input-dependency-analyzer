@@ -156,7 +156,7 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
 {
     llvm::dbgs() << "Processing function " << F->getName() << "\n";
     if (InputDepConfig::get().is_skip_input_dep_function(F)) {
-        llvm::dbgs() << "Don't analyze. Input dependent function\n";
+        llvm::dbgs() << "Input dependent function: don't analyze. \n";
         m_functionAnalisers.insert(std::make_pair(F, InputDepResType(new InputDependentFunctionAnalysisResult(F))));
         return;
     }

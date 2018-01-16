@@ -2,6 +2,7 @@
 
 #include "Utils.h"
 #include "FunctionAnaliser.h"
+#include "InputDepConfig.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/Constants.h"
@@ -366,6 +367,9 @@ void BasicBlockAnalysisResult::markFunctionsForValue(llvm::Value* value)
         if (FA) {
             llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
             FA->setIsInputDepFunction(true);
+        } else {
+            llvm::dbgs() << "Set input dependency of a function " << F->getName() << "\n";
+            InputDepConfig::get().add_skip_input_dep_function(F);
         }
     }
 }
@@ -411,8 +415,8 @@ void BasicBlockAnalysisResult::removeCallbackFunctionsForValue(llvm::Value* valu
             continue;
         }
         auto alias = m_AAR.alias(value, valDep.first);
-        // what about partial alias
-        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+        // must alias only, as in case of structs a callback field "may alias" even with other fields
+        if (/*alias == llvm::AliasResult::MayAlias || */alias == llvm::AliasResult::MustAlias) {
             m_functionValues.erase(pos);
             //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
         }
@@ -431,7 +435,7 @@ void BasicBlockAnalysisResult::removeCallbackFunctionsForValue(llvm::Value* valu
         }
         auto alias = m_AAR.alias(value, valDep.first);
         // what about partial alias
-        if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::MustAlias) {
+        if (/*alias == llvm::AliasResult::MayAlias || */alias == llvm::AliasResult::MustAlias) {
             m_functionValues.erase(pos);
             //llvm::dbgs() << "May aliases " << *valDep.first << "\n";
         }

@@ -37,6 +37,16 @@ llvm::Function* getAliasingFunction(llvm::Value* calledValue)
     return nullptr;
 }
 
+llvm::FunctionType* getFunctionType(llvm::Value* val)
+{
+    llvm::FunctionType* func_type = llvm::dyn_cast<llvm::FunctionType>(val->getType());
+    if (!func_type) {
+        if (auto* ptr_type = llvm::dyn_cast<llvm::PointerType>(val->getType())) {
+            func_type = llvm::dyn_cast<llvm::FunctionType>(ptr_type->getElementType());
+        }
+    }
+    return func_type;
+}
 
 } // unnamed namespace
 
@@ -316,7 +326,13 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     if (auto* function = llvm::dyn_cast<llvm::Function>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
         m_functionValues[storeTo].insert(function);
-    } else if (llvm::dyn_cast<llvm::Constant>(op)) {
+    } else if (auto* func_type = getFunctionType(op)) {
+        if (m_indirectCallsInfo.hasIndirectTargets(func_type)) {
+            for (const auto& target : m_indirectCallsInfo.getIndirectTargets(func_type)) {
+                m_functionValues[storeTo].insert(target);
+            }
+        }
+    }else if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
     } else {
         info.mergeDependencies(getValueDependencies(op));
@@ -363,8 +379,8 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         if (F == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 processCallSiteWithMultipleTargets(callInst, m_virtualCallsInfo.getVirtualCallCandidates(callInst));
-            } else if (m_indirectCallsInfo.hasIndirectCallTargets(callInst)) {
-                processCallSiteWithMultipleTargets(callInst, m_indirectCallsInfo.getIndirectCallTargets(callInst));
+            } else if (m_indirectCallsInfo.hasIndirectTargets(callInst)) {
+                processCallSiteWithMultipleTargets(callInst, m_indirectCallsInfo.getIndirectTargets(callInst));
             } else {
                 // make all out args input dependent
                 updateCallInputDependentOutArgDependencies(callInst);
@@ -407,8 +423,8 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
         if (F == nullptr) {
             if (m_virtualCallsInfo.hasVirtualInvokeCandidates(invokeInst)) {
                 processInvokeSiteWithMultipleTargets(invokeInst, m_virtualCallsInfo.getVirtualInvokeCandidates(invokeInst));
-            } else if (m_indirectCallsInfo.hasIndirectInvokeTargets(invokeInst)) {
-                processInvokeSiteWithMultipleTargets(invokeInst, m_indirectCallsInfo.getIndirectInvokeTargets(invokeInst));
+            } else if (m_indirectCallsInfo.hasIndirectTargets(invokeInst)) {
+                processInvokeSiteWithMultipleTargets(invokeInst, m_indirectCallsInfo.getIndirectTargets(invokeInst));
             } else {
                 // make all out args input dependent
                 updateInvokeInputDependentOutArgDependencies(invokeInst);

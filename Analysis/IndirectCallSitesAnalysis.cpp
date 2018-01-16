@@ -23,12 +23,8 @@ namespace input_dependency {
 
 namespace {
 
-bool isIndirectCall(llvm::CallInst* inst)
-{
-    return inst->getCalledFunction() == nullptr;
-}
-
-bool isIndirectInvoke(llvm::InvokeInst* inst)
+template <class CallInstTy>
+bool isIndirectCall(CallInstTy* inst)
 {
     return inst->getCalledFunction() == nullptr;
 }
@@ -53,66 +49,19 @@ public:
     } 
 
 private:
-    void buildIndirectCallTargets();
-
-private:
     IndirectCallSitesAnalysisResult analysisRes;
-    std::unordered_map<llvm::Instruction*, llvm::FunctionType*> call_types;
-    std::unordered_map<llvm::FunctionType*, FunctionSet> type_functions;
 };
 
 void IndirectCallSitesAnalysis::IndirectsImpl::runOnModule(llvm::Module& M)
 {
     for (auto& F : M) {
-        auto type = F.getFunctionType();
-        type_functions[type].insert(&F);
-        llvm::Value* calledValue = nullptr;
-        for (auto& B : F) {
-            for (auto& I : B) {
-                calledValue = nullptr;
-                if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(&I)) {
-                    if (isIndirectCall(callInst)) {
-                        calledValue = callInst->getCalledValue();
-                    }
-                } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
-                    if (isIndirectInvoke(invokeInst)) {
-                        calledValue = invokeInst->getCalledValue();
-                    }
-                }
-                if (calledValue != nullptr) {
-                    auto calledType = calledValue->getType();
-                    if (auto pointerTy = llvm::dyn_cast<llvm::PointerType>(calledType)) {
-                        calledType = pointerTy->getElementType();
-                    }
-                    auto funcTy = llvm::dyn_cast<llvm::FunctionType>(calledType);
-                    if (funcTy == nullptr) {
-                        continue;
-                    }
-                    auto res = call_types.insert(std::make_pair(&I, funcTy));
-                    assert(res.second);
-                }
-            }
-        }
-    }
-    buildIndirectCallTargets();
-    //analysisRes.dump();
-}
-
-void IndirectCallSitesAnalysis::IndirectsImpl::buildIndirectCallTargets()
-{
-    for (auto& indirectCall : call_types) {
-        auto indirectCallTargets = type_functions.find(indirectCall.second);
-        if (indirectCallTargets == type_functions.end()) {
+        if (F.isDeclaration()) {
             continue;
         }
-        if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(indirectCall.first)) {
-            analysisRes.addIndirectCallTargets(callInst, indirectCallTargets->second);
-        } else {
-            auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(indirectCall.first);
-            assert(invokeInst != nullptr);
-            analysisRes.addIndirectInvokeTargets(invokeInst, indirectCallTargets->second);
-        }
+        auto type = F.getFunctionType();
+        analysisRes.addIndirectCallTarget(type, &F);
     }
+    //analysisRes.dump();
 }
 
 class IndirectCallSitesAnalysis::VirtualsImpl
@@ -339,50 +288,37 @@ void IndirectCallSitesAnalysis::VirtualsImpl::updateResults(const std::vector<Vi
     }
 }
 
-
-void IndirectCallSitesAnalysisResult::addIndirectCallTarget(llvm::CallInst* call, llvm::Function* target)
+void IndirectCallSitesAnalysisResult::addIndirectCallTarget(llvm::FunctionType* type, llvm::Function* target)
 {
-    m_indirectCallTargets[call].insert(target);
+    m_indirectCallTargets[type].insert(target);
 }
 
-void IndirectCallSitesAnalysisResult::addIndirectCallTargets(llvm::CallInst* call, const FunctionSet& targets)
+void IndirectCallSitesAnalysisResult::addIndirectCallTargets(llvm::FunctionType* type, const FunctionSet& targets)
 {
-    m_indirectCallTargets[call].insert(targets.begin(), targets.end());
+    m_indirectCallTargets[type].insert(targets.begin(), targets.end());
 }
 
-void IndirectCallSitesAnalysisResult::addIndirectInvokeTarget(llvm::InvokeInst* call, llvm::Function* target)
+bool IndirectCallSitesAnalysisResult::hasIndirectTargets(llvm::FunctionType* func_ty) const
 {
-    m_indirectCallTargets[call].insert(target);
+    return m_indirectCallTargets.find(func_ty) != m_indirectCallTargets.end();
 }
 
-void IndirectCallSitesAnalysisResult::addIndirectInvokeTargets(llvm::InvokeInst* invoke, const FunctionSet& targets)
+const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(llvm::FunctionType* func_ty) const
 {
-    m_indirectCallTargets[invoke].insert(targets.begin(), targets.end());
+    auto pos = m_indirectCallTargets.find(func_ty);
+    return pos->second;
 }
 
-bool IndirectCallSitesAnalysisResult::hasIndirectTargets(llvm::Instruction* instr) const
+template <class CallInstTy>
+bool IndirectCallSitesAnalysisResult::hasIndirectTargets(CallInstTy* instr) const
 {
-    return m_indirectCallTargets.find(instr) != m_indirectCallTargets.end();
+    return hasIndirectTargets(instr->getFunctionType());
 }
 
-bool IndirectCallSitesAnalysisResult::hasIndirectCallTargets(llvm::CallInst* call) const
+template <class CallInstTy>
+const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(CallInstTy* instr) const
 {
-    return m_indirectCallTargets.find(call) != m_indirectCallTargets.end();
-}
-
-const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectCallTargets(llvm::CallInst* call) const
-{
-    return getIndirectTargets(call);
-}
-
-bool IndirectCallSitesAnalysisResult::hasIndirectInvokeTargets(llvm::InvokeInst* invoke) const
-{
-    return m_indirectCallTargets.find(invoke) != m_indirectCallTargets.end();
-}
-
-const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectInvokeTargets(llvm::InvokeInst* invoke) const
-{
-    return getIndirectTargets(invoke);
+    return getIndirectTargets(instr->getFunctionType());
 }
 
 void IndirectCallSitesAnalysisResult::dump()
@@ -395,12 +331,8 @@ void IndirectCallSitesAnalysisResult::dump()
     }
 }
 
-const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(llvm::Instruction* instr) const
-{
-    auto pos = m_indirectCallTargets.find(instr);
-    return pos->second;
-}
-
+template bool IndirectCallSitesAnalysisResult::hasIndirectTargets<llvm::CallInst>(llvm::CallInst*) const;
+template const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets<llvm::CallInst>(llvm::CallInst*) const;
 
 void VirtualCallSiteAnalysisResult::addVirtualCall(llvm::CallInst* call)
 {

@@ -122,7 +122,7 @@ void ValueDepInfo::updateValueDep(llvm::Instruction* el_instr,
     }
     auto get_el_instr = llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
-        m_depInfo = depInfo.getValueDep();
+        updateCompositeValueDep(depInfo.getValueDep());
         return;
     }
     // get element index

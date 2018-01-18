@@ -733,6 +733,12 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         instrDepInfo = getInstructionDependencies(llvm::dyn_cast<llvm::Instruction>(loadOp));
         updateValueDependencies(instr, instrDepInfo, false);
         return instrDepInfo;
+    } else {
+        auto args = isInput(loadedValue);
+        if (!args.empty()) {
+            updateValueDependencies(instr, DepInfo(DepInfo::INPUT_ARGDEP, args), false);
+            return DepInfo(DepInfo::INPUT_ARGDEP, args);
+        }
     }
     valueDepInfo = getValueDependencies(loadedValue);
     if (!valueDepInfo.isDefined()) {

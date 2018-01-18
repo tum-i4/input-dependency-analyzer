@@ -1098,6 +1098,12 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
         // Try with non-demangled name
         Fname = F->getName();
     }
+    if (F->isIntrinsic()) {
+        const auto& intrinsic_name = LLVMIntrinsicsInfo::get_intrinsic_name(Fname);
+        if (!intrinsic_name.empty()) {
+            Fname = intrinsic_name;
+        }
+    }
     auto& libInfo = LibraryInfoManager::get();
     if (!libInfo.hasLibFunctionInfo(Fname)) {
         updateInputDepLibFunctionCallOutArgDependencies(F, argumentValueGetter);
@@ -1180,9 +1186,6 @@ llvm::Value* DependencyAnaliser::getFunctionOutArgumentValue(llvm::Value* actual
     if (auto* argInstr = llvm::dyn_cast<llvm::Instruction>(actualArg)) {
         if (llvm::dyn_cast<llvm::CallInst>(argInstr)) {
             return nullptr;
-        }
-        if (llvm::dyn_cast<llvm::AllocaInst>(argInstr)) {
-            return getMemoryValue(argInstr);
         }
         return getMemoryValue(argInstr);
     }

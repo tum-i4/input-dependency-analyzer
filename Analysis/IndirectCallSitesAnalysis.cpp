@@ -333,6 +333,8 @@ void IndirectCallSitesAnalysisResult::dump()
 
 template bool IndirectCallSitesAnalysisResult::hasIndirectTargets<llvm::CallInst>(llvm::CallInst*) const;
 template const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets<llvm::CallInst>(llvm::CallInst*) const;
+template bool IndirectCallSitesAnalysisResult::hasIndirectTargets<llvm::InvokeInst>(llvm::InvokeInst*) const;
+template const FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets<llvm::InvokeInst>(llvm::InvokeInst*) const;
 
 void VirtualCallSiteAnalysisResult::addVirtualCall(llvm::CallInst* call)
 {

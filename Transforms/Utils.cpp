@@ -131,6 +131,14 @@ void Utils::check_module(const llvm::Module& M)
                             << ". Return value type: " << *returnValue->getType() << "\n";
                         llvm::dbgs() << F << "\n";
                     }
+                } else if (retInstr->getType()->isVoidTy() && !F.getReturnType()->isVoidTy()) {
+                    llvm::dbgs() << "Invalid return type. Return type " << *F.getReturnType()
+                        << ". Return value type: " << *retInstr->getType() << "\n";
+                        llvm::dbgs() << F << "\n";
+                } else if (!retInstr->getType()->isVoidTy() && F.getReturnType()->isVoidTy()) {
+                    llvm::dbgs() << "Invalid return type. Return type " << *F.getReturnType()
+                        << ". Return value type: " << *retInstr->getType() << "\n";
+                        llvm::dbgs() << F << "\n";
                 }
             }
             for (auto& I : B) {
@@ -146,6 +154,7 @@ void Utils::check_module(const llvm::Module& M)
             }
         }
         if (ret_count > 1) {
+            llvm::dbgs() << F << "\n";
             llvm::dbgs() << "more than one ret\n";
         }
     }

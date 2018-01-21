@@ -122,6 +122,7 @@ private:
                                 InstructionSet& instructions);
     void expand_for_instruction_operand(llvm::Value* val,
                                         InstructionSet& instructions);
+    bool can_erase_snippet() const;
 
 private:
     llvm::BasicBlock* m_block;
@@ -166,6 +167,12 @@ public:
 
 public:
     static bool is_valid_snippet(iterator begin, iterator end, llvm::Function* F);
+
+private:
+    bool can_erase_block_snippet() const;
+    bool can_erase_block(llvm::BasicBlock* block) const;
+    bool can_erase_instruction_range(llvm::BasicBlock::iterator begin,
+                                     llvm::BasicBlock::iterator end) const;
 
 private:
     llvm::Function* m_function;

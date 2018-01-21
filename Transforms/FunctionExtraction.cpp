@@ -80,6 +80,7 @@ private:
 
 void SnippetsCreator::collect_snippets(bool expand)
 {
+    llvm::dbgs() << "Start collecting snippets\n";
     std::unordered_set<const llvm::BasicBlock*> processed_blocks;
     auto it = m_F.begin();
     while (it != m_F.end()) {
@@ -139,7 +140,6 @@ void SnippetsCreator::expand_snippets()
             m_snippets.clear();
         }
     }
-
     std::vector<int> to_erase;
     for (unsigned i = 0; i < m_snippets.size(); ++i) {
         if (!m_snippets[i]) {
@@ -186,12 +186,12 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
             // TODO: what other instructions might be intresting?
             if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
                 llvm::Function* called_f = callInst->getCalledFunction();
-                if (called_f && called_f->getReturnType()->isVoidTy()) {
+                if (callInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
                     is_input_dep = derive_input_dependency_from_args(callInst);
                 }
             } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(I)) {
                 llvm::Function* called_f = invokeInst->getCalledFunction();
-                if (called_f && called_f->getReturnType()->isVoidTy()) {
+                if (invokeInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
                     is_input_dep = derive_input_dependency_from_args(invokeInst);
                 }
             }
@@ -249,6 +249,9 @@ bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
 
 bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
 {
+    if (m_input_dep_info->isInputDependentBlock(block)) {
+        return true;
+    }
     auto terminator = block->getTerminator();
     if (!m_input_dep_info->isInputDependent(terminator)) {
         return false;
@@ -335,7 +338,7 @@ void run_on_function(llvm::Function& F,
     creator.collect_snippets(true);
     const auto& snippets = creator.get_snippets();
 
-    llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
+    //llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
     for (auto& snippet : snippets) {
         if (!snippet) {
             continue;
@@ -347,11 +350,14 @@ void run_on_function(llvm::Function& F,
         }
         // **** DEBUG
         //if (F.getName() == "") {
-        //    llvm::dbgs() << "To Function\n";
+        //    llvm::dbgs() << "To Function " << F.getName() << "\n";
         //    snippet->dump();
         //}
         // **** DEBUG END
         auto extracted_function = snippet->to_function();
+        if (!extracted_function) {
+            continue;
+        }
         input_dependency::InputDepConfig::get().add_skip_input_dep_function(extracted_function);
         //llvm::dbgs() << "Extracted to function " << *extracted_function << "\n";
         extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));

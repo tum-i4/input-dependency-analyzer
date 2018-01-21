@@ -92,6 +92,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
 
             auto f_analysisInfo = getFunctionInputDepInfo(currentF);
             if (f_analysisInfo == nullptr) {
+                llvm::dbgs() << "Skip function: No input dependency info\n";
                 original_uses[currentF] = true;
                 unused_originals.erase(currentF);
                 to_process.erase(currentF);
@@ -99,6 +100,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
             }
             m_cloneStatistics->add_numOfInDepInstAfterCloning(f_analysisInfo->get_input_indep_count());
             if (f_analysisInfo->isInputDepFunction()) {
+                llvm::dbgs() << "Skip function: input dependent\n";
                 original_uses[currentF] = true;
                 to_process.erase(currentF);
                 continue;

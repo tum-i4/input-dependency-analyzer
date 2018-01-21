@@ -670,6 +670,7 @@ void BasicBlockAnalysisResult::markAllInputDependent()
     for (auto& val : m_valueDependencies) {
         val.second.updateCompositeValueDep(info);
     }
+    m_finalized = true;
 }
 
 long unsigned BasicBlockAnalysisResult::get_input_dep_blocks_count() const

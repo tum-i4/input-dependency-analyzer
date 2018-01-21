@@ -187,22 +187,23 @@ void DependencyAnaliser::processPhiNode(llvm::PHINode* phi)
         assert(selfF != nullptr);
         auto selfFunctionResults = m_FAG(selfF);
         assert(selfFunctionResults);
+        llvm::BasicBlock* incommingBlock = phi->getIncomingBlock(i);
+        const auto& blockDep = selfFunctionResults->getBlockDependencyInfo(incommingBlock);
+        if (blockDep.isDefined()) {
+            info.mergeDependencies(blockDep);
+        } else {
+            info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
+        }
         if (llvm::dyn_cast<llvm::Constant>(val)) {
-            llvm::BasicBlock* incommingBlock = phi->getIncomingBlock(i);
-            const auto& blockDep = selfFunctionResults->getBlockDependencyInfo(incommingBlock);
-            if (blockDep.isDefined()) {
-                info.mergeDependencies(blockDep);
-            } else {
-                info.mergeDependencies(DepInfo(DepInfo::INPUT_INDEP));
-            }
             continue;
         }
         const auto& valDeps = getValueDependencies(val);
         if (valDeps.isDefined()) {
             info.mergeDependencies(valDeps.getValueDep());
         } else {
-            const auto& depInfofromBlock = selfFunctionResults->getDependencyInfoFromBlock(val,
-                                                    phi->getIncomingBlock(i)).getValueDep();
+            const auto& deps = selfFunctionResults->getDependencyInfoFromBlock(val,
+                                                    phi->getIncomingBlock(i));
+            const auto& depInfofromBlock = deps.getValueDep();
             if (!depInfofromBlock.isDefined()) {
                 continue;
             }

@@ -62,6 +62,7 @@ public:
 
 private:
     void runOnFunction(llvm::Function* F);
+    void processInputDependentCallSites(llvm::Function* F);
     void doFinalization();
 
     void finalizeForArguments(llvm::Function* F, InputDepResType& FA);

@@ -18,6 +18,7 @@
 #include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Metadata.h"
@@ -156,7 +157,8 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
 {
     llvm::dbgs() << "Processing function " << F->getName() << "\n";
     if (InputDepConfig::get().is_skip_input_dep_function(F)) {
-        llvm::dbgs() << "Input dependent function: don't analyze. \n";
+        llvm::dbgs() << "Input dependent function: process call sites only. \n";
+        processInputDependentCallSites(F);
         m_functionAnalisers.insert(std::make_pair(F, InputDepResType(new InputDependentFunctionAnalysisResult(F))));
         return;
     }
@@ -178,6 +180,36 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
     analyzer->analyze();
     const auto& calledFunctions = analyzer->getCallSitesData();
     mergeCallSitesData(F, calledFunctions);
+}
+
+void InputDependencyAnalysis::processInputDependentCallSites(llvm::Function* F)
+{
+    for (const auto& B : *F) {
+        for (const auto& I : B) {
+            llvm::FunctionType* type = nullptr;
+            llvm::Function* calledFunction = nullptr;
+            if (auto* call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+                calledFunction = call->getCalledFunction();
+                type = call->getFunctionType();
+            } else if (auto* invoke = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
+                calledFunction = call->getCalledFunction();
+                type = call->getFunctionType();
+            }
+            if (calledFunction && !calledFunction->isDeclaration()) {
+                InputDepConfig::get().add_skip_input_dep_function(calledFunction);
+                m_functionAnalisers[calledFunction] = InputDepResType(new InputDependentFunctionAnalysisResult(calledFunction));
+            } else if (type && m_indirectCallSiteAnalysisRes->hasIndirectTargets(type)) {
+                const auto& targets = m_indirectCallSiteAnalysisRes->getIndirectTargets(type);
+                for (const auto& target : targets) {
+                    if (target->isDeclaration()) {
+                        continue;
+                    }
+                    InputDepConfig::get().add_skip_input_dep_function(target);
+                    m_functionAnalisers[target] = InputDepResType(new InputDependentFunctionAnalysisResult(target));
+                }
+            }
+        }
+    }
 }
 
 void InputDependencyAnalysis::doFinalization()

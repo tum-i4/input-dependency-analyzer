@@ -81,6 +81,9 @@ void InputDependencyStatistics::reportInputInDepCoverage()
             llvm::dbgs() << "No information for function " << F.getName() << "\n";
             continue;
         }
+        if (F.isDeclaration()) {
+            continue;
+        }
         auto cached_input_indep_data = m_function_input_indep_coverage_data.find(&F);
         if (cached_input_indep_data != m_function_input_indep_coverage_data.end()) {
             report_input_indep_coverage_data(cached_input_indep_data->second);
@@ -123,6 +126,9 @@ void InputDependencyStatistics::reportInputInDepFunctionCoverage()
     for (auto& F : *m_module) {
         auto FA_pos = m_IDA->find(&F);
         if (FA_pos == m_IDA->end()) {
+            continue;
+        }
+        if (F.isDeclaration()) {
             continue;
         }
         auto cached_input_indep_data = m_function_input_indep_function_coverage_data.find(&F);
@@ -173,6 +179,9 @@ void InputDependencyStatistics::reportInputDepCoverage()
         if (FA_pos == m_IDA->end()) {
             continue;
         }
+        if (F.isDeclaration()) {
+            continue;
+        }
         auto cached_input_dep_data = m_function_input_dep_coverage_data.find(&F);
         if (cached_input_dep_data != m_function_input_dep_coverage_data.end()) {
             report_input_dep_coverage_data(cached_input_dep_data->second);
@@ -214,6 +223,9 @@ void InputDependencyStatistics::reportInputDepFunctionCoverage(bool use_cached_d
     for (auto& F : *m_module) {
         auto FA_pos = m_IDA->find(&F);
         if (FA_pos == m_IDA->end()) {
+            continue;
+        }
+        if (F.isDeclaration()) {
             continue;
         }
         if (use_cached_data) {

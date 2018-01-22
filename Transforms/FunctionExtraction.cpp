@@ -261,7 +261,11 @@ bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
         return branch->isConditional();
     }
     auto switch_inst = llvm::dyn_cast<llvm::SwitchInst>(terminator);
-    return (switch_inst != nullptr);
+    if (switch_inst) {
+        return true;
+    }
+    auto invoke_inst = llvm::dyn_cast<llvm::InvokeInst>(terminator);
+    return invoke_inst != nullptr;
 }
 
 SnippetsCreator::BasicBlockRange SnippetsCreator::get_blocks_snippet(llvm::Function::iterator begin_block_pos)

@@ -43,7 +43,10 @@ void CachedFunctionAnalysisResult::parse_block_input_dep_metadata(llvm::BasicBlo
     } else if (auto* unreachable_block = first_instr.getMetadata(metadata_strings::unreachable)) {
         m_unreachableBlocks.insert(&B);
     } else {
-        assert(false);
+        llvm::dbgs() << "No input dependency metadata for block "
+                     << B.getName() << " in function " << B.getParent()->getName() << "\n";
+        llvm::dbgs() << "Mark input dependent\n";
+        m_inputDepBlocks.insert(&B);
     }
 }
 

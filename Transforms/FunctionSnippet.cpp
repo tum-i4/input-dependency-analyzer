@@ -487,6 +487,10 @@ void erase_block_snippet(llvm::Function* function,
         block->eraseFromParent();
     }
     // all predecessors of dummy_block were the ones erased from snippet
+    for (auto dummy_use : dummy_block->users()) {
+        dummy_use->dropAllReferences();
+    }
+    assert(dummy_block->user_empty());
     dummy_block->eraseFromParent();
     // end is not removed
 }
@@ -551,6 +555,9 @@ unsigned InstructionsSnippet::get_instructions_number() const
 
 bool InstructionsSnippet::contains_instruction(llvm::Instruction* instr) const
 {
+    if (instr->getParent() != m_block) {
+        return false;
+    }
     int instr_idx = Utils::get_instruction_index(instr);
     return m_begin_idx <= instr_idx  && instr_idx <= m_end_idx;
 }
@@ -681,6 +688,8 @@ llvm::Function* InstructionsSnippet::to_function()
         llvm::dbgs() << "Can not extract snippet as a function\n";
         return nullptr;
     }
+    m_used_values.clear();
+    collect_used_values();
     // create function type
     llvm::LLVMContext& Ctx = m_block->getModule()->getContext();
     // maps argument index to corresponding value
@@ -1278,13 +1287,13 @@ llvm::Function* BasicBlocksSnippet::to_function()
     bool has_tail_snippet = m_tail.is_valid_snippet();
     has_tail_snippet &= (m_blocks.find(m_tail.get_block()) != m_blocks.end() && m_end != m_function->end() &&
     m_tail.get_block() == &*m_end);
-    llvm::dbgs() << "   Clone blocks\n";
     if (has_tail_snippet) {
         llvm::dbgs() << "Create empty tail block\n";
         llvm::BasicBlock* tail_block = llvm::BasicBlock::Create(new_F->getContext(), m_tail.get_block()->getName());
         new_F->getBasicBlockList().push_back(tail_block);
         value_to_value_map.insert(std::make_pair(m_tail.get_block(), llvm::WeakVH(tail_block)));
     }
+    llvm::dbgs() << "   Clone blocks\n";
     clone_blocks_snippet_to_function(new_F, m_blocks, m_begin, m_end,
                                      !has_start_snippet,
                                      !has_tail_snippet,

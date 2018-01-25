@@ -76,6 +76,7 @@ private:
     InputDependencyAnalysisInfo m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
     snippet_list m_snippets;
+    std::unordered_set<llvm::Instruction*> derived_input_dep_instructions;
 };
 
 void SnippetsCreator::collect_snippets(bool expand)
@@ -188,11 +189,17 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
                 llvm::Function* called_f = callInst->getCalledFunction();
                 if (callInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
                     is_input_dep = derive_input_dependency_from_args(callInst);
+                    if (is_input_dep) {
+                        derived_input_dep_instructions.insert(callInst);
+                    }
                 }
             } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(I)) {
                 llvm::Function* called_f = invokeInst->getCalledFunction();
                 if (invokeInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
                     is_input_dep = derive_input_dependency_from_args(invokeInst);
+                    if (is_input_dep) {
+                        derived_input_dep_instructions.insert(invokeInst);
+                    }
                 }
             }
         }
@@ -235,7 +242,6 @@ bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
         if (auto op_inst = llvm::dyn_cast<llvm::Instruction>(op)) {
             is_input_dep = m_input_dep_info->isInputDependent(op_inst);
             if (is_input_dep) {
-                is_input_dep = true;
                 break;
             }
         }
@@ -253,6 +259,9 @@ bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
         return true;
     }
     auto terminator = block->getTerminator();
+    if (derived_input_dep_instructions.find(terminator) != derived_input_dep_instructions.end()) {
+        return true;
+    }
     if (!m_input_dep_info->isInputDependent(terminator)) {
         return false;
     }
@@ -356,6 +365,7 @@ void run_on_function(llvm::Function& F,
         //if (F.getName() == "") {
         //    llvm::dbgs() << "To Function " << F.getName() << "\n";
         //    snippet->dump();
+        //    llvm::dbgs() << "\n";
         //}
         // **** DEBUG END
         auto extracted_function = snippet->to_function();

@@ -115,7 +115,7 @@ void Utils::check_module(const llvm::Module& M)
     for (auto& F : M) {
         unsigned ret_count = 0;
         llvm::dbgs() << "---Function: " << F.getName() << "\n";
-        //llvm::dbgs() << F << "\n";
+        llvm::dbgs() << F << "\n";
         for (auto& B : F) {
             auto terminator = B.getTerminator();
             if (!terminator) {
@@ -142,6 +142,13 @@ void Utils::check_module(const llvm::Module& M)
                 }
             }
             for (auto& I : B) {
+                for (auto& op : I.operands()) {
+                    if (!op) {
+                        llvm::dbgs() << "Null operand in function \n";
+                        llvm::dbgs() << F;
+                        assert(false);
+                    }
+                }
                 auto* term_instr = llvm::dyn_cast<llvm::TerminatorInst>(&I);
                 if (term_instr && term_instr != terminator) {
                     llvm::dbgs() << "Terminator found in the middle of a basic block! " << B.getName() << "\n";

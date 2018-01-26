@@ -49,7 +49,7 @@ public:
     virtual bool intersects(const Snippet& snippet) const = 0;
     virtual void expand() = 0;
     virtual void adjust_end() = 0;
-    virtual void collect_used_values() = 0;
+    virtual void collect_used_values(const Snippet* parent_snippet) = 0;
     virtual bool merge(const Snippet& snippet) = 0;
     virtual llvm::Function* to_function() = 0;
     virtual void dump() const = 0;
@@ -94,7 +94,7 @@ public:
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void adjust_end() override;
-    void collect_used_values() override;
+    void collect_used_values(const Snippet* parent_snippet) override;
     bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;
     void dump() const override;
@@ -153,7 +153,7 @@ public:
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void adjust_end() override;
-    void collect_used_values() override;
+    void collect_used_values(const Snippet* parent_snippet) override;
     bool merge(const Snippet& snippet) override;
     llvm::Function* to_function() override;
     void dump() const override;
@@ -169,6 +169,7 @@ public:
     static bool is_valid_snippet(iterator begin, iterator end, llvm::Function* F);
 
 private:
+    llvm::BasicBlock* find_return_block() const;
     bool can_erase_block_snippet() const;
     bool can_erase_block(llvm::BasicBlock* block) const;
     bool can_erase_instruction_range(llvm::BasicBlock::iterator begin,

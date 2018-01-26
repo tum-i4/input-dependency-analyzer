@@ -662,7 +662,6 @@ bool InstructionsSnippet::merge(const Snippet& snippet)
             m_end_idx = instr_snippet->get_end_index();
         }
         const auto& used_values = instr_snippet->get_used_values();
-        m_used_values.insert(used_values.begin(), used_values.end());
         return true;
     }
     return false;
@@ -688,7 +687,7 @@ bool InstructionsSnippet::can_erase_snippet() const
         }
         for (const auto& op : it->operands()) {
             if (auto* instr = llvm::dyn_cast<llvm::Instruction>(op)) {
-                if (!contains_instruction(instr)) {
+                if (!contains_instruction(instr) && m_used_values.find(instr) == m_used_values.end()) {
                     llvm::dbgs() << "does not contain operand of " << *it << "  " << *instr << "\n";
                     return false;
                 }
@@ -893,7 +892,6 @@ void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(instr)) {
         assert(instructions.find(instr) != instructions.end());
         if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(load->getPointerOperand())) {
-            m_used_values.insert(alloca);
         } else if (auto loaded_inst = llvm::dyn_cast<llvm::Instruction>(load->getPointerOperand())) {
             expand_for_instruction_operand(loaded_inst, instructions);
         }
@@ -902,14 +900,12 @@ void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
     if (auto store = llvm::dyn_cast<llvm::StoreInst>(instr)) {
         auto value_op = store->getValueOperand();
         if (llvm::dyn_cast<llvm::AllocaInst>(value_op)) {
-            m_used_values.insert(value_op);
             return;
         }
         expand_for_instruction_operand(value_op, instructions);
         auto storeTo = store->getPointerOperand();
         // e.g. for pointer loadInst will be pointer operand, but it should not be used as value
         if (llvm::dyn_cast<llvm::AllocaInst>(storeTo)) {
-            m_used_values.insert(storeTo);
         } else {
             expand_for_instruction_operand(storeTo, instructions);
         }
@@ -928,7 +924,6 @@ void InstructionsSnippet::expand_for_instruction_operand(llvm::Value* val,
         return;
     }
     if (llvm::dyn_cast<llvm::AllocaInst>(val)) {
-        m_used_values.insert(val);
         return;
     }
     if (instr->getParent() != m_block) {

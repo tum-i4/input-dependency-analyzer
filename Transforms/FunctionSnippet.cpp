@@ -87,6 +87,38 @@ llvm::Type* get_value_type(llvm::Value* val)
     return val_type;
 }
 
+void collect_locally_used_allocas(const Snippet& snippet,
+                                  Snippet::ValueSet& used_values,
+                                  Snippet::InstructionSet& allocas)
+{
+    Snippet::ValueSet values_to_erase;
+    for (auto used_value : used_values) {
+        auto* alloca = llvm::dyn_cast<llvm::AllocaInst>(used_value);
+        if (!alloca) {
+            continue;
+        }
+        bool is_used_locally = true;
+        for (auto user : alloca->users()) {
+            if (auto* user_instr = llvm::dyn_cast<llvm::Instruction>(user)) {
+                if (!snippet.contains_instruction(user_instr)) {
+                    is_used_locally = false;
+                    break;
+                }
+            } else {
+                is_used_locally = false;
+                break;
+            }
+        }
+        if (is_used_locally) {
+            values_to_erase.insert(used_value);
+            allocas.insert(alloca);
+        }
+    }
+    for (auto val : values_to_erase) {
+        used_values.erase(val);
+    }
+}
+
 void collect_values(llvm::Value* val,
                     const Snippet& snippet,
                     Snippet::ValueSet& values)
@@ -229,6 +261,19 @@ void clone_snippet_to_function(llvm::BasicBlock* block,
         value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
     }
 }
+
+void clone_allocas(llvm::BasicBlock* block,
+                   Snippet::InstructionSet& allocas,
+                   llvm::ValueToValueMapTy& value_to_value_map)
+{
+    auto& new_function_instructions = block->getInstList();
+    for (auto alloca : allocas) {
+        llvm::Instruction* new_I = alloca->clone();
+        new_function_instructions.push_back(new_I);
+        value_to_value_map.insert(std::make_pair(alloca, llvm::WeakVH(new_I)));
+    }
+}
+
 
 llvm::SmallVector<llvm::BasicBlock*, 10> clone_blocks_snippet_to_function(llvm::Function* new_F,
                                       const BlockSet& blocks_to_clone,
@@ -385,11 +430,25 @@ void erase_instruction_snippet(llvm::BasicBlock* block,
     }
 }
 
+void erase_instructions(Snippet::InstructionSet& instructions)
+{
+    auto it = instructions.begin();
+    while (it != instructions.end()) {
+        auto inst = *it;
+        ++it;
+        for (const auto& user : inst->users()) {
+            user->dropAllReferences();
+        }
+        inst->dropAllReferences();
+        inst->eraseFromParent();
+    }
+}
+
 // TODO: cleanup this mess
 /*
  * Snippet won't be erased if any of the blocks in a snippet, except begin block, has a predecessor outside of the snippet.
  */
-void get_block_phi_nodes(llvm::BasicBlock* block, InstructionSet& phi_nodes)
+void get_block_phi_nodes(llvm::BasicBlock* block, Snippet::InstructionSet& phi_nodes)
 {
     auto non_phi = block->getFirstNonPHI();
     if (non_phi) {
@@ -401,7 +460,7 @@ void get_block_phi_nodes(llvm::BasicBlock* block, InstructionSet& phi_nodes)
 
 bool get_block_users(llvm::BasicBlock* block,
                      const BlockSet& blocks,
-                     InstructionSet& users)
+                     Snippet::InstructionSet& users)
 {
     for (auto user : block->users()) {
         if (auto instr = llvm::dyn_cast<llvm::Instruction>(user)) {
@@ -437,7 +496,7 @@ void erase_block_snippet(llvm::Function* function,
 
     // change all predecessors from self blocks to link dummy_block
     llvm::BasicBlock* dummy_block = llvm::BasicBlock::Create(function->getParent()->getContext(), "dummy", function);
-    InstructionSet users_to_remap;
+    Snippet::InstructionSet users_to_remap;
     bool erase_blocks = true;
 
     llvm::ValueToValueMapTy block_map;
@@ -624,10 +683,6 @@ void InstructionsSnippet::adjust_end()
 
 void InstructionsSnippet::collect_used_values(const Snippet* parent_snippet)
 {
-    //if (!m_used_values.empty()) {
-    //    // already collected
-    //    return;
-    //}
     m_used_values.clear();
     if (m_end == m_block->end()) {
         collect_values(m_begin, m_end, !parent_snippet ? *this : *parent_snippet, m_used_values);
@@ -686,9 +741,17 @@ bool InstructionsSnippet::can_erase_snippet() const
             }
         }
         for (const auto& op : it->operands()) {
+            llvm::dbgs() << "op: " << *op << "\n";
             if (auto* instr = llvm::dyn_cast<llvm::Instruction>(op)) {
-                if (!contains_instruction(instr) && m_used_values.find(instr) == m_used_values.end()) {
+                if (!contains_instruction(instr)
+                        && m_used_values.find(instr) == m_used_values.end()
+                        && m_allocas_to_extract.find(instr) == m_allocas_to_extract.end()) {
                     llvm::dbgs() << "does not contain operand of " << *it << "  " << *instr << "\n";
+                    return false;
+                }
+                if (auto* phi = llvm::dyn_cast<llvm::PHINode>(instr)) {
+                    // phi node incomming blocks can not be m_block anyway
+                    llvm::dbgs() << "Phi node, can not extract " << *it << "\n";
                     return false;
                 }
             } else if (auto* bb = llvm::dyn_cast<llvm::BasicBlock>(op)) {
@@ -707,12 +770,13 @@ llvm::Function* InstructionsSnippet::to_function()
 {
     // update begin and end indices
     compute_indices();
+    m_used_values.clear();
+    collect_used_values(nullptr);
+    collect_locally_used_allocas(*this, m_used_values, m_allocas_to_extract);
     if (!can_erase_snippet()) {
         llvm::dbgs() << "Can not extract snippet as a function\n";
         return nullptr;
     }
-    m_used_values.clear();
-    collect_used_values(nullptr);
     // create function type
     llvm::LLVMContext& Ctx = m_block->getModule()->getContext();
     // maps argument index to corresponding value
@@ -744,6 +808,7 @@ llvm::Function* InstructionsSnippet::to_function()
     unsigned setup_size = entry_block->size();
     llvm::ValueToValueMapTy value_to_value_map;
     create_value_to_value_map(value_ptr_map, value_to_value_map);
+    clone_allocas(entry_block, m_allocas_to_extract, value_to_value_map);
     clone_snippet_to_function(entry_block, m_begin, m_end, value_to_value_map);
     remap_instructions_in_new_function(entry_block, setup_size, value_to_value_map);
     if ((!new_F->getReturnType() || new_F->getReturnType()->isVoidTy()) && !entry_block->getTerminator()) {
@@ -762,6 +827,7 @@ llvm::Function* InstructionsSnippet::to_function()
         }
     }
     erase_instruction_snippet(m_block, m_begin, m_end);
+    erase_instructions(m_allocas_to_extract);
     // **** DEBUG
     //if (m_block->getParent()->getName() == "") {
     //    llvm::dbgs() << "After extraction: \n";
@@ -1297,12 +1363,13 @@ llvm::Function* BasicBlocksSnippet::to_function()
     if (ends_function) {
         m_blocks.insert(&*m_end);
     }
+    collect_used_values(nullptr);
+    collect_locally_used_allocas(*this, m_used_values, m_allocas_to_extract);
     if (!can_erase_block_snippet()) {
         llvm::dbgs() << "Can not extract snippet as a function\n";
         return nullptr;
     }
     auto blocks_in_erase_order = Utils::get_blocks_in_bfs(m_begin, m_end);
-    collect_used_values(nullptr);
     llvm::LLVMContext& Ctx = m_function->getParent()->getContext();
     llvm::Type* return_type = llvm::Type::getVoidTy(Ctx);
     if (ends_function) {
@@ -1341,6 +1408,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         value_to_value_map.insert(std::make_pair(m_tail.get_block(), llvm::WeakVH(tail_block)));
     }
     //llvm::dbgs() << "   Clone blocks\n";
+    clone_allocas(entry_block, m_allocas_to_extract, value_to_value_map);
     const auto& cloned_blocks = clone_blocks_snippet_to_function(new_F, m_blocks, m_begin, m_end,
                                      !has_start_snippet,
                                      !has_tail_snippet,
@@ -1396,7 +1464,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         auto end_pos = value_to_value_map.find(&*m_end);
         new_function_exit_block = llvm::dyn_cast<llvm::BasicBlock>(&*end_pos->second);
     }
-    create_return_stores(new_function_exit_block, value_map);
+    //create_return_stores(new_function_exit_block, value_map);
 
     llvm::CallInst* call;
     if (has_start_snippet) {
@@ -1467,6 +1535,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     erase_block_snippet(m_function, !has_start_snippet, ends_function,
                         m_begin, m_end, m_blocks, blocks_in_erase_order);
 
+    erase_instructions(m_allocas_to_extract);
     if (m_function->hasPersonalityFn()) {
         new_F->setPersonalityFn(m_function->getPersonalityFn());
     }

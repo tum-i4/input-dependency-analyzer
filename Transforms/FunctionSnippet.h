@@ -25,6 +25,7 @@ class Snippet
 {
 public:
     using ValueSet = std::unordered_set<llvm::Value*>;
+    using InstructionSet = std::unordered_set<llvm::Instruction*>;
 
 public:
     Snippet()
@@ -71,6 +72,7 @@ public:
 
 protected:
     ValueSet m_used_values; 
+    InstructionSet m_allocas_to_extract;
     unsigned m_instruction_number;
 };
 
@@ -116,7 +118,6 @@ public:
     static bool is_valid_snippet(iterator begin, iterator end, llvm::BasicBlock* B);
 
 private:
-    using InstructionSet = std::unordered_set<llvm::Instruction*>;
     void snippet_instructions(InstructionSet& instrs) const;
     void expand_for_instruction(llvm::Instruction* instr,
                                 InstructionSet& instructions);

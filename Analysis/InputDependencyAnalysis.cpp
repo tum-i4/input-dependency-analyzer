@@ -240,6 +240,9 @@ void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepRe
             arg_deps.insert(std::make_pair(&arg, ValueDepInfo(arg.getType(), DepInfo(DepInfo::INPUT_DEP))));
         }
         f_analiser->finalizeArguments(arg_deps);
+        if (F->getName() != "main") {
+            f_analiser->setIsInputDepFunction(true);
+        }
         return;
     }
     const auto& callInfo = getFunctionCallInfo(F);

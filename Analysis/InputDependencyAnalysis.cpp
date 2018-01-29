@@ -184,6 +184,9 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
 
 void InputDependencyAnalysis::processInputDependentCallSites(llvm::Function* F)
 {
+    if (!m_processedInputDepFunctions.insert(F).second) {
+        return;
+    }
     for (const auto& B : *F) {
         for (const auto& I : B) {
             llvm::FunctionType* type = nullptr;
@@ -192,12 +195,18 @@ void InputDependencyAnalysis::processInputDependentCallSites(llvm::Function* F)
                 calledFunction = call->getCalledFunction();
                 type = call->getFunctionType();
             } else if (auto* invoke = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
-                calledFunction = call->getCalledFunction();
-                type = call->getFunctionType();
+                calledFunction = invoke->getCalledFunction();
+                type = invoke->getFunctionType();
             }
             if (calledFunction && !calledFunction->isDeclaration()) {
                 InputDepConfig::get().add_skip_input_dep_function(calledFunction);
-                m_functionAnalisers[calledFunction] = InputDepResType(new InputDependentFunctionAnalysisResult(calledFunction));
+                auto pos = m_functionAnalisers.find(calledFunction);
+                if (pos == m_functionAnalisers.end()) {
+                    m_functionAnalisers[calledFunction] = InputDepResType(new InputDependentFunctionAnalysisResult(calledFunction));
+                } else {
+                    pos->second.reset(new InputDependentFunctionAnalysisResult(calledFunction));
+                    processInputDependentCallSites(calledFunction);
+                }
             } else if (type && m_indirectCallSiteAnalysisRes->hasIndirectTargets(type)) {
                 const auto& targets = m_indirectCallSiteAnalysisRes->getIndirectTargets(type);
                 for (const auto& target : targets) {
@@ -205,6 +214,14 @@ void InputDependencyAnalysis::processInputDependentCallSites(llvm::Function* F)
                         continue;
                     }
                     InputDepConfig::get().add_skip_input_dep_function(target);
+                    auto pos = m_functionAnalisers.find(target);
+                    if (pos == m_functionAnalisers.end()) {
+                        m_functionAnalisers[target] = InputDepResType(new InputDependentFunctionAnalysisResult(target));
+                    } else {
+                        pos->second.reset(new InputDependentFunctionAnalysisResult(target));
+                        processInputDependentCallSites(target);
+                    }
+
                     m_functionAnalisers[target] = InputDepResType(new InputDependentFunctionAnalysisResult(target));
                 }
             }

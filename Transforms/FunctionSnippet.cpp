@@ -741,7 +741,6 @@ bool InstructionsSnippet::can_erase_snippet() const
             }
         }
         for (const auto& op : it->operands()) {
-            llvm::dbgs() << "op: " << *op << "\n";
             if (auto* instr = llvm::dyn_cast<llvm::Instruction>(op)) {
                 if (!contains_instruction(instr)
                         && m_used_values.find(instr) == m_used_values.end()
@@ -938,6 +937,18 @@ bool InstructionsSnippet::is_single_instr_snippet() const
     return m_begin == m_end;
 }
 
+bool InstructionsSnippet::is_function() const
+{
+    if (!is_valid_snippet()) {
+        return false;
+    }
+    llvm::Function* F = m_block->getParent();
+    if (F->getBasicBlockList().size() > 1) {
+        return false;
+    }
+    return m_block->getInstList().size() == F->getEntryBlock().getInstList().size();
+}
+
 void InstructionsSnippet::compute_indices()
 {
     m_begin_idx = Utils::get_instruction_index(&*m_begin);
@@ -1071,6 +1082,19 @@ bool BasicBlocksSnippet::contains_block(llvm::BasicBlock* block) const
         contains &= (block != m_start.get_block());
     }
     return contains;
+}
+
+bool BasicBlocksSnippet::is_function() const
+{
+    if (m_start.is_valid_snippet() || m_tail.is_valid_snippet()) {
+        return false;
+    }
+    for (auto& block : *m_function) {
+        if (m_blocks.find(&block) == m_blocks.end()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool BasicBlocksSnippet::intersects(const Snippet& snippet) const

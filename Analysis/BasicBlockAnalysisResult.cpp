@@ -67,7 +67,7 @@ void BasicBlockAnalysisResult::analyze()
             m_valueDependencies.insert(std::make_pair(allocInst,
                                                 ValueDepInfo(allocInst->getAllocatedType(), DepInfo(DepInfo::INPUT_DEP))));
             // collect alloca instruction with input dependency state INPUT_INDEP
-            updateInstructionDependencies(allocInst, DepInfo(DepInfo::INPUT_INDEP));
+            updateInstructionDependencies(allocInst, DepInfo(DepInfo::INPUT_DEP));
         } else if (auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
             processReturnInstr(retInst);
         }  else if (auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(&I)) {

@@ -45,6 +45,7 @@ public:
     {
         return false;
     }
+    virtual bool is_function() const = 0;
     virtual llvm::BasicBlock* get_begin_block() const = 0;
     virtual llvm::BasicBlock* get_end_block() const = 0;
     virtual bool intersects(const Snippet& snippet) const = 0;
@@ -93,6 +94,7 @@ public:
     llvm::BasicBlock* get_begin_block() const override;
     llvm::BasicBlock* get_end_block() const override;
     bool is_single_instr_snippet() const override;
+    bool is_function() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void adjust_end() override;
@@ -151,6 +153,11 @@ public:
     unsigned get_instructions_number() const override;
     bool contains_instruction(llvm::Instruction* instr) const override;
     bool contains_block(llvm::BasicBlock* block) const override;
+    bool is_single_instr_snippet() const
+    {
+        return false;
+    }
+    bool is_function() const override;
     bool intersects(const Snippet& snippet) const override;
     void expand() override;
     void adjust_end() override;

@@ -91,6 +91,7 @@ private:
     FunctionArgumentsDependencies m_functionsCallInfo;
     CalleeCallersMap m_calleeCallersInfo;
     std::vector<llvm::Function*> m_moduleFunctions;
+    std::unordered_set<llvm::Function*> m_processedInputDepFunctions;
 }; // class InputDependencyAnalysis
 
 

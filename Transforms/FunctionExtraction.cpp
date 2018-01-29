@@ -181,6 +181,10 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
     auto it = block->begin();
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
+        if (llvm::dyn_cast<llvm::AllocaInst>(I)) {
+            ++it;
+            continue;
+        }
         //llvm::dbgs() << "instr " << *I << "\n";
         bool is_input_dep = m_input_dep_info->isInputDependent(I);
         if (!is_input_dep) {
@@ -368,6 +372,11 @@ void run_on_function(llvm::Function& F,
         //    llvm::dbgs() << "\n";
         //}
         // **** DEBUG END
+        if (snippet->is_function()) {
+            llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
+            input_dependency::InputDepConfig::get().add_skip_input_dep_function(&F);
+            continue;
+        }
         auto extracted_function = snippet->to_function();
         if (!extracted_function) {
             continue;

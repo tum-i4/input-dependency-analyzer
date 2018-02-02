@@ -156,12 +156,6 @@ bool InputDependencyAnalysis::insertAnalysisInfo(llvm::Function* F, InputDepResT
 void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
 {
     llvm::dbgs() << "Processing function " << F->getName() << "\n";
-    if (InputDepConfig::get().is_skip_input_dep_function(F)) {
-        llvm::dbgs() << "Input dependent function: process call sites only. \n";
-        processInputDependentCallSites(F);
-        m_functionAnalisers.insert(std::make_pair(F, InputDepResType(new InputDependentFunctionAnalysisResult(F))));
-        return;
-    }
     m_moduleFunctions.insert(m_moduleFunctions.begin(), F);
     llvm::AAResults* AAR = m_aliasAnalysisInfoGetter(F);
     llvm::LoopInfo* LI = m_loopInfoGetter(F);
@@ -180,52 +174,9 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
     analyzer->analyze();
     const auto& calledFunctions = analyzer->getCallSitesData();
     mergeCallSitesData(F, calledFunctions);
-}
-
-void InputDependencyAnalysis::processInputDependentCallSites(llvm::Function* F)
-{
-    if (!m_processedInputDepFunctions.insert(F).second) {
-        return;
-    }
-    for (const auto& B : *F) {
-        for (const auto& I : B) {
-            llvm::FunctionType* type = nullptr;
-            llvm::Function* calledFunction = nullptr;
-            if (auto* call = llvm::dyn_cast<llvm::CallInst>(&I)) {
-                calledFunction = call->getCalledFunction();
-                type = call->getFunctionType();
-            } else if (auto* invoke = llvm::dyn_cast<llvm::InvokeInst>(&I)) {
-                calledFunction = invoke->getCalledFunction();
-                type = invoke->getFunctionType();
-            }
-            if (calledFunction && !calledFunction->isDeclaration()) {
-                InputDepConfig::get().add_skip_input_dep_function(calledFunction);
-                auto pos = m_functionAnalisers.find(calledFunction);
-                if (pos == m_functionAnalisers.end()) {
-                    m_functionAnalisers[calledFunction] = InputDepResType(new InputDependentFunctionAnalysisResult(calledFunction));
-                } else {
-                    pos->second.reset(new InputDependentFunctionAnalysisResult(calledFunction));
-                    processInputDependentCallSites(calledFunction);
-                }
-            } else if (type && m_indirectCallSiteAnalysisRes->hasIndirectTargets(type)) {
-                const auto& targets = m_indirectCallSiteAnalysisRes->getIndirectTargets(type);
-                for (const auto& target : targets) {
-                    if (target->isDeclaration()) {
-                        continue;
-                    }
-                    InputDepConfig::get().add_skip_input_dep_function(target);
-                    auto pos = m_functionAnalisers.find(target);
-                    if (pos == m_functionAnalisers.end()) {
-                        m_functionAnalisers[target] = InputDepResType(new InputDependentFunctionAnalysisResult(target));
-                    } else {
-                        pos->second.reset(new InputDependentFunctionAnalysisResult(target));
-                        processInputDependentCallSites(target);
-                    }
-
-                    m_functionAnalisers[target] = InputDepResType(new InputDependentFunctionAnalysisResult(target));
-                }
-            }
-        }
+    if (InputDepConfig::get().is_skip_input_dep_function(F)) {
+        llvm::dbgs() << "Mark Input dependent function. \n";
+        analyzer->setIsInputDepFunction(true);
     }
 }
 

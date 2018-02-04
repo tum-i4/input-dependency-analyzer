@@ -104,6 +104,7 @@ public:
         , m_globalsFinalized(false)
         , m_globalsUpdated(false)
         , m_is_inputDep(false)
+        , m_is_extracted(false)
     {
     }
 
@@ -165,6 +166,16 @@ public:
     void setIsInputDepFunction(bool isInputDep)
     {
         m_is_inputDep = isInputDep;
+    }
+
+    bool isExtractedFunction() const
+    {
+        return m_is_extracted;
+    }
+
+    void setIsExtractedFunction(bool isExtracted)
+    {
+        m_is_extracted = isExtracted;
     }
 
     bool areArgumentsFinalized() const
@@ -270,6 +281,7 @@ private:
     bool m_globalsFinalized;
     bool m_globalsUpdated;
     bool m_is_inputDep;
+    bool m_is_extracted;
 
     std::unordered_map<llvm::BasicBlock*, DependencyAnalysisResultT> m_BBAnalysisResults;
     // LoopInfo will be invalidated after analisis, instead of keeping copy of it, keep this map.
@@ -779,21 +791,22 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
 void FunctionAnaliser::Impl::updateFunctionInputDependencies()
 {
     for (const auto& calledF : m_calledFunctions) {
-        auto calledFA = const_cast<FunctionAnaliser*>(m_FAGetter(calledF));
+        auto calledFA = m_FAGetter(calledF);
         if (!calledFA) {
+            InputDepConfig::get().add_input_dep_function(calledF);
             continue;
         }
         if (m_is_inputDep) {
             if (calledFA) {
                 calledFA->setIsInputDepFunction(true);
-                InputDepConfig::get().add_skip_input_dep_function(calledF);
             }
+            InputDepConfig::get().add_input_dep_function(calledF);
         } else {
             const auto& callDepInfo = getFunctionCallDepInfo(calledF);
             for (const auto& callSite : callDepInfo.getCallSites()) {
                 if (isInputDependentBlock(callSite->getParent())) {
                     calledFA->setIsInputDepFunction(true);
-                    InputDepConfig::get().add_skip_input_dep_function(calledF);
+                    InputDepConfig::get().add_input_dep_function(calledF);
                 }
             }
         }
@@ -1295,6 +1308,16 @@ bool FunctionAnaliser::isInputDepFunction() const
 void FunctionAnaliser::setIsInputDepFunction(bool isInputDep)
 {
     m_analiser->setIsInputDepFunction(isInputDep);
+}
+
+bool FunctionAnaliser::isExtractedFunction() const
+{
+    return m_analiser->isExtractedFunction();
+}
+
+void FunctionAnaliser::setIsExtractedFunction(bool isExtracted)
+{
+    m_analiser->setIsExtractedFunction(isExtracted);
 }
 
 bool FunctionAnaliser::areArgumentsFinalized() const

@@ -13,6 +13,7 @@ namespace input_dependency {
 CachedFunctionAnalysisResult::CachedFunctionAnalysisResult(llvm::Function* F)
     : m_F(F)
     , m_is_inputDep(false)
+    , m_is_extracted(false)
 {
 }
 
@@ -101,6 +102,16 @@ bool CachedFunctionAnalysisResult::isInputDepFunction() const
 void CachedFunctionAnalysisResult::setIsInputDepFunction(bool isInputDep)
 {
     m_is_inputDep = isInputDep;
+}
+
+bool CachedFunctionAnalysisResult::isExtractedFunction() const
+{
+    return m_is_extracted;
+}
+
+void CachedFunctionAnalysisResult::setIsExtractedFunction(bool isExtracted)
+{
+    m_is_extracted = isExtracted;
 }
 
 bool CachedFunctionAnalysisResult::isInputDependent(llvm::Instruction* instr) const

@@ -13,6 +13,7 @@ class InputDependentFunctionAnalysisResult final : public FunctionInputDependenc
 public:
     InputDependentFunctionAnalysisResult(llvm::Function* F)
         : m_F(F)
+        , m_is_extracted(false)
     {
     }
 
@@ -40,6 +41,16 @@ public:
     bool isInputDependent(llvm::Instruction* instr) const override
     {
         return true;
+    }
+
+    bool isExtractedFunction() const override
+    {
+        return m_is_extracted;
+    }
+
+    void setIsExtractedFunction(bool isExtracted) override
+    {
+        m_is_extracted = isExtracted;
     }
 
     bool isInputDependent(const llvm::Instruction* instr) const override
@@ -118,6 +129,7 @@ public:
 
 private:
     llvm::Function* m_F;
+    bool m_is_extracted;
 }; // class InputDependentFunctionAnalysisResult
 
 } // namespace input_dependency

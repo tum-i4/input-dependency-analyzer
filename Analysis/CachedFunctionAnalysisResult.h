@@ -28,6 +28,8 @@ public:
     const llvm::Function* getFunction() const override;
     bool isInputDepFunction() const override;
     void setIsInputDepFunction(bool isInputDep) override;
+    bool isExtractedFunction() const override;
+    void setIsExtractedFunction(bool isExtracted) override;
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(const llvm::Instruction* instr) const override;
     bool isInputIndependent(llvm::Instruction* instr) const override;
@@ -54,6 +56,7 @@ private:
 private:
     llvm::Function* m_F;
     bool m_is_inputDep;
+    bool m_is_extracted;
     BasicBlocks m_inputDepBlocks;
     BasicBlocks m_inputInDepBlocks;
     BasicBlocks m_unreachableBlocks;

@@ -368,7 +368,7 @@ void BasicBlockAnalysisResult::markFunctionsForValue(llvm::Value* value)
         if (FA) {
             FA->setIsInputDepFunction(true);
         }
-        InputDepConfig::get().add_skip_input_dep_function(F);
+        InputDepConfig::get().add_input_dep_function(F);
     }
 }
 

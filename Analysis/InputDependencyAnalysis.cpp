@@ -174,9 +174,13 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
     analyzer->analyze();
     const auto& calledFunctions = analyzer->getCallSitesData();
     mergeCallSitesData(F, calledFunctions);
-    if (InputDepConfig::get().is_skip_input_dep_function(F)) {
+    if (InputDepConfig::get().is_input_dep_function(F)) {
         llvm::dbgs() << "Mark Input dependent function. \n";
         analyzer->setIsInputDepFunction(true);
+    }
+    if (InputDepConfig::get().is_extracted_function(F)) {
+        llvm::dbgs() << "Mark extracted function. \n";
+        analyzer->setIsExtractedFunction(true);
     }
 }
 

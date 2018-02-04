@@ -56,14 +56,25 @@ public:
         return use_cache;
     }
 
-    void add_skip_input_dep_function(llvm::Function* F)
+    void add_input_dep_function(llvm::Function* F)
     {
-        skip_input_dep_functions.insert(F);
+        m_input_dep_functions.insert(F);
     }
 
-    bool is_skip_input_dep_function(llvm::Function* F)
+    bool is_input_dep_function(llvm::Function* F)
     {
-        return skip_input_dep_functions.find(F) != skip_input_dep_functions.end();
+        return m_input_dep_functions.find(F) != m_input_dep_functions.end();
+    }
+
+    void add_extracted_function(llvm::Function* F)
+    {
+        add_input_dep_function(F);
+        m_extracted_functions.insert(F);
+    }
+
+    bool is_extracted_function(llvm::Function* F)
+    {
+        return m_extracted_functions.find(F) != m_extracted_functions.end();
     }
 
 private:
@@ -71,7 +82,8 @@ private:
     bool cache_input_dep;
     std::string lib_config_file;
     bool use_cache;
-    std::unordered_set<llvm::Function*> skip_input_dep_functions;
+    std::unordered_set<llvm::Function*> m_input_dep_functions;
+    std::unordered_set<llvm::Function*> m_extracted_functions;
 };
 
 } // namespace input_dependency

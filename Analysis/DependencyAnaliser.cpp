@@ -1125,7 +1125,7 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
                 if (arg_FA) {
                     arg_FA->setIsInputDepFunction(true);
                 }
-                InputDepConfig::get().add_skip_input_dep_function(arg_F);
+                InputDepConfig::get().add_input_dep_function(arg_F);
             } else {
                 markCallbackFunctionsForValue(actualArg);
             }

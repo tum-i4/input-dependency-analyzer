@@ -12,6 +12,8 @@ namespace input_dependency {
 
 ClonedFunctionAnalysisResult::ClonedFunctionAnalysisResult(llvm::Function* F)
     : m_F(F)
+    , m_is_inputDep(false)
+    , m_is_extracted(false)
     , m_instructionsCount(0)
 {
     for (const auto& B : *m_F) {
@@ -62,6 +64,16 @@ bool ClonedFunctionAnalysisResult::isInputDepFunction() const
 void ClonedFunctionAnalysisResult::setIsInputDepFunction(bool isInputDep)
 {
     m_is_inputDep = isInputDep;
+}
+
+bool ClonedFunctionAnalysisResult::isExtractedFunction() const
+{
+    return m_is_extracted;
+}
+
+void ClonedFunctionAnalysisResult::setIsExtractedFunction(bool isExtracted)
+{
+    m_is_extracted = isExtracted;
 }
 
 bool ClonedFunctionAnalysisResult::isInputDependent(llvm::Instruction* instr) const

@@ -31,6 +31,8 @@ public:
     virtual const llvm::Function* getFunction() const = 0;
     virtual bool isInputDepFunction() const = 0;
     virtual void setIsInputDepFunction(bool isInputDep) = 0;
+    virtual bool isExtractedFunction() const = 0;
+    virtual void setIsExtractedFunction(bool isExtracted) = 0;
 
     virtual bool isInputDependent(llvm::Instruction* instr) const = 0;
     virtual bool isInputDependent(const llvm::Instruction* instr) const = 0;

@@ -17,6 +17,7 @@ public:
     const static std::string input_indep_instr;
     const static std::string unknown;
     const static std::string unreachable;
+    const static std::string extracted;
 };
 
 } // namespace input_dependency

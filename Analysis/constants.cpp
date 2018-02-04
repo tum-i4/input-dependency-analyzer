@@ -11,6 +11,7 @@ const std::string metadata_strings::input_dep_instr = "input_dep_instr";
 const std::string metadata_strings::input_indep_instr = "input_indep_instr";
 const std::string metadata_strings::unknown = "unknown";
 const std::string metadata_strings::unreachable = "unreachable";
+const std::string metadata_strings::extracted = "extracted";
 
 }
 

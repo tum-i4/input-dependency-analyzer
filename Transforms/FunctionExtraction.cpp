@@ -374,14 +374,14 @@ void run_on_function(llvm::Function& F,
         // **** DEBUG END
         if (snippet->is_function()) {
             llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
-            input_dependency::InputDepConfig::get().add_skip_input_dep_function(&F);
+            input_dependency::InputDepConfig::get().add_extracted_function(&F);
             continue;
         }
         auto extracted_function = snippet->to_function();
         if (!extracted_function) {
             continue;
         }
-        input_dependency::InputDepConfig::get().add_skip_input_dep_function(extracted_function);
+        input_dependency::InputDepConfig::get().add_extracted_function(extracted_function);
         //llvm::dbgs() << "Extracted to function " << *extracted_function << "\n";
         extracted_functions.insert(std::make_pair(extracted_function, snippet->get_instructions_number()));
     }

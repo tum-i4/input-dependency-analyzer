@@ -32,6 +32,8 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
     llvm::MDNode* input_dep_function_md = llvm::MDNode::get(M.getContext(), input_dep_function_md_str);
     auto* input_indep_function_md_str = llvm::MDString::get(M.getContext(), metadata_strings::input_indep_function);
     llvm::MDNode* input_indep_function_md = llvm::MDNode::get(M.getContext(), input_indep_function_md_str);
+    auto* extracted_function_md_str = llvm::MDString::get(M.getContext(), metadata_strings::extracted);
+    llvm::MDNode* extracted_function_md = llvm::MDNode::get(M.getContext(), extracted_function_md_str);
 
     auto* input_dep_block_md_str = llvm::MDString::get(M.getContext(), metadata_strings::input_dep_block);
     llvm::MDNode* input_dep_block_md = llvm::MDNode::get(M.getContext(), input_dep_block_md_str);
@@ -57,6 +59,9 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
             F->setMetadata(metadata_strings::input_dep_function, input_dep_function_md);
         } else {
             F->setMetadata(metadata_strings::input_indep_function, input_indep_function_md);
+        }
+        if (FA->isExtractedFunction()) {
+            F->setMetadata(metadata_strings::extracted, extracted_function_md);
         }
         for (auto& B : *F) {
             if (FA->isInputDependentBlock(&B)) {

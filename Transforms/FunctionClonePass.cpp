@@ -230,9 +230,6 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
     // call sites at input dep blocks are filtered out, thus if we got to this point, means call site is input indep
     cloned_analiser->setIsInputDepFunction(false);
     F = cloned_analiser->getFunction();
-    if (cloned_analiser->isInputDepFunction()) {
-        input_dependency::InputDepConfig::get().add_skip_input_dep_function(F);
-    }
     std::string newName = calledF->getName();
     newName += mask.empty() ? "_indep" : FunctionClone::mask_to_string(mask);
     F->setName(newName);

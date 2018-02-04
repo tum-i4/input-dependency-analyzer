@@ -40,6 +40,8 @@ public:
     const llvm::Function* getFunction() const override;
     bool isInputDepFunction() const override;
     void setIsInputDepFunction(bool isInputDep) override;
+    bool isExtractedFunction() const override;
+    void setIsExtractedFunction(bool isExtracted) override;
 
     bool areArgumentsFinalized() const;
     bool areGlobalsFinalized() const;

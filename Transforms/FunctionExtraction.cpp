@@ -38,6 +38,7 @@ public:
 public:
     SnippetsCreator(llvm::Function& F)
         : m_F(F)
+        , m_is_whole_function_snippet(false)
     {
     }
 
@@ -54,6 +55,11 @@ public:
     const snippet_list& get_snippets() const
     {
         return m_snippets;
+    }
+
+    bool is_whole_function_snippet() const
+    {
+        return m_is_whole_function_snippet;
     }
 
 public:
@@ -73,6 +79,7 @@ private:
 
 private:
     llvm::Function& m_F;
+    bool m_is_whole_function_snippet;
     InputDependencyAnalysisInfo m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
     snippet_list m_snippets;
@@ -155,8 +162,16 @@ void SnippetsCreator::expand_snippets()
         }
         if (m_snippets[i]->intersects(*m_snippets[next])) {
             if (m_snippets[next]->merge(*m_snippets[i])) {
+                if (m_snippets[next]->is_function()) {
+                    m_is_whole_function_snippet = true;
+                    break;
+                }
                 to_erase.push_back(i);
             } else if (m_snippets[i]->merge(*m_snippets[next])) {
+                if (m_snippets[i]->is_function()) {
+                    m_is_whole_function_snippet = true;
+                    break;
+                }
                 // swap
                 auto tmp = m_snippets[next];
                 m_snippets[next] = m_snippets[i];
@@ -165,7 +180,10 @@ void SnippetsCreator::expand_snippets()
             }
         }
     }
-
+    if (m_is_whole_function_snippet) {
+        m_snippets.clear();
+        return;
+    }
     for (const auto& idx : to_erase) {
         // don't erase as is expensive. Replace with nulls
         m_snippets[idx].reset();
@@ -353,6 +371,11 @@ void run_on_function(llvm::Function& F,
     creator.set_input_dep_info(input_dep_info);
     creator.set_post_dom_tree(PDom);
     creator.collect_snippets(true);
+    if (creator.is_whole_function_snippet()) {
+        llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
+        input_dependency::InputDepConfig::get().add_extracted_function(&F);
+        return;
+    }
     const auto& snippets = creator.get_snippets();
 
     //llvm::dbgs() << "number of snippets " << snippets.size() << "\n";
@@ -372,11 +395,6 @@ void run_on_function(llvm::Function& F,
         //    llvm::dbgs() << "\n";
         //}
         // **** DEBUG END
-        if (snippet->is_function()) {
-            llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
-            input_dependency::InputDepConfig::get().add_extracted_function(&F);
-            continue;
-        }
         auto extracted_function = snippet->to_function();
         if (!extracted_function) {
             continue;

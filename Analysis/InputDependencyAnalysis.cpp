@@ -174,14 +174,6 @@ void InputDependencyAnalysis::runOnFunction(llvm::Function* F)
     analyzer->analyze();
     const auto& calledFunctions = analyzer->getCallSitesData();
     mergeCallSitesData(F, calledFunctions);
-    if (InputDepConfig::get().is_input_dep_function(F)) {
-        llvm::dbgs() << "Mark Input dependent function. \n";
-        analyzer->setIsInputDepFunction(true);
-    }
-    if (InputDepConfig::get().is_extracted_function(F)) {
-        llvm::dbgs() << "Mark extracted function. \n";
-        analyzer->setIsExtractedFunction(true);
-    }
 }
 
 void InputDependencyAnalysis::doFinalization()
@@ -195,6 +187,21 @@ void InputDependencyAnalysis::doFinalization()
         llvm::dbgs() << "Finalizing " << F->getName() << "\n";
         finalizeForGlobals(F, pos->second);
         finalizeForArguments(F, pos->second);
+    }
+    for (auto F : m_moduleFunctions) {
+        auto pos = m_functionAnalisers.find(F);
+        if (pos == m_functionAnalisers.end()) {
+            // log message
+            continue;
+        }
+        if (InputDepConfig::get().is_input_dep_function(F)) {
+            llvm::dbgs() << "Mark Input dependent function. \n";
+            pos->second->setIsInputDepFunction(true);
+        }
+        if (InputDepConfig::get().is_extracted_function(F)) {
+            llvm::dbgs() << "Mark extracted function. \n";
+            pos->second->setIsExtractedFunction(true);
+        }
     }
 }
 

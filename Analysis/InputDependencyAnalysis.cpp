@@ -185,23 +185,16 @@ void InputDependencyAnalysis::doFinalization()
             continue;
         }
         llvm::dbgs() << "Finalizing " << F->getName() << "\n";
-        finalizeForGlobals(F, pos->second);
-        finalizeForArguments(F, pos->second);
-    }
-    for (auto F : m_moduleFunctions) {
-        auto pos = m_functionAnalisers.find(F);
-        if (pos == m_functionAnalisers.end()) {
-            // log message
-            continue;
-        }
         if (InputDepConfig::get().is_input_dep_function(F)) {
-            llvm::dbgs() << "Mark Input dependent function. \n";
+            llvm::dbgs() << "Mark Input dependent function " << F->getName() << "\n";
             pos->second->setIsInputDepFunction(true);
         }
         if (InputDepConfig::get().is_extracted_function(F)) {
-            llvm::dbgs() << "Mark extracted function. \n";
+            llvm::dbgs() << "Mark extracted function. " << F->getName() << "\n";
             pos->second->setIsExtractedFunction(true);
         }
+        finalizeForGlobals(F, pos->second);
+        finalizeForArguments(F, pos->second);
     }
 }
 

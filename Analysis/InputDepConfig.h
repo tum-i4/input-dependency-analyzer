@@ -68,7 +68,6 @@ public:
 
     void add_extracted_function(llvm::Function* F)
     {
-        add_input_dep_function(F);
         m_extracted_functions.insert(F);
     }
 

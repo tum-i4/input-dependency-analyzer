@@ -104,13 +104,18 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
                 original_uses[currentF] = true;
                 to_process.erase(currentF);
                 continue;
+            } else if (f_analysisInfo->isExtractedFunction()) {
+                llvm::dbgs() << "Skip function: extracted\n";
+                original_uses[currentF] = true;
+                to_process.erase(currentF);
+                continue;
             }
             const auto& callSites = f_analysisInfo->getCallSitesData();
             for (const auto& callSite : callSites) {
                 if (callSite->isDeclaration() || callSite->isIntrinsic()) {
                     continue;
                 }
-                if (f_analysisInfo->isInputDepFunction()) {
+                if (f_analysisInfo->isInputDepFunction() || f_analysisInfo->isExtractedFunction()) {
                     original_uses[callSite] = true;
                     continue;
                 }

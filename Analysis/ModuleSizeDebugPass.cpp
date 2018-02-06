@@ -13,6 +13,8 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include "json/json.hpp"
+#include <fstream>
 
 namespace {
 
@@ -58,12 +60,15 @@ public:
                 instruction_count += B.getInstList().size();
             }
         }
-        llvm::dbgs() << "Module " << M.getName() << "\n";
-        llvm::dbgs() << "Function count " << function_count << "\n";
-        llvm::dbgs() << "Basic block count " << block_count << "\n";
-        llvm::dbgs() << "Loops count " << loop_count << "\n";
-        llvm::dbgs() << "Instruction count " << instruction_count << "\n";
-        llvm::dbgs() << "Loop Instruction count " << loop_instr_count << "\n";
+        nlohmann::json root;
+        root[M.getName()]["functions"] = function_count;
+        root[M.getName()]["basic_blocks"] = block_count;
+        root[M.getName()]["loops"] = loop_count;
+        root[M.getName()]["instructions"] = instruction_count;
+        root[M.getName()]["loop_instructions"] = loop_instr_count;
+        std::ofstream strm("module_data");
+        strm << std::setw(4) << root;
+        strm.close();
         return false;
     }
 };

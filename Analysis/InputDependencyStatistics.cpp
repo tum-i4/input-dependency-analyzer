@@ -58,7 +58,7 @@ void InputDependencyStatistics::reportInputDependencyInfo()
     for (const auto& F_inputDep : *m_IDA) {
         module_instructions += get_function_instrs_count(*F_inputDep.first);
         module_inputdep_instrs += F_inputDep.second->get_input_indep_count();
-        if (F_inputDep.second->isInputDepFunction()) {
+        if (F_inputDep.second->isInputDepFunction() || F_inputDep.second->isExtractedFunction()) {
             ++inputdep_functions_count;
             input_dep_functions.push_back(F_inputDep.first->getName());
         }

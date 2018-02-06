@@ -986,6 +986,10 @@ void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
         } else {
             expand_for_instruction_operand(storeTo, instructions);
         }
+    } else if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(instr)) {
+        for (int i = callInst->getNumArgOperands() -1; i >= 0; --i) {
+            expand_for_instruction_operand(callInst->getArgOperand(i), instructions);
+        }
     } else {
         for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
             expand_for_instruction_operand(instr->getOperand(i), instructions);

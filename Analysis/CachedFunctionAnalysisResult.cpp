@@ -20,6 +20,7 @@ CachedFunctionAnalysisResult::CachedFunctionAnalysisResult(llvm::Function* F)
 void CachedFunctionAnalysisResult::analyze()
 {
     parse_function_input_dep_metadata();
+    parse_function_extracted_metadata();
     for (auto& B : *m_F) {
         parse_block_input_dep_metadata(B);
         parse_block_instructions_input_dep_metadata(B);
@@ -33,6 +34,13 @@ void CachedFunctionAnalysisResult::parse_function_input_dep_metadata()
     }
     // no need to look for input indep md
 }
+
+ void CachedFunctionAnalysisResult::parse_function_extracted_metadata()
+ {
+   if (auto* extr_function_md = m_F->getMetadata(metadata_strings::extracted)) {
+        m_is_extracted = true;
+    }
+ }
 
 void CachedFunctionAnalysisResult::parse_block_input_dep_metadata(llvm::BasicBlock& B)
 {

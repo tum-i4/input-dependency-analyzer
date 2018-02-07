@@ -48,6 +48,7 @@ public:
 
 private:
     void parse_function_input_dep_metadata();
+    void parse_function_extracted_metadata();
     void parse_block_input_dep_metadata(llvm::BasicBlock& B);
     void parse_block_instructions_input_dep_metadata(llvm::BasicBlock& B);
     void add_all_instructions_to(llvm::BasicBlock& B, Instructions& instructions);

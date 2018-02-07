@@ -286,13 +286,13 @@ void InputDependencyStatistics::report_input_indep_coverage_data(const input_ind
     write_entry(data.name, "NumBlocks", data.all_blocks);
     write_entry(data.name, "NumInputIndepBlocks", data.input_indep_blocks);
     write_entry(data.name, "NumUnreachableBlocks", data.unreachable_blocks);
-    unsigned block_coverage = (data.input_indep_blocks * 100) / (data.all_blocks - data.unreachable_blocks);
+    double block_coverage = (data.input_indep_blocks * 100.0) / (data.all_blocks - data.unreachable_blocks);
     write_entry(data.name, "BlockCoverage", block_coverage);
 
     write_entry(data.name, "NumInstrs", data.all_instrs);
     write_entry(data.name, "NumInputIndepInstr", data.input_indep_instrs);
     write_entry(data.name, "NumUnreachableInstr", data.unreachable_instrs);
-    unsigned instr_coverage = (data.input_indep_instrs * 100) / (data.all_instrs - data.unreachable_instrs);
+    double instr_coverage = (data.input_indep_instrs * 100.0) / (data.all_instrs - data.unreachable_instrs);
     write_entry(data.name, "InstrCoverage", instr_coverage);
 }
 
@@ -301,13 +301,13 @@ void InputDependencyStatistics::report_input_dep_coverage_data(const input_dep_c
     write_entry(data.name, "NumBlocks", data.all_blocks);
     write_entry(data.name, "NumInputDepBlocks", data.input_dep_blocks);
     write_entry(data.name, "NumUnreachableBlocks", data.unreachable_blocks);
-    unsigned block_coverage = (data.input_dep_blocks * 100) / (data.all_blocks - data.unreachable_blocks);
+    double block_coverage = (data.input_dep_blocks * 100.0) / (data.all_blocks - data.unreachable_blocks);
     write_entry(data.name, "BlockCoverage", block_coverage);
 
     write_entry(data.name, "NumInstrs", data.all_instrs);
     write_entry(data.name, "NumInputDepInstr", data.input_dep_instrs);
     write_entry(data.name, "NumUnreachableInstr", data.unreachable_instrs);
-    unsigned instr_coverage = (data.input_dep_instrs * 100) / (data.all_instrs - data.unreachable_instrs);
+    double instr_coverage = (data.input_dep_instrs * 100.0) / (data.all_instrs - data.unreachable_instrs);
     write_entry(data.name, "InstrCoverage", instr_coverage);
 }
 

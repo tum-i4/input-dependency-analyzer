@@ -5,6 +5,7 @@
 
 #include "json/json.hpp"
 #include <fstream>
+#include <iostream>
 
 using json = nlohmann::json;
 
@@ -29,6 +30,7 @@ public:
     TextReportWriter(const std::string& file_name);
     ~TextReportWriter();
 
+    void write_entry(const key& k, double value) override;
     void write_entry(const key& k, unsigned value) override;
     void write_entry(const key& k, const std::string& value) override;
     void write_entry(const key& k, const std::vector<std::string>& value) override;
@@ -46,6 +48,11 @@ class JsonReportWriter : public Statistics::ReportWriter
 public:
     JsonReportWriter(const std::string& file_name);
     ~JsonReportWriter();
+
+    void write_entry(const key& k, double value) override
+    {
+        write(k, value);
+    }
 
     void write_entry(const key& k, unsigned value) override
     {
@@ -112,6 +119,12 @@ TextReportWriter::TextReportWriter(const std::string& file_name)
 TextReportWriter::~TextReportWriter()
 {
     m_strm.close();
+}
+
+void TextReportWriter::write_entry(const key& k, double value)
+{
+    write_key(k);
+    m_strm << value << "\n";
 }
 
 void TextReportWriter::write_entry(const key& k, unsigned value)
@@ -187,6 +200,11 @@ void Statistics::resume_report(const std::string& file_name)
 void Statistics::flush()
 {
     m_writer->flush();
+}
+
+void Statistics::write_entry(const std::string& class_key, const std::string& key, double value)
+{
+    m_writer->write_entry(ReportWriter::key{m_sectionName, class_key, m_statsTypeName, key}, value);
 }
 
 void Statistics::write_entry(const std::string& class_key, const std::string& key, unsigned value)

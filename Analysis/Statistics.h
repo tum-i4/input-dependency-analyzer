@@ -38,6 +38,7 @@ public:
         virtual void close();
 
         virtual void open(const std::string& file_name);
+        virtual void write_entry(const key& k, double value) = 0;
         virtual void write_entry(const key& k, unsigned value) = 0;
         virtual void write_entry(const key& k, const std::string& value) = 0;
         virtual void write_entry(const key& k, const std::vector<std::string>& value) = 0;
@@ -94,6 +95,7 @@ public:
     virtual void report() = 0;
 
 protected:
+    void write_entry(const std::string& class_key, const std::string& key, double value);
     void write_entry(const std::string& class_key, const std::string& key, unsigned value);
     void write_entry(const std::string& class_key, const std::string& key, const std::string& value);
     void write_entry(const std::string& class_key, const std::string& key, const std::vector<std::string>& value);

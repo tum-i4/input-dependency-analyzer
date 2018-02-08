@@ -20,10 +20,8 @@ public:
     void addVirtualInvoke(llvm::InvokeInst* invoke);
     void addVirtualInvokeCandidates(llvm::InvokeInst* call, FunctionSet&& candidates);
 
-    bool hasVirtualCallCandidates(llvm::CallInst* call) const;
-    const FunctionSet& getVirtualCallCandidates(llvm::CallInst* call) const;
-    bool hasVirtualInvokeCandidates(llvm::InvokeInst* invoke) const;
-    const FunctionSet& getVirtualInvokeCandidates(llvm::InvokeInst* invoke) const;
+    bool hasVirtualCallCandidates(llvm::Instruction* instr) const;
+    const FunctionSet& getVirtualCallCandidates(llvm::Instruction* instr) const;
 
 public:
     void dump();

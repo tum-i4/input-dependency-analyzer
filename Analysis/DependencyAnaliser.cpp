@@ -333,6 +333,8 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
             for (const auto& target : m_indirectCallsInfo.getIndirectTargets(func_type)) {
                 m_functionValues[storeTo].insert(target);
             }
+        } else {
+            llvm::dbgs() << "Did not find function assigned " << *storeInst << "\n";
         }
     }else if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
@@ -418,13 +420,15 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
 void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
 {
     llvm::Function* F = invokeInst->getCalledFunction();
+    // can throw
+    bool throws = invokeInst->getNormalDest() || invokeInst->getUnwindDest();
     if (F == nullptr) {
         // This could happen for example when calling virtual functions
         // try see if has alias
         F = getAliasingFunction(invokeInst->getCalledValue());
         if (F == nullptr) {
-            if (m_virtualCallsInfo.hasVirtualInvokeCandidates(invokeInst)) {
-                processInvokeSiteWithMultipleTargets(invokeInst, m_virtualCallsInfo.getVirtualInvokeCandidates(invokeInst));
+            if (m_virtualCallsInfo.hasVirtualCallCandidates(invokeInst)) {
+                processInvokeSiteWithMultipleTargets(invokeInst, m_virtualCallsInfo.getVirtualCallCandidates(invokeInst));
             } else if (m_indirectCallsInfo.hasIndirectTargets(invokeInst)) {
                 processInvokeSiteWithMultipleTargets(invokeInst, m_indirectCallsInfo.getIndirectTargets(invokeInst));
             } else {
@@ -436,6 +440,9 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
                 InputDepInstructionsRecorder::get().record(invokeInst);
                 // make all globals input dependent?
             }
+        }
+        if (throws) {
+            updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
         }
         return;
     }
@@ -455,6 +462,9 @@ void DependencyAnaliser::processInvokeInst(llvm::InvokeInst* invokeInst)
             updateInvokeInstructionDependencies(invokeInst, F);
             updateGlobalsAfterFunctionInvoke(invokeInst, F);
         }
+    }
+    if (throws) {
+        updateInstructionDependencies(invokeInst, DepInfo(DepInfo::INPUT_DEP));
     }
 }
 

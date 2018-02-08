@@ -357,24 +357,15 @@ void VirtualCallSiteAnalysisResult::addVirtualInvokeCandidates(llvm::InvokeInst*
 }
 
 
-bool VirtualCallSiteAnalysisResult::hasVirtualCallCandidates(llvm::CallInst* call) const
+bool VirtualCallSiteAnalysisResult::hasVirtualCallCandidates(llvm::Instruction* instr) const
 {
-    return hasCandidates(call);
+    return m_virtualCallCandidates.find(instr) != m_virtualCallCandidates.end();
 }
 
-const FunctionSet& VirtualCallSiteAnalysisResult::getVirtualCallCandidates(llvm::CallInst* call) const
+const FunctionSet& VirtualCallSiteAnalysisResult::getVirtualCallCandidates(llvm::Instruction* instr) const
 {
-    return getCandidates(call);
-}
-
-bool VirtualCallSiteAnalysisResult::hasVirtualInvokeCandidates(llvm::InvokeInst* invoke) const
-{
-    return hasCandidates(invoke);
-}
-
-const FunctionSet& VirtualCallSiteAnalysisResult::getVirtualInvokeCandidates(llvm::InvokeInst* invoke) const
-{
-    return getCandidates(invoke);
+    auto pos = m_virtualCallCandidates.find(instr);
+    return pos->second;
 }
 
 void VirtualCallSiteAnalysisResult::dump()
@@ -395,17 +386,6 @@ void VirtualCallSiteAnalysisResult::addInstr(llvm::Instruction* instr)
 void VirtualCallSiteAnalysisResult::addCandidates(llvm::Instruction* instr, FunctionSet&& candidates)
 {
     m_virtualCallCandidates[instr].insert(candidates.begin(), candidates.end());
-}
-
-bool VirtualCallSiteAnalysisResult::hasCandidates(llvm::Instruction* instr) const
-{
-    return m_virtualCallCandidates.find(instr) != m_virtualCallCandidates.end();
-}
-
-const FunctionSet& VirtualCallSiteAnalysisResult::getCandidates(llvm::Instruction* instr) const
-{
-    auto pos = m_virtualCallCandidates.find(instr);
-    return pos->second;
 }
 
 char IndirectCallSitesAnalysis::ID = 0;

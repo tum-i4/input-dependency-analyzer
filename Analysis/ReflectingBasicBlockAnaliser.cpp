@@ -631,8 +631,8 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
         auto invokedF = invokeInst->getCalledFunction();
         FunctionSet targets;
         if (invokedF == nullptr) {
-            if (m_virtualCallsInfo.hasVirtualInvokeCandidates(invokeInst)) {
-                targets = m_virtualCallsInfo.getVirtualInvokeCandidates(invokeInst);
+            if (m_virtualCallsInfo.hasVirtualCallCandidates(invokeInst)) {
+                targets = m_virtualCallsInfo.getVirtualCallCandidates(invokeInst);
             } else if (m_indirectCallsInfo.hasIndirectTargets(invokeInst)) {
                 targets = m_indirectCallsInfo.getIndirectTargets(invokeInst);
             } else {

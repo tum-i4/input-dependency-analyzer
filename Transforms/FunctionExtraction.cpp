@@ -449,7 +449,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
 
     createStatistics(M, *input_dep);
     m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
-    m_coverageStatistics->reportInputDepFunctionCoverage(false);
+    m_coverageStatistics->reportInputDepCoverage();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
@@ -492,7 +492,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         }
     }
     m_coverageStatistics->setSectionName("input_dep_coverage_after_extraction");
-    m_coverageStatistics->reportInputDepFunctionCoverage(false);
+    m_coverageStatistics->invalidate_stats_data();
+    m_coverageStatistics->reportInputDepCoverage();
     m_extractionStatistics->report();
 
     //Utils::check_module(M);

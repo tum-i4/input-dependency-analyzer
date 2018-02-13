@@ -78,7 +78,7 @@ void LoopAnalysisResult::gatherResults()
     bool is_input_dep = false;
     for (const auto& B : blocks) {
         updateLoopDependecies(B);
-        is_input_dep = checkForLoopDependencies(m_initialDependencies);
+        is_input_dep = checkForLoopDependencies(B);
         if (is_input_dep) {
             break;
         }
@@ -864,6 +864,11 @@ bool LoopAnalysisResult::checkForLoopDependencies(llvm::BasicBlock* B)
 
     if (!isSpecialLoopBlock(B)) {
         return false;
+    }
+    if (m_BBAnalisers.find(B) == m_BBAnalisers.end()) {
+         DependencyAnaliser::ValueDependencies dependencies = m_valueDependencies;
+         dependencies.insert(m_initialDependencies.begin(), m_initialDependencies.end());
+         return checkForLoopDependencies(dependencies);
     }
     const auto& termInstr = B->getTerminator();
     if (termInstr) {

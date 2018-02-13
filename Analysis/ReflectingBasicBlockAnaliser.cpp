@@ -254,27 +254,6 @@ DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instructi
     return deppos->second;
 }
 
-void ReflectingBasicBlockAnaliser::markAllInputDependent()
-{
-    BasicBlockAnalysisResult::markAllInputDependent();
-    DepInfo info(DepInfo::INPUT_DEP);
-    m_valueDependentInstrs.clear();
-    for (auto& instrItem : m_instructionValueDependencies) {
-        m_inputDependentInstrs.insert(std::make_pair(instrItem.first, info));
-    }
-    m_instructionValueDependencies.clear();
-    for (auto& depItem : m_valueDependentOutArguments) {
-        for (auto& arg : depItem.second) {
-            m_outArgDependencies[arg].updateCompositeValueDep(info);
-        }
-    }
-    m_valueDependentFunctionCallArguments.clear();
-    m_valueDependentOutArguments.clear();
-    m_valueDependentFunctionInvokeArguments.clear();
-    m_valueDependentCallGlobals.clear();
-    m_valueDependentInvokeGlobals.clear();
-}
-
 void ReflectingBasicBlockAnaliser::setOutArguments(const ArgumentDependenciesMap& outArgs)
 {
     BasicBlockAnalysisResult::setOutArguments(outArgs);

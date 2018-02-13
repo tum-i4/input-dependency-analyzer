@@ -300,16 +300,6 @@ void FunctionCallDepInfo::finalizeGlobalsDependencies(const GlobalVariableDepend
     }
 }
 
-void FunctionCallDepInfo::markAllInputDependent()
-{
-    for (auto& callItem : m_callsArgumentsDeps) {
-        markAllInputDependent(callItem.second);
-    }
-    for (auto& globalItem : m_callsGlobalsDeps) {
-        markAllInputDependent(globalItem.second);
-    }
-}
-
 bool FunctionCallDepInfo::isValidInstruction(const llvm::Instruction* instr) const
 {
     llvm::Function* calledF;
@@ -353,18 +343,6 @@ FunctionCallDepInfo::GlobalVariableDependencyMap& FunctionCallDepInfo::getGlobal
     auto pos = m_callsGlobalsDeps.find(instr);
     assert(pos != m_callsGlobalsDeps.end());
     return pos->second;
-}
-
-template<class Key>
-void FunctionCallDepInfo::markAllInputDependent(std::unordered_map<Key, ValueDepInfo>& argDeps)
-{
-    DepInfo info(DepInfo::INPUT_DEP);
-    for (auto& item : argDeps) {
-        // if argument is input indep, do not make it input dependent
-        if (!item.second.isInputIndep()) {
-            item.second.mergeDependencies(info);
-        }
-    }
 }
 
 }

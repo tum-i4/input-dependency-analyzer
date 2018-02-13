@@ -59,6 +59,27 @@ void NonDeterministicReflectingBasicBlockAnaliser::finalizeGlobals(const GlobalV
     m_is_inputDep |= m_nonDeterministicDeps.isInputDep();
 }
 
+void NonDeterministicReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies,
+                                                           const DepInfo& mandatory_deps)
+{
+    ReflectingBasicBlockAnaliser::reflect(dependencies, mandatory_deps);
+    if (!m_nonDeterministicDeps.isValueDep()) {
+        return;
+    }
+    std::vector<llvm::Value*> values_to_erase;
+    const auto block_dependencies = m_nonDeterministicDeps.getValueDependencies();
+    for (const auto dep : block_dependencies) {
+        auto value_deps = m_valueDependencies.find(dep);
+        if (value_deps == m_valueDependencies.end()) {
+            continue;
+        }
+        m_nonDeterministicDeps.mergeDependencies(value_deps->second.getValueDep());
+        values_to_erase.push_back(dep);
+    }
+    std::for_each(values_to_erase.begin(), values_to_erase.end(),
+                  [this] (llvm::Value* val) { this->m_nonDeterministicDeps.getValueDependencies().erase(val); });
+}
+
 DepInfo NonDeterministicReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto depInfo = ReflectingBasicBlockAnaliser::getInstructionDependencies(instr);

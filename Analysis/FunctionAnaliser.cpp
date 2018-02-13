@@ -4,7 +4,6 @@
 #include "DependencyAnalysisResult.h"
 #include "DependencyAnaliser.h"
 #include "LoopAnalysisResult.h"
-#include "InputDependentBasicBlockAnaliser.h"
 #include "NonDeterministicBasicBlockAnaliser.h"
 #include "IndirectCallSitesAnalysis.h"
 #include "BasicBlocksUtils.h"
@@ -714,15 +713,13 @@ void FunctionAnaliser::Impl::collectArguments()
 FunctionAnaliser::Impl::DependencyAnalysisResultT
 FunctionAnaliser::Impl::createBasicBlockAnalysisResult(llvm::BasicBlock* B, const DepInfo& depInfo)
 {
-    if (depInfo.isInputDep()) {
+    assert(depInfo.isDefined());
+    if (depInfo.isInputIndep()) {
         return DependencyAnalysisResultT(
-                    new InputDependentBasicBlockAnaliser(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B));
-    } else if (depInfo.isInputArgumentDep() || depInfo.isValueDep()) {
-        return DependencyAnalysisResultT(
-           new NonDeterministicBasicBlockAnaliser(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
+                new BasicBlockAnalysisResult(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B));
     }
     return DependencyAnalysisResultT(
-            new BasicBlockAnalysisResult(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B));
+           new NonDeterministicBasicBlockAnaliser(m_F, *m_AAR, *m_virtualCallsInfo, *m_indirectCallsInfo, m_inputs, m_FAGetter, B, depInfo));
 }
 
 LoopAnalysisResult* FunctionAnaliser::Impl::createLoopAnalysisResult(const DepInfo& depInfo, llvm::Loop* loop)

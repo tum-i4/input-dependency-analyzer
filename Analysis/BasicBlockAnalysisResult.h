@@ -111,7 +111,6 @@ public:
     const FunctionSet& getCallSitesData() const override;
     const GlobalsSet& getReferencedGlobals() const override;
     const GlobalsSet& getModifiedGlobals() const override;
-    void markAllInputDependent() override;
 
     long unsigned get_input_dep_blocks_count() const override;
     long unsigned get_input_indep_blocks_count() const override;

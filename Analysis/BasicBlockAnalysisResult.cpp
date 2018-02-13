@@ -650,29 +650,6 @@ const GlobalsSet& BasicBlockAnalysisResult::getModifiedGlobals() const
     return m_modifiedGlobals;
 }
 
-void BasicBlockAnalysisResult::markAllInputDependent()
-{
-    m_is_inputDep = true;
-    DepInfo info(DepInfo::INPUT_DEP);
-    // out arg dependencies
-    m_returnValueDependencies.updateValueDep(info);
-    // function call arguments
-    for (auto& functionItem : m_functionCallInfo) {
-        functionItem.second.markAllInputDependent();
-    }
-    for (auto& depinstr : m_inputDependentInstrs) {
-        m_finalInputDependentInstrs.insert(depinstr.first);
-    }
-    for (auto& instr : m_inputIndependentInstrs) {
-        m_finalInputDependentInstrs.insert(instr);
-    }
-    //m_inputIndependentInstrs.clear();
-    for (auto& val : m_valueDependencies) {
-        val.second.updateCompositeValueDep(info);
-    }
-    m_finalized = true;
-}
-
 long unsigned BasicBlockAnalysisResult::get_input_dep_blocks_count() const
 {
     return m_is_inputDep ? 1 : 0;

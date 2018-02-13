@@ -87,7 +87,6 @@ public:
     const GlobalsSet& getReferencedGlobals() const override;
     const GlobalsSet& getModifiedGlobals() const override;
     const ReflectingDependencyAnaliserT& getAnalysisResult(llvm::BasicBlock* block) const;
-    void markAllInputDependent() override;
 
     long unsigned get_input_dep_blocks_count() const override;
     long unsigned get_input_indep_blocks_count() const override;
@@ -110,9 +109,6 @@ private:
     DependencyAnaliser::ArgumentDependenciesMap getBasicBlockPredecessorsArguments(llvm::BasicBlock* B);
     DependencyAnaliser::ValueCallbackMap getBasicBlockPredecessorsCallbackFunctions(llvm::BasicBlock* B);
     void updateLoopDependecies(DepInfo&& depInfo);
-    bool checkForLoopDependencies(llvm::BasicBlock* B);
-    bool checkForLoopDependencies(const DependencyAnaliser::ValueDependencies& valueDeps);
-    bool checkForLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& argDeps);
     void updateFunctionCallInfo();
     void updateFunctionCallInfo(llvm::Function* F);
     void updateFunctionCallInfo(llvm::BasicBlock* B);

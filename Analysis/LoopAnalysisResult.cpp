@@ -75,13 +75,8 @@ void LoopAnalysisResult::gatherResults()
     //    llvm::dbgs() << block->getName() << "\n";
     //}
 
-    bool is_input_dep = false;
     for (const auto& B : blocks) {
         updateLoopDependecies(B);
-        is_input_dep = checkForLoopDependencies(m_initialDependencies);
-        if (is_input_dep) {
-            break;
-        }
         m_BBAnalisers[B] = createDependencyAnaliser(B);
         auto& analiser = m_BBAnalisers[B];
         analiser->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
@@ -89,29 +84,9 @@ void LoopAnalysisResult::gatherResults()
         analiser->setCallbackFunctions(getBasicBlockPredecessorsCallbackFunctions(B));
         analiser->gatherResults();
         updateValueDependencies(B);
-        is_input_dep = checkForLoopDependencies(B);
-        if (is_input_dep) {
-            break;
-        }
         //m_BBAnalisers[B]->dumpResults();
     }
-    if (is_input_dep) {
-        for (const auto& B : blocks) {
-            auto Bpos = m_BBAnalisers.find(B);
-            if (Bpos != m_BBAnalisers.end()) {
-                Bpos->second->markAllInputDependent();
-            } else {
-                m_BBAnalisers[B] = createInputDependentAnaliser(B);
-                m_BBAnalisers[B]->setInitialValueDependencies(getBasicBlockPredecessorsDependencies(B));
-                //analiser->setOutArguments(getBasicBlockPredecessorsArguments(B));
-                m_BBAnalisers[B]->gatherResults();
-                updateValueDependencies(B);
-            }
-        }
-        m_is_inputDep = true;
-    } else {
-        reflect();
-    }
+    reflect();
     updateCalledFunctionsList();
     updateReturnValueDependencies();
     updateOutArgumentDependencies();
@@ -130,11 +105,7 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
 {
     finalizeLoopDependencies(dependentArgs);
     for (auto& item : m_BBAnalisers) {
-        if (m_is_inputDep) {
-            item.second->markAllInputDependent();
-        } else {
-            item.second->finalizeResults(dependentArgs);
-        }
+        item.second->finalizeResults(dependentArgs);
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
@@ -391,16 +362,6 @@ const LoopAnalysisResult::ReflectingDependencyAnaliserT& LoopAnalysisResult::get
     return loop_pos->second;
 }
 
-void LoopAnalysisResult::markAllInputDependent()
-{
-    for (auto& bbAnaliser : m_BBAnalisers) {
-        bbAnaliser.second->markAllInputDependent();
-    }
-    reflectValueDepsOnLoopDeps();
-    m_loopDependencies.mergeDependency(DepInfo::INPUT_DEP);
-    m_is_inputDep = true;
-}
-
 long unsigned LoopAnalysisResult::get_input_dep_blocks_count() const
 {
     long unsigned count = 0;
@@ -451,10 +412,6 @@ long unsigned LoopAnalysisResult::get_input_unknowns_count() const
 
 void LoopAnalysisResult::reflect(const DependencyAnaliser::ValueDependencies& dependencies, const DepInfo& mandatory_deps)
 {
-    if (checkForLoopDependencies(dependencies)) {
-        markAllInputDependent();
-        return;
-    }
     for (auto& analiser : m_BBAnalisers) {
         analiser.second->reflect(dependencies, mandatory_deps);
     }
@@ -857,56 +814,6 @@ LoopAnalysisResult::ReflectingDependencyAnaliserT LoopAnalysisResult::createInpu
 void LoopAnalysisResult::updateLoopDependecies(DepInfo&& depInfo)
 {
     m_loopDependencies.mergeDependencies(std::move(depInfo));
-}
-
-bool LoopAnalysisResult::checkForLoopDependencies(llvm::BasicBlock* B)
-{
-
-    if (!isSpecialLoopBlock(B)) {
-        return false;
-    }
-    const auto& termInstr = B->getTerminator();
-    if (termInstr) {
-        auto* branchInst = llvm::dyn_cast<llvm::BranchInst>(termInstr);
-        if (branchInst && !branchInst->isUnconditional()) {
-            if (m_BBAnalisers[B]->isInputDependent(termInstr)) {
-                return true;
-            }
-        }
-    }
-    if (checkForLoopDependencies(m_BBAnalisers[B]->getValuesDependencies())) {
-        return true;
-    }
-    return checkForLoopDependencies(m_BBAnalisers[B]->getOutParamsDependencies());
-}
-
-bool LoopAnalysisResult::checkForLoopDependencies(const DependencyAnaliser::ValueDependencies& valuesDeps)
-{
-    for (const auto& loopDep : m_loopDependencies.getValueDependencies()) {
-        auto pos = valuesDeps.find(loopDep);
-        if (pos != valuesDeps.end()) {
-            if (pos->second.getValueDep().isInputDep()) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool LoopAnalysisResult::checkForLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& argDeps)
-{
-    if (argDeps.empty()) {
-        return false;
-    }
-    for (const auto& loopArgDep : m_loopDependencies.getArgumentDependencies()) {
-        auto pos = argDeps.find(loopArgDep);
-        if (pos != argDeps.end()) {
-            if (pos->second.isInputDep()) {
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 DepInfo LoopAnalysisResult::getBasicBlockDeps(llvm::BasicBlock* B) const

@@ -31,6 +31,8 @@ public:
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
 
+    void reflect(const DependencyAnaliser::ValueDependencies& dependencies,
+                 const DepInfo& mandatory_deps) override;
 public:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;

@@ -41,7 +41,6 @@ public:
     }
 
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
-    void markAllInputDependent() override;
     void setOutArguments(const ArgumentDependenciesMap& outArgs) override;
 
     /// \name Implementation of DependencyAnaliser interface

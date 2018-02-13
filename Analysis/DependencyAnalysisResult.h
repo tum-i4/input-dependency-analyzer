@@ -69,7 +69,6 @@ public:
     virtual const FunctionSet& getCallSitesData() const = 0;
     virtual const GlobalsSet& getReferencedGlobals() const = 0;
     virtual const GlobalsSet& getModifiedGlobals() const = 0;
-    virtual void markAllInputDependent() = 0;
 
     // debug interface
     virtual long unsigned get_input_dep_blocks_count() const = 0;

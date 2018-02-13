@@ -67,8 +67,6 @@ public:
 
     void finalizeGlobalsDependencies(const GlobalVariableDependencyMap& actualDeps);
 
-    void markAllInputDependent();
-
 private:
     bool isValidInstruction(const llvm::Instruction* instr) const;
     void addCallSiteArguments(const llvm::Instruction* instr, const ArgumentDependenciesMap& argDeps);

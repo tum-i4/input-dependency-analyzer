@@ -353,6 +353,7 @@ void CLibraryInfo::add_fprintf()
     // int fprintf ( FILE * stream, const char * format, ... );
     LibFunctionInfo::LibArgumentDependenciesMap argDeps;
     addArgWithDeps(0, {0, 1}, argDeps);
+    //argDeps.emplace(2, LibArgDepInfo{input_dependency::DepInfo::INPUT_INDEP,});
     LibFunctionInfo fprintfInfo(C_library::fprintf,
                                 std::move(argDeps),
                                 LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});

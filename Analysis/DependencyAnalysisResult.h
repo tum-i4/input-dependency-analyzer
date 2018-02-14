@@ -52,6 +52,8 @@ public:
     virtual bool isInputDependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const = 0;
     virtual bool isInputIndependent(llvm::Instruction* instr) const = 0;
     virtual bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const = 0;
+    virtual bool isControlDependent(llvm::Instruction* I) const = 0;
+    virtual bool isDataDependent(llvm::Instruction* I) const = 0;
 
     virtual bool hasValueDependencyInfo(llvm::Value* val) const = 0;
     virtual ValueDepInfo getValueDependencyInfo(llvm::Value* val) = 0;

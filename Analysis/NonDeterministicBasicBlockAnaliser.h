@@ -30,6 +30,7 @@ public:
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
+    bool isDataDependent(llvm::Instruction* I) const override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{

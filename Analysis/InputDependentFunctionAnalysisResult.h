@@ -73,6 +73,16 @@ public:
         return true;
     }
 
+    bool isControlDependent(llvm::Instruction* I) const
+    {
+        return true;
+    }
+
+    bool isDataDependent(llvm::Instruction* I) const
+    {
+        return true;
+    }
+
     FunctionSet getCallSitesData() const override
     {
         return FunctionSet();    

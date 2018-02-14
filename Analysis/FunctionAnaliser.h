@@ -51,6 +51,8 @@ public:
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(const llvm::Instruction* instr) const override;
     bool isInputDependentBlock(llvm::BasicBlock* block) const override;
+    bool isControlDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I) const override;
 
     FunctionSet getCallSitesData() const override;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;

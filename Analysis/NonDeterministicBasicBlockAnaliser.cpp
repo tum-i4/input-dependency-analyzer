@@ -71,6 +71,16 @@ bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* bloc
     return Utils::isInputDependentForArguments(m_nonDetDeps, depArgs);
 }
 
+bool NonDeterministicBasicBlockAnaliser::isDataDependent(llvm::Instruction* I) const
+{
+    // Is input dependent and dependency result is not the same as block dependency
+    auto pos = m_inputDependentInstrs.find(I);
+    if (pos == m_inputDependentInstrs.end()) {
+        return false;
+    }
+    return BasicBlockAnalysisResult::isInputDependent(I) && pos->second != m_nonDetDeps;
+}
+
 DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto depInfo = BasicBlockAnalysisResult::getInstructionDependencies(instr);

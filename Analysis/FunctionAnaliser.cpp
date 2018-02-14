@@ -200,6 +200,8 @@ public:
     bool isInputDependent(llvm::Value* value) const;
     bool isInputIndependent(llvm::Value* value) const;
     bool isInputDependentBlock(llvm::BasicBlock* block) const;
+    bool isControlDependent(llvm::Instruction* I) const;
+    bool isDataDependent(llvm::Instruction* I) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -322,6 +324,23 @@ bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) cons
     const auto& analysisRes = getAnalysisResult(block);
     if (analysisRes) {
         return analysisRes->isInputDependent(block);
+    }
+    return true;
+}
+
+bool FunctionAnaliser::Impl::isControlDependent(llvm::Instruction* I) const
+{
+    return isInputDependentBlock(I->getParent());
+}
+
+bool FunctionAnaliser::Impl::isDataDependent(llvm::Instruction* I) const
+{
+    if (isInputIndependent(I)) {
+        return false;
+    }
+    const auto& analysisRes = getAnalysisResult(I->getParent());
+    if (analysisRes) {
+        return analysisRes->isDataDependent(I);
     }
     return true;
 }
@@ -610,10 +629,12 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
     // get clonned finalized info
     InstrSet inputDeps;
     InstrSet inputIndeps;
+    InstrSet dataDeps;
     std::unordered_set<llvm::BasicBlock*> inputDepBlocks;
     std::unordered_map<llvm::Instruction*, llvm::Instruction*> local_instr_map;
     for (auto& B : *m_F) {
         auto analysisRes = getAnalysisResult(&B);
+        bool isInputDepBlock = false;
         // if analysisRes is null, consider input dependent
         if (!analysisRes || analysisRes->isInputDependent(&B, inputDepArgs)) {
             llvm::Value* block_val = get_mapped_value(&B, VMap);
@@ -627,6 +648,7 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
                 continue;
             }
             inputDepBlocks.insert(mapped_block);
+            isInputDepBlock = true;
             if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
                 BasicBlocksUtils::get().addUnreachableBlock(mapped_block);
             }
@@ -638,6 +660,11 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
             }
             if (!analysisRes || analysisRes->isInputDependent(&I, inputDepArgs)) {
                 inputDeps.insert(mapped_instr);
+                // if is input dep but is not in input dep block, then is data dependent.
+                // if is input dependent block then will compare dependencies
+                if (!isInputDepBlock || (isInputDepBlock && isDataDependent(&I))) {
+                    dataDeps.insert(mapped_instr);
+                }
             } else if (analysisRes && analysisRes->isInputIndependent(&I, inputDepArgs)) {
                 inputIndeps.insert(mapped_instr);
             } else {
@@ -647,6 +674,7 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
     }
     clonedResults->setInputDependentBasicBlocks(std::move(inputDepBlocks));
     clonedResults->setInputDepInstrs(std::move(inputDeps));
+    clonedResults->setDataDependentInstrs(std::move(dataDeps));
     clonedResults->setInputIndepInstrs(std::move(inputIndeps));
 
     // clone call site information
@@ -1189,6 +1217,16 @@ bool FunctionAnaliser::isInputIndependent(const llvm::Instruction* instr) const
 bool FunctionAnaliser::isInputDependentBlock(llvm::BasicBlock* block) const
 {
     return m_analiser->isInputDependentBlock(block);
+}
+
+bool FunctionAnaliser::isControlDependent(llvm::Instruction* I) const
+{
+    return m_analiser->isControlDependent(I);
+}
+
+bool FunctionAnaliser::isDataDependent(llvm::Instruction* I) const
+{
+    return m_analiser->isDataDependent(I);
 }
 
 bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const

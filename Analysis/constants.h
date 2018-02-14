@@ -15,6 +15,8 @@ public:
     const static std::string input_indep_block;
     const static std::string input_dep_instr;
     const static std::string input_indep_instr;
+    const static std::string control_dep_instr;
+    const static std::string data_dep_instr;
     const static std::string unknown;
     const static std::string unreachable;
     const static std::string extracted;

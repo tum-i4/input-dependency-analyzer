@@ -57,6 +57,26 @@ bool CachedInputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) co
     return pos->second->isInputDependentBlock(block);
 }
 
+bool CachedInputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const
+{
+    auto F = I->getParent()->getParent();
+    auto pos = m_functionAnalisers.find(F);
+    if (pos == m_functionAnalisers.end()) {
+        return false;
+    }
+    return pos->second->isControlDependent(I);
+}
+
+bool CachedInputDependencyAnalysis::isDataDependent(llvm::Instruction* I) const
+{
+    auto F = I->getParent()->getParent();
+    auto pos = m_functionAnalisers.find(F);
+    if (pos == m_functionAnalisers.end()) {
+        return false;
+    }
+    return pos->second->isDataDependent(I);
+}
+
 CachedInputDependencyAnalysis::InputDepResType CachedInputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)
 {
     auto pos = m_functionAnalisers.find(F);

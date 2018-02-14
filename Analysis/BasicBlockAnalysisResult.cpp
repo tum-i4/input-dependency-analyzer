@@ -505,6 +505,17 @@ bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr) cons
     return m_inputIndependentInstrs.find(instr) != m_inputIndependentInstrs.end() && !isInputDependent(instr);
 }
 
+bool BasicBlockAnalysisResult::isControlDependent(llvm::Instruction* I) const
+{
+    return m_is_inputDep;
+}
+
+bool BasicBlockAnalysisResult::isDataDependent(llvm::Instruction* I) const
+{
+    // TODO: check correctness of this statement
+    return !m_is_inputDep && isInputDependent(I);
+}
+
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
                                                   const ArgumentDependenciesMap& depArgs) const
 {

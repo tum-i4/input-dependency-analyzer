@@ -31,6 +31,11 @@ void ClonedFunctionAnalysisResult::setInputIndepInstrs(InstrSet&& inputIndeps)
     m_inputIndependentInstrs = std::move(inputIndeps);
 }
 
+void ClonedFunctionAnalysisResult::setDataDependentInstrs(InstrSet&& dataDeps)
+{
+    m_dataDependentInstrs = std::move(dataDeps);
+}
+
 void ClonedFunctionAnalysisResult::setInputDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& inputDeps)
 {
     m_inputDependentBasicBlocks = std::move(inputDeps);
@@ -99,6 +104,16 @@ bool ClonedFunctionAnalysisResult::isInputIndependent(const llvm::Instruction* i
 bool ClonedFunctionAnalysisResult::isInputDependentBlock(llvm::BasicBlock* block) const
 {
     return m_inputDependentBasicBlocks.find(block) != m_inputDependentBasicBlocks.end();
+}
+
+bool ClonedFunctionAnalysisResult::isControlDependent(llvm::Instruction* I) const
+{
+    return isInputDependentBlock(I->getParent());
+}
+
+bool ClonedFunctionAnalysisResult::isDataDependent(llvm::Instruction* I) const
+{
+    return m_dataDependentInstrs.find(I) != m_dataDependentInstrs.end();
 }
 
 FunctionSet ClonedFunctionAnalysisResult::getCallSitesData() const

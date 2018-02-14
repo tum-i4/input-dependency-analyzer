@@ -18,6 +18,7 @@ public:
 
     void setInputDepInstrs(InstrSet&& inputDeps);
     void setInputIndepInstrs(InstrSet&& inputIndeps);
+    void setDataDependentInstrs(InstrSet&& dataDeps);
     void setInputDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& inputDeps);
     void setCalledFunctions(const FunctionSet& calledFunctions);
     void setFunctionCallDepInfo(std::unordered_map<llvm::Function*, FunctionCallDepInfo>&& callDepInfo);
@@ -34,6 +35,8 @@ public:
      bool isInputIndependent(llvm::Instruction* instr) const override;
      bool isInputIndependent(const llvm::Instruction* instr) const override;
      bool isInputDependentBlock(llvm::BasicBlock* block) const override;
+     bool isControlDependent(llvm::Instruction* I) const override;
+     bool isDataDependent(llvm::Instruction* I) const override;
 
      FunctionSet getCallSitesData() const override;
      FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
@@ -60,6 +63,7 @@ private:
     unsigned int m_instructionsCount;
     InstrSet m_inputIndependentInstrs;
     InstrSet m_inputDependentInstrs;
+    InstrSet m_dataDependentInstrs;
     FunctionSet m_calledFunctions;
     std::unordered_set<llvm::BasicBlock*> m_inputDependentBasicBlocks;
     std::unordered_map<llvm::Function*, FunctionCallDepInfo> m_functionCallDepInfo;

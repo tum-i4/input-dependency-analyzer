@@ -65,10 +65,9 @@ void CachedFunctionAnalysisResult::parse_block_instructions_input_dep_metadata(l
         add_all_instructions_to(B, m_inputDepInstructions);
     } else if (m_unreachableBlocks.find(&B) != m_unreachableBlocks.end()) {
         add_all_instructions_to(B, m_unreachableInstructions);
-    } else {
-        for (auto& I : B) {
-            parse_instruction_input_dep_metadata(I);
-        }
+    }
+    for (auto& I : B) {
+        parse_instruction_input_dep_metadata(I);
     }
 }
 
@@ -87,6 +86,10 @@ void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::In
         m_inputIndepInstructions.insert(&I);
     } else if (auto* unknown_instr = I.getMetadata(metadata_strings::unknown)) {
         m_unknownInstructions.insert(&I);
+    } else if (auto* control_dep_instr = I.getMetadata(metadata_strings::control_dep_instr)) {
+        m_controlDepInstructions.insert(&I);
+    } else if (auto* data_dep_instr = I.getMetadata(metadata_strings::data_dep_instr)) {
+        m_dataDepInstructions.insert(&I);
     } else {
         assert(false);
     }
@@ -145,6 +148,16 @@ bool CachedFunctionAnalysisResult::isInputIndependent(const llvm::Instruction* i
 bool CachedFunctionAnalysisResult::isInputDependentBlock(llvm::BasicBlock* block) const
 {
     return m_inputDepBlocks.find(block) != m_inputDepBlocks.end();
+}
+
+bool CachedFunctionAnalysisResult::isControlDependent(llvm::Instruction* I) const
+{
+    return m_controlDepInstructions.find(I) != m_controlDepInstructions.end();
+}
+
+bool CachedFunctionAnalysisResult::isDataDependent(llvm::Instruction* I) const
+{
+    return m_dataDepInstructions.find(I) != m_dataDepInstructions.end();
 }
 
 FunctionSet CachedFunctionAnalysisResult::getCallSitesData() const

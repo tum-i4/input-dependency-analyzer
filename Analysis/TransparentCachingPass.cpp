@@ -45,6 +45,11 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
     auto* input_indep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::input_indep_instr);
     llvm::MDNode* input_indep_instr_md = llvm::MDNode::get(M.getContext(), input_indep_instr_md_str);
 
+    auto* control_dep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::control_dep_instr);
+    llvm::MDNode* control_dep_instr_md = llvm::MDNode::get(M.getContext(), control_dep_instr_md_str);
+    auto* data_dep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::data_dep_instr);
+    llvm::MDNode* data_dep_instr_md = llvm::MDNode::get(M.getContext(), data_dep_instr_md_str);
+
     auto* unknown_node_name = llvm::MDString::get(M.getContext(), metadata_strings::unknown);
     llvm::MDNode* unknown_md = llvm::MDNode::get(M.getContext(), unknown_node_name);
     auto* unreachable_node_name = llvm::MDString::get(M.getContext(), metadata_strings::unreachable);
@@ -64,10 +69,11 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
             F->setMetadata(metadata_strings::extracted, extracted_function_md);
         }
         for (auto& B : *F) {
+            bool is_input_dep_block = false;
             if (FA->isInputDependentBlock(&B)) {
+                is_input_dep_block = true;
                 B.begin()->setMetadata(metadata_strings::input_dep_block, input_dep_block_md);
                 // don't add metadata_strings to instructions as they'll all be input dep
-                continue;
             } else if (BasicBlocksUtils::get().isBlockUnreachable(&B)) {
                 B.begin()->setMetadata(metadata_strings::unreachable, unreachable_md);
                 continue;
@@ -75,12 +81,20 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
                 B.begin()->setMetadata(metadata_strings::input_indep_block, input_indep_block_md);
             }
             for (auto& I : B) {
-                if (FA->isInputDependent(&I)) {
-                    I.setMetadata(metadata_strings::input_dep_instr, input_dep_instr_md);
-                } else if (FA->isInputIndependent(&I)) {
-                    I.setMetadata(metadata_strings::input_indep_instr, input_indep_instr_md);
-                } else {
-                    I.setMetadata(metadata_strings::unknown, unknown_md);
+                if (!is_input_dep_block) {
+                    if (FA->isInputDependent(&I)) {
+                        I.setMetadata(metadata_strings::input_dep_instr, input_dep_instr_md);
+                    } else if (FA->isInputIndependent(&I)) {
+                        I.setMetadata(metadata_strings::input_indep_instr, input_indep_instr_md);
+                    } else {
+                        I.setMetadata(metadata_strings::unknown, unknown_md);
+                    }
+                }
+                if (FA->isControlDependent(&I)) {
+                    I.setMetadata(metadata_strings::control_dep_instr, control_dep_instr_md);
+                }
+                if (FA->isDataDependent(&I)) {
+                    I.setMetadata(metadata_strings::data_dep_instr, data_dep_instr_md);
                 }
             }
         }

@@ -125,6 +125,26 @@ bool InputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) const
     return pos->second->isInputDependentBlock(block);
 }
 
+bool InputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const
+{
+    auto F = I->getParent()->getParent();
+    auto pos = m_functionAnalisers.find(F);
+    if (pos == m_functionAnalisers.end()) {
+        return false;
+    }
+    return pos->second->isControlDependent(I);
+}
+
+bool InputDependencyAnalysis::isDataDependent(llvm::Instruction* I) const
+{
+    auto F = I->getParent()->getParent();
+    auto pos = m_functionAnalisers.find(F);
+    if (pos == m_functionAnalisers.end()) {
+        return false;
+    }
+    return pos->second->isDataDependent(I);
+}
+
 InputDependencyAnalysis::InputDepResType InputDependencyAnalysis::getAnalysisInfo(llvm::Function* F)
 {
     auto pos = m_functionAnalisers.find(F);

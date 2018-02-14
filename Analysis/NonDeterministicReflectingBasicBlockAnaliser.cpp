@@ -49,6 +49,16 @@ void NonDeterministicReflectingBasicBlockAnaliser::finalizeResults(const Argumen
     } 
 }
 
+bool NonDeterministicReflectingBasicBlockAnaliser::isDataDependent(llvm::Instruction* I) const
+{
+    // Is input dependent and dependency result is not the same as block dependency
+    auto pos = m_inputDependentInstrs.find(I);
+    if (pos == m_inputDependentInstrs.end()) {
+        return false;
+    }
+    return isInputDependent(I) && pos->second != m_nonDeterministicDeps;
+}
+
 void NonDeterministicReflectingBasicBlockAnaliser::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
 {
     BasicBlockAnalysisResult::finalizeGlobals(globalsDeps);

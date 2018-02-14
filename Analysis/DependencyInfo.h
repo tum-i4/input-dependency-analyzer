@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include "definitions.h"
 #include "llvm/IR/Value.h"
 
@@ -189,5 +190,32 @@ private:
     ValueSet m_valueDependencies;
 };
 
+inline bool operator ==(const DepInfo& info1, const DepInfo& info2)
+{
+    if (info1.getDependency() != info2.getDependency()) {
+        return false;
+    }
+    if (info1.getValueDependencies().size() != info2.getValueDependencies().size()) {
+        return false;
+    }
+    if (info1.getArgumentDependencies().size() != info2.getArgumentDependencies().size()) {
+        return false;
+    }
+    if (!std::all_of(info1.getValueDependencies().begin(), info1.getValueDependencies().end(),
+                [&info2] (llvm::Value* value) {
+                    return info2.getValueDependencies().find(value) != info2.getValueDependencies().end();
+                })) {
+        return false;
+    }
+    return (!std::all_of(info1.getArgumentDependencies().begin(), info1.getArgumentDependencies().end(),
+                [&info2] (llvm::Argument* arg) {
+                    return info2.getArgumentDependencies().find(arg) != info2.getArgumentDependencies().end();
+                }));
+}
+
+inline bool operator !=(const DepInfo& info1, const DepInfo& info2)
+{
+    return !(info1 == info2);
+}
 }
 

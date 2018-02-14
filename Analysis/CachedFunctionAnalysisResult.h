@@ -35,6 +35,9 @@ public:
     bool isInputIndependent(llvm::Instruction* instr) const override;
     bool isInputIndependent(const llvm::Instruction* instr) const override;
     bool isInputDependentBlock(llvm::BasicBlock* block) const override;
+    bool isControlDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I) const override;
+
     FunctionSet getCallSitesData() const override;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
 
@@ -63,6 +66,8 @@ private:
     BasicBlocks m_unreachableBlocks;
     Instructions m_inputDepInstructions;
     Instructions m_inputIndepInstructions;
+    Instructions m_controlDepInstructions;
+    Instructions m_dataDepInstructions;
     Instructions m_unknownInstructions;
     Instructions m_unreachableInstructions;
 }; // class CachedFunctionAnalysisResult

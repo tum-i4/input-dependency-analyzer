@@ -201,6 +201,20 @@ bool LoopAnalysisResult::isInputIndependent(llvm::Instruction* instr, const Depe
     return analysisRes->isInputIndependent(instr, depArgs);
 }
 
+bool LoopAnalysisResult::isControlDependent(llvm::Instruction* instr) const
+{
+    auto parentBB = instr->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isControlDependent(instr);
+}
+
+bool LoopAnalysisResult::isDataDependent(llvm::Instruction* instr) const
+{
+    auto parentBB = instr->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isDataDependent(instr);
+}
+
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
     auto pos = m_valueDependencies.find(val);

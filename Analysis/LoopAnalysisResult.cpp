@@ -215,6 +215,13 @@ bool LoopAnalysisResult::isDataDependent(llvm::Instruction* instr) const
     return analysisRes->isDataDependent(instr);
 }
 
+bool LoopAnalysisResult::isDataDependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const
+{
+    auto parentBB = instr->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isDataDependent(instr, depArgs);
+}
+
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
     auto pos = m_valueDependencies.find(val);

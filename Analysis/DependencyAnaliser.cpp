@@ -238,7 +238,7 @@ void DependencyAnaliser::processBitCast(llvm::BitCastInst* bitcast)
     }
 
     assert(depInfo.isDefined());
-    m_valueDependencies[bitcast] = ValueDepInfo(depInfo);
+    updateValueDependencies(bitcast, ValueDepInfo(depInfo), false);
     updateInstructionDependencies(bitcast, depInfo);
 }
 
@@ -667,6 +667,9 @@ void DependencyAnaliser::updateGlobalsAfterFunctionExecution(llvm::Function* F,
         ValueDepInfo depInfo(global->getType());
         if (is_recurs) {
             depInfo = getValueDependencies(global);
+            if (depInfo.isDefined()) {
+                addControlDependencies(depInfo);
+            }
         } else {
             assert(FA->hasGlobalVariableDepInfo(global));
             depInfo = FA->getGlobalVariableDependencies(global);
@@ -867,11 +870,12 @@ ValueDepInfo DependencyAnaliser::getArgumentActualValueDependencies(const ValueS
         }
         // what if from loop?
         assert(llvm::dyn_cast<llvm::GlobalVariable>(val));
-        const auto& depInfo = getValueDependencies(val);
+        auto depInfo = getValueDependencies(val);
         if (!depInfo.isDefined()) {
             globals.insert(val);
             continue;
         }
+        addControlDependencies(depInfo);
         info.mergeDependencies(depInfo);
     }
     if (!globals.empty()) {
@@ -899,13 +903,9 @@ void DependencyAnaliser::finalizeValues(const GlobalVariableDependencyMap& globa
 
 void DependencyAnaliser::finalizeInstructions(const GlobalVariableDependencyMap& globalDeps)
 {
+    finalizeInstructions(globalDeps, m_inputDependentInstrs);
     auto instrpos = m_inputDependentInstrs.begin();
     while (instrpos != m_inputDependentInstrs.end()) {
-        if (!instrpos->second.isValueDep()) {
-            ++instrpos;
-            continue;
-        }
-        finalizeValueDependencies(globalDeps, instrpos->second);
         if (instrpos->second.isInputIndep()) {
             auto old = instrpos;
             ++instrpos;
@@ -915,48 +915,6 @@ void DependencyAnaliser::finalizeInstructions(const GlobalVariableDependencyMap&
             ++instrpos;
         }
     }
-}
-
-DepInfo DependencyAnaliser::getFinalizedDepInfo(const ValueSet& values,
-                                                const DependencyAnaliser::GlobalVariableDependencyMap& globalDeps)
-{
-    DepInfo newInfo(DepInfo::INPUT_INDEP);
-    for (auto& item : values) {
-        auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
-        if (global == nullptr) {
-            continue;
-        }
-        assert(global != nullptr);
-        auto pos = globalDeps.find(global);
-        if (pos == globalDeps.end()) {
-            continue;
-        }
-        assert(pos->second.isDefined());
-        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
-        ValueDepInfo globalDepInfo = pos->second;
-        auto internal_pos = m_valueDependencies.find(global);
-        if (internal_pos != m_valueDependencies.end()) {
-            // TODO: internal value dependency?
-            globalDepInfo.mergeDependencies(internal_pos->second);
-        }
-        newInfo.mergeDependencies(globalDepInfo.getArgumentDependencies());
-        newInfo.mergeDependency(globalDepInfo.getDependency());
-    }
-    return newInfo;
-}
-
-void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps,
-                                                   DepInfo& toFinalize)
-{
-    assert(toFinalize.isValueDep());
-    auto& valueDependencies = toFinalize.getValueDependencies();
-    const auto& newInfo = getFinalizedDepInfo(valueDependencies, globalDeps);
-    assert(newInfo.isDefined());
-    if (toFinalize.getDependency() == DepInfo::VALUE_DEP) {
-        toFinalize.setDependency(newInfo.getDependency());
-    }
-    toFinalize.mergeDependencies(newInfo);
-    valueDependencies.clear();
 }
 
 void DependencyAnaliser::updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info)
@@ -1040,6 +998,7 @@ DependencyAnaliser::GlobalVariableDependencyMap DependencyAnaliser::gatherGlobal
         if (!depInfo.isDefined()) {
             depInfo = ValueDepInfo(DepInfo(DepInfo::VALUE_DEP, ValueSet{globalVal}));
         }
+        addControlDependencies(depInfo);
         globalsDepMap[global] = depInfo;
     }
     return globalsDepMap;
@@ -1053,6 +1012,7 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
         if (!depInfo.isDefined()) {
             depInfo = ValueDepInfo(argVal->getType(), DepInfo(DepInfo::VALUE_DEP, ValueSet{global}));
         }
+        addControlDependencies(depInfo);
         return depInfo;
     }
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
@@ -1060,14 +1020,19 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
     }
     auto depInfo = getValueDependencies(argVal);
     if (depInfo.isDefined()) {
+        addControlDependencies(depInfo);
         return depInfo;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
-        return ValueDepInfo(argVal->getType(), getInstructionDependencies(argInst));
+        auto instrDeps = getInstructionDependencies(argInst);
+        addControlDependencies(instrDeps);
+        return ValueDepInfo(argVal->getType(), instrDeps);
     }
     auto args = isInput(argVal);
     if (!args.empty()) {
-        return ValueDepInfo(argVal->getType(), DepInfo(DepInfo::INPUT_ARGDEP, args));
+        DepInfo depInfo(DepInfo::INPUT_ARGDEP, args);
+        addControlDependencies(depInfo);
+        return ValueDepInfo(argVal->getType(), depInfo);
     }
     return ValueDepInfo();
 }
@@ -1273,6 +1238,63 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     }
     return op;
 }
+
+void DependencyAnaliser::finalizeInstructions(const GlobalVariableDependencyMap& globalDeps,
+                                              InstrDependencyMap& instructions)
+{
+    auto instrpos = instructions.begin();
+    while (instrpos != instructions.end()) {
+        if (!instrpos->second.isValueDep()) {
+            ++instrpos;
+            continue;
+        }
+        finalizeValueDependencies(globalDeps, instrpos->second);
+        ++instrpos;
+    }
+}
+
+void DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps,
+                                                   DepInfo& toFinalize)
+{
+    assert(toFinalize.isValueDep());
+    auto& valueDependencies = toFinalize.getValueDependencies();
+    const auto& newInfo = getFinalizedDepInfo(valueDependencies, globalDeps);
+    assert(newInfo.isDefined());
+    if (toFinalize.getDependency() == DepInfo::VALUE_DEP) {
+        toFinalize.setDependency(newInfo.getDependency());
+    }
+    toFinalize.mergeDependencies(newInfo);
+    valueDependencies.clear();
+}
+
+DepInfo DependencyAnaliser::getFinalizedDepInfo(const ValueSet& values,
+                                                const DependencyAnaliser::GlobalVariableDependencyMap& globalDeps)
+{
+    DepInfo newInfo(DepInfo::INPUT_INDEP);
+    for (auto& item : values) {
+        auto global = llvm::dyn_cast<llvm::GlobalVariable>(item);
+        if (global == nullptr) {
+            continue;
+        }
+        assert(global != nullptr);
+        auto pos = globalDeps.find(global);
+        if (pos == globalDeps.end()) {
+            continue;
+        }
+        assert(pos->second.isDefined());
+        assert(!pos->second.getDependency() != DepInfo::VALUE_DEP);
+        ValueDepInfo globalDepInfo = pos->second;
+        auto internal_pos = m_valueDependencies.find(global);
+        if (internal_pos != m_valueDependencies.end()) {
+            // TODO: internal value dependency?
+            globalDepInfo.mergeDependencies(internal_pos->second);
+        }
+        newInfo.mergeDependencies(globalDepInfo.getArgumentDependencies());
+        newInfo.mergeDependency(globalDepInfo.getDependency());
+    }
+    return newInfo;
+}
+
 
 } // namespace input_dependency
 

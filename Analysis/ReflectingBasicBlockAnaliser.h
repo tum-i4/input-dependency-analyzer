@@ -40,6 +40,9 @@ public:
         return m_isReflected;
     }
 
+    void addControlDependencies(ValueDepInfo& valueDepInfo) override;
+    void addControlDependencies(DepInfo& depInfo) override;
+
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     void setOutArguments(const ArgumentDependenciesMap& outArgs) override;
 

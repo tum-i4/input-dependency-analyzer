@@ -237,6 +237,14 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     m_isReflected = true;
 }
 
+void ReflectingBasicBlockAnaliser::addControlDependencies(ValueDepInfo& valueDepInfo)
+{
+}
+
+void ReflectingBasicBlockAnaliser::addControlDependencies(DepInfo& depInfo)
+{
+}
+
 DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr) const
 {
     auto indeppos = m_inputIndependentInstrs.find(instr);

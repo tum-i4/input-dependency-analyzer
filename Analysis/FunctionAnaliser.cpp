@@ -330,7 +330,7 @@ bool FunctionAnaliser::Impl::isInputDependentBlock(llvm::BasicBlock* block) cons
 
 bool FunctionAnaliser::Impl::isControlDependent(llvm::Instruction* I) const
 {
-    return isInputDependentBlock(I->getParent());
+    return m_is_inputDep || isInputDependentBlock(I->getParent());
 }
 
 bool FunctionAnaliser::Impl::isDataDependent(llvm::Instruction* I) const
@@ -660,9 +660,7 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
             }
             if (!analysisRes || analysisRes->isInputDependent(&I, inputDepArgs)) {
                 inputDeps.insert(mapped_instr);
-                // if is input dep but is not in input dep block, then is data dependent.
-                // if is input dependent block then will compare dependencies
-                if (!isInputDepBlock || (isInputDepBlock && isDataDependent(&I))) {
+                if (analysisRes->isDataDependent(&I, inputDepArgs)) {
                     dataDeps.insert(mapped_instr);
                 }
             } else if (analysisRes && analysisRes->isInputIndependent(&I, inputDepArgs)) {

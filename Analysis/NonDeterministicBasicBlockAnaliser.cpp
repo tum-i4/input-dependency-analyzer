@@ -46,6 +46,14 @@ void NonDeterministicBasicBlockAnaliser::finalizeResults(const ArgumentDependenc
     if (m_nonDetDeps.isInputArgumentDep() && Utils::haveIntersection(dependentArgs, m_nonDetDeps.getArgumentDependencies())) {
         m_is_inputDep = true;
     } 
+    for (auto& item : m_instructions) {
+        if (item.second.isInputDep()) {
+            m_dataDependentInstrs.insert(item.first);
+        } else if (item.second.isInputArgumentDep()
+                   && Utils::haveIntersection(dependentArgs, item.second.getArgumentDependencies())) {
+            m_dataDependentInstrs.insert(item.first);
+        }
+    }
 }
 
 void NonDeterministicBasicBlockAnaliser::finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps)
@@ -56,6 +64,7 @@ void NonDeterministicBasicBlockAnaliser::finalizeGlobals(const GlobalVariableDep
     }
     finalizeValueDependencies(globalsDeps, m_nonDetDeps);
     m_is_inputDep |= m_nonDetDeps.isInputDep();
+    finalizeInstructions(globalsDeps, m_instructions);
 }
 
 bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* block,
@@ -73,48 +82,80 @@ bool NonDeterministicBasicBlockAnaliser::isInputDependent(llvm::BasicBlock* bloc
 
 bool NonDeterministicBasicBlockAnaliser::isDataDependent(llvm::Instruction* I) const
 {
-    // Is input dependent and dependency result is not the same as block dependency
-    auto pos = m_inputDependentInstrs.find(I);
-    if (pos == m_inputDependentInstrs.end()) {
+    return m_dataDependentInstrs.find(I) != m_dataDependentInstrs.end();
+}
+
+bool NonDeterministicBasicBlockAnaliser::isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const
+{
+    auto pos = m_instructions.find(I);
+    if (pos == m_instructions.end()) {
         return false;
     }
-    return BasicBlockAnalysisResult::isInputDependent(I) && pos->second != m_nonDetDeps;
+    if (pos->second.isInputDep()) {
+        return true;
+    }
+    return Utils::isInputDependentForArguments(pos->second, depArgs);
+}
+
+void NonDeterministicBasicBlockAnaliser::addControlDependencies(ValueDepInfo& valueDepInfo)
+{
+    valueDepInfo = addOnDependencyInfo(valueDepInfo);
+}
+
+void NonDeterministicBasicBlockAnaliser::addControlDependencies(DepInfo& depInfo)
+{
+    depInfo = addOnDependencyInfo(depInfo);
 }
 
 DepInfo NonDeterministicBasicBlockAnaliser::getInstructionDependencies(llvm::Instruction* instr)
 {
-    auto depInfo = BasicBlockAnalysisResult::getInstructionDependencies(instr);
-    depInfo.mergeDependencies(m_nonDetDeps);
-    return depInfo;
+    auto pos = m_instructions.find(instr);
+    if (pos != m_instructions.end()) {
+        return pos->second;
+    }
+    return BasicBlockAnalysisResult::getInstructionDependencies(instr);
 }
 
 ValueDepInfo NonDeterministicBasicBlockAnaliser::getValueDependencies(llvm::Value* value)
 {
-    auto depInfo = BasicBlockAnalysisResult::getValueDependencies(value);
-    if (!depInfo.isDefined()) {
-        return depInfo;
+    auto pos = m_valueDataDependencies.find(value);
+    if (pos != m_valueDataDependencies.end()) {
+        return pos->second;
     }
-    depInfo.mergeDependencies(m_nonDetDeps);
-    return depInfo;
+    return  BasicBlockAnalysisResult::getValueDependencies(value);
 }
 
 ValueDepInfo NonDeterministicBasicBlockAnaliser::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
 {
-    auto depInfo = BasicBlockAnalysisResult::getCompositeValueDependencies(value, element_instr);
-    if (!depInfo.isDefined()) {
-        return depInfo;
+    auto pos = m_valueDataDependencies.find(value);
+    if (pos == m_valueDataDependencies.end()) {
+        return BasicBlockAnalysisResult::getCompositeValueDependencies(value, element_instr);
     }
-    depInfo.mergeDependencies(m_nonDetDeps);
-    return depInfo;
+    return pos->second.getValueDep(element_instr);
 }
 
 void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
 {
+    auto res = m_valueDataDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
+    if (!res.second) {
+        res.first->second.updateCompositeValueDep(info);
+    }
+    if (update_aliases) {
+        updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
+    }
     BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
 }
 
 void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
 {
+    auto res = m_valueDataDependencies.insert(std::make_pair(value, info));
+    if (!res.second) {
+        res.first->second.updateValueDep(info);
+    }
+    if (update_aliases) {
+        updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
+    }
+
     BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
 }
 
@@ -122,11 +163,20 @@ void NonDeterministicBasicBlockAnaliser::updateCompositeValueDependencies(llvm::
                                                                           llvm::Instruction* elInstr,
                                                                           const ValueDepInfo& info)
 {
+    auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
+    if (!res.second) {
+        res.first->second.updateValueDep(elInstr, info);
+    }
+    updateAliasesDependencies(value, elInstr, res.first->second, m_valueDataDependencies);
     BasicBlockAnalysisResult::updateCompositeValueDependencies(value, elInstr, addOnDependencyInfo(info));
 }
 
 void NonDeterministicBasicBlockAnaliser::updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info)
 {
+    auto res = m_instructions.insert(std::make_pair(instr, info));
+    if (!res.second) {
+        res.first->second.mergeDependencies(info);
+    }
     BasicBlockAnalysisResult::updateInstructionDependencies(instr, addOnDependencyInfo(info));
 }
 

@@ -30,11 +30,15 @@ public:
     DepInfo getBlockDependencies() const override;
     void finalizeResults(const ArgumentDependenciesMap& dependentArgs) override;
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
+    bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const override;
 
     void reflect(const DependencyAnaliser::ValueDependencies& dependencies,
                  const DepInfo& mandatory_deps) override;
 public:
+    void addControlDependencies(ValueDepInfo& valueDepInfo) override;
+    void addControlDependencies(DepInfo& depInfo) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
@@ -53,6 +57,9 @@ private:
 
 private:
     DepInfo m_nonDeterministicDeps;
+    InstrDependencyMap m_instructions;
+    InstrSet m_dataDependentInstrs;
+    ValueDependencies m_valueDataDependencies;
 }; // class NonDeterministiReflectingBasicBlockAnaliser
 } // namespace input_dependency
 

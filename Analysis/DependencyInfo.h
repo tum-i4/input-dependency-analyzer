@@ -207,7 +207,7 @@ inline bool operator ==(const DepInfo& info1, const DepInfo& info2)
                 })) {
         return false;
     }
-    return (!std::all_of(info1.getArgumentDependencies().begin(), info1.getArgumentDependencies().end(),
+    return (std::all_of(info1.getArgumentDependencies().begin(), info1.getArgumentDependencies().end(),
                 [&info2] (llvm::Argument* arg) {
                     return info2.getArgumentDependencies().find(arg) != info2.getArgumentDependencies().end();
                 }));

@@ -31,13 +31,17 @@ public:
     void finalizeGlobals(const GlobalVariableDependencyMap& globalsDeps) override;
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
+    void addControlDependencies(ValueDepInfo& valueDepInfo) override;
+    void addControlDependencies(DepInfo& depInfo) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
+
     void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) override;
     void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) override;
     void updateCompositeValueDependencies(llvm::Value* value,
@@ -55,6 +59,9 @@ private:
 
 private:
     DepInfo m_nonDetDeps;
+    InstrDependencyMap m_instructions;
+    InstrSet m_dataDependentInstrs;
+    ValueDependencies m_valueDataDependencies;
 };
 
 } // namespace input_dependency

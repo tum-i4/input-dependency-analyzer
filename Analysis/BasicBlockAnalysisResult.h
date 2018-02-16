@@ -58,6 +58,8 @@ public:
     /// \name Implementation of DependencyAnaliser interface
     /// \{
 protected:
+    void addControlDependencies(ValueDepInfo& valueDepInfo) override;
+    void addControlDependencies(DepInfo& depInfo) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
@@ -69,8 +71,8 @@ protected:
                                           const ValueDepInfo& info) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
     ValueDepInfo getRefInfo(llvm::Instruction* instr) override;
-    void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info) override;
-    void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info) override;
+    void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info, ValueDependencies& valueDependencies) override;
+    void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info, ValueDependencies& valueDependencies) override;
     void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
     void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) override;
     void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info);
@@ -98,6 +100,7 @@ public:
     bool isInputIndependent(llvm::Instruction* instr, const ArgumentDependenciesMap& depArgs) const override;
     bool isControlDependent(llvm::Instruction* I) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const override;
 
     bool hasValueDependencyInfo(llvm::Value* val) const override;
     ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;

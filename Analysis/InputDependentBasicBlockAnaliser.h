@@ -78,6 +78,8 @@ protected:
     void processBranchInst(llvm::BranchInst* branchInst) override;
     void processStoreInst(llvm::StoreInst* storeInst) override;
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr) override;
+    void addControlDependencies(ValueDepInfo& valueDepInfo) override;
+    void addControlDependencies(DepInfo& depInfo) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;

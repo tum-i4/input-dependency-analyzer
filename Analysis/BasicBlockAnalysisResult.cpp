@@ -90,6 +90,16 @@ void BasicBlockAnalysisResult::analyze()
     }
 }
 
+void BasicBlockAnalysisResult::addControlDependencies(ValueDepInfo& valueDepInfo)
+{
+    // Nothing to do here
+}
+
+void BasicBlockAnalysisResult::addControlDependencies(DepInfo& depInfo)
+{
+    // Nothing to do here
+}
+
 DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* instr)
 {
     auto deppos = m_inputDependentInstrs.find(instr);
@@ -107,7 +117,7 @@ DepInfo BasicBlockAnalysisResult::getInstructionDependencies(llvm::Instruction* 
     return determineInstructionDependenciesFromOperands(instr);
 }
 
-ValueDepInfo BasicBlockAnalysisResult:: getValueDependencies(llvm::Value* value)
+ValueDepInfo BasicBlockAnalysisResult::getValueDependencies(llvm::Value* value)
 {
     auto pos = m_valueDependencies.find(value);
     if (pos != m_valueDependencies.end()) {
@@ -158,7 +168,7 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
         res.first->second.updateCompositeValueDep(info);
     }
     if (update_aliases) {
-        updateAliasesDependencies(value, res.first->second);
+        updateAliasesDependencies(value, res.first->second, m_valueDependencies);
         updateAliasingOutArgDependencies(value, res.first->second);
     }
 }
@@ -175,7 +185,7 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
         res.first->second.updateValueDep(info);
     }
     if (update_aliases) {
-        updateAliasesDependencies(value, res.first->second);
+        updateAliasesDependencies(value, res.first->second, m_valueDependencies);
         updateAliasingOutArgDependencies(value, res.first->second);
     }
 }
@@ -191,7 +201,7 @@ void BasicBlockAnalysisResult::updateCompositeValueDependencies(llvm::Value* val
     }
     auto res = m_valueDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
     res.first->second.updateValueDep(elInstr, info);
-    updateAliasesDependencies(value, elInstr, res.first->second);
+    updateAliasesDependencies(value, elInstr, res.first->second, m_valueDependencies);
     updateAliasingOutArgDependencies(value, info);
 }
 
@@ -218,11 +228,11 @@ ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::Instruction* instr)
     return info;
 }
 
-void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info)
+void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info, ValueDependencies& valueDependencies)
 {
     //llvm::dbgs() << "updateAliasesDependencies1 " << *val << "\n";
     llvm::Instruction* value_instr = llvm::dyn_cast<llvm::Instruction>(val);
-    for (auto& valDep : m_valueDependencies) {
+    for (auto& valDep : valueDependencies) {
         if (valDep.first == val) {
             continue;
         }
@@ -239,7 +249,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
         }
     }
     for (auto& valDep : m_initialDependencies) {
-        if (m_valueDependencies.find(valDep.first) != m_valueDependencies.end()) {
+        if (valueDependencies.find(valDep.first) != valueDependencies.end()) {
             continue;
         }
         if (valDep.first == val) {
@@ -258,10 +268,10 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, const
     }
 }
 
-void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info)
+void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info, ValueDependencies& valueDependencies)
 {
     //llvm::dbgs() << "updateAliasesDependencies2 " << *val << "  " << *elInstr << "\n";
-    for (auto& valDep : m_valueDependencies) {
+    for (auto& valDep : valueDependencies) {
         if (valDep.first == val) {
             continue;
         }
@@ -275,7 +285,7 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, llvm:
         }
     }
     for (auto& valDep : m_initialDependencies) {
-        if (m_valueDependencies.find(valDep.first) != m_valueDependencies.end()) {
+        if (valueDependencies.find(valDep.first) != valueDependencies.end()) {
             continue;
         }
         if (valDep.first == val) {
@@ -514,6 +524,11 @@ bool BasicBlockAnalysisResult::isDataDependent(llvm::Instruction* I) const
 {
     // TODO: check correctness of this statement
     return !m_is_inputDep && isInputDependent(I);
+}
+
+bool BasicBlockAnalysisResult::isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const
+{
+    return !isInputDependent(m_BB, depArgs) && isInputDependent(I, depArgs);
 }
 
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,

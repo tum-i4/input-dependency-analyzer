@@ -302,8 +302,10 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
                                                                  const DepInfo& info)
 {
     assert(info.isDefined());
+    DepInfo localInfo = info;
+    addControlDependencies(localInfo);
     auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(instr);
-    DepInfo instrDepInfo = info;
+    DepInfo instrDepInfo = localInfo;
     if (getElPtr) {
         instrDepInfo.mergeDependencies(ValueSet{getElPtr->getOperand(0)});
     }
@@ -320,7 +322,7 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
         assert(instrDepInfo.isInputArgumentDep());
         m_inputDependentInstrs[instr] = instrDepInfo;
     }
-    for (const auto& val : info.getValueDependencies()) {
+    for (const auto& val : localInfo.getValueDependencies()) {
         auto pos = m_valueDependencies.find(val);
         if (pos == m_valueDependencies.end()) {
             auto initials_pos = m_initialDependencies.find(val);
@@ -336,13 +338,15 @@ void ReflectingBasicBlockAnaliser::updateAliasingOutArgDependencies(llvm::Value*
     if (m_outArgDependencies.empty()) {
         return;
     }
+    ValueDepInfo localInfo = info;
+    addControlDependencies(localInfo);
     for (auto& arg : m_outArgDependencies) {
         auto alias = m_AAR.alias(val, arg.first);
         if (alias == llvm::AliasResult::NoAlias) {
             continue;
         }
         //arg.second.updateValueDep(info);
-        arg.second.mergeDependencies(info);
+        arg.second.mergeDependencies(localInfo);
         for (const auto& val : arg.second.getValueDependencies()) {
             m_valueDependentOutArguments[val].insert(arg.first);
             if (m_valueDependencies.find(val) == m_valueDependencies.end()) {

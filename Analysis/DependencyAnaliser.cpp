@@ -962,6 +962,7 @@ DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionCa
     return argDepMap;
 }
 
+// TODO: these two functions can be mered in one template function
 DependencyAnaliser::ArgumentDependenciesMap DependencyAnaliser::gatherFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst,
                                                                                              llvm::Function* F)
 {

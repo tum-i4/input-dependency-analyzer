@@ -30,6 +30,11 @@ NonDeterministicBasicBlockAnaliser::NonDeterministicBasicBlockAnaliser(
                     : BasicBlockAnalysisResult(F, AAR, virtualCallsInfo, indirectCallsInfo, inputs, Fgetter, BB)
                     , m_nonDetDeps(nonDetArgs)
 {
+    for (const auto& value_dep : m_nonDetDeps.getValueDependencies()) {
+        if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value_dep)) {
+            m_referencedGlobals.insert(global);
+        }
+    }
 }
 
 DepInfo NonDeterministicBasicBlockAnaliser::getBlockDependencies() const

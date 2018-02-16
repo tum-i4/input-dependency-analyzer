@@ -113,6 +113,7 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
 
 void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
 {
+    finalizeLoopDependencies(globalsDeps);
     for (auto& item : m_BBAnalisers) {
         item.second->finalizeGlobals(globalsDeps);
     }
@@ -782,11 +783,45 @@ void LoopAnalysisResult::collectLoopBlocks(llvm::Loop* block_loop)
     }
 }
 
+void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)
+{
+    if (!m_isReflected) {
+        reflectValueDepsOnLoopDeps();
+        m_isReflected = true;
+    }
+    if (!m_loopDependencies.isValueDep()) {
+        return;
+    }
+    if (m_loopDependencies.isInputDep()) {
+        m_is_inputDep = true;
+        m_loopDependencies.mergeDependencies(DepInfo::INPUT_DEP);
+        return;
+    }
+    auto loopValueDependencies = m_loopDependencies.getValueDependencies();
+    for (const auto& dep : loopValueDependencies) {
+        auto* global = llvm::dyn_cast<llvm::GlobalVariable>(dep);
+        if (!global) {
+            continue;
+        }
+        auto global_dep = globalsDeps.find(global);
+        if (global_dep == globalsDeps.end()) {
+            continue;
+        }
+        m_loopDependencies.mergeDependencies(global_dep->second.getValueDep());
+        m_loopDependencies.getValueDependencies().erase(dep);
+    }
+}
+
 void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::ArgumentDependenciesMap& dependentArgs)
 {
-    reflectValueDepsOnLoopDeps();
+    if (!m_isReflected) {
+        reflectValueDepsOnLoopDeps();
+        m_isReflected = true;
+    }
     if (m_loopDependencies.isValueDep()) {
-        m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
+        if (!m_loopDependencies.isInputArgumentDep()) {
+            m_loopDependencies.setDependency(DepInfo::INPUT_INDEP);
+        }
     }
     if (m_loopDependencies.isInputDep()) {
         m_is_inputDep = true;
@@ -800,7 +835,7 @@ void LoopAnalysisResult::finalizeLoopDependencies(const DependencyAnaliser::Argu
 
 void LoopAnalysisResult::reflectValueDepsOnLoopDeps()
 {
-    auto& loop_dependencies = m_loopDependencies.getValueDependencies();
+    auto loop_dependencies = m_loopDependencies.getValueDependencies();
     ValueSet erase_values;
     if (!loop_dependencies.empty()) {
         for (auto& loopDep : loop_dependencies) {
@@ -812,7 +847,7 @@ void LoopAnalysisResult::reflectValueDepsOnLoopDeps()
         }
     }
     for (auto val : erase_values) {
-        loop_dependencies.erase(val);
+        m_loopDependencies.getValueDependencies().erase(val);
     }
 }
 

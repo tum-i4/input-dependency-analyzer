@@ -65,6 +65,7 @@ public:
     long unsigned get_unreachable_instructions_count() const override;
     long unsigned get_input_dep_count() const override;
     long unsigned get_input_indep_count() const override;
+    long unsigned get_data_indep_count() const override;
     long unsigned get_input_unknowns_count() const override;
 
     FunctionAnaliser* toFunctionAnalysisResult() override

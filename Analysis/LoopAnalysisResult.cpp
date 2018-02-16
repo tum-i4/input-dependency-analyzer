@@ -423,6 +423,15 @@ long unsigned LoopAnalysisResult::get_input_indep_count() const
     return count;
 }
 
+long unsigned LoopAnalysisResult::get_data_indep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analysisRes : m_BBAnalisers) {
+        count += analysisRes.second->get_data_indep_count();
+    }
+    return count;
+}
+
 long unsigned LoopAnalysisResult::get_input_unknowns_count() const
 {
     long unsigned count = 0;

@@ -14,7 +14,11 @@ public:
     InputDependentFunctionAnalysisResult(llvm::Function* F)
         : m_F(F)
         , m_is_extracted(false)
+        , m_instructions_count(0)
     {
+        for (auto& B : *m_F) {
+            m_instructions_count += B.getInstList().size();
+        }
     }
 
 public:
@@ -120,16 +124,17 @@ public:
 
     long unsigned get_input_dep_count() const override
     {
-        long unsigned count = 0;
-        for (auto& B : *m_F) {
-            count += B.getInstList().size();
-        }
-        return count;
+        return m_instructions_count;
     }
 
     long unsigned get_input_indep_count() const override
     {
         return 0;
+    }
+
+    long unsigned get_data_indep_count() const override
+    {
+        return m_instructions_count;
     }
 
     long unsigned get_input_unknowns_count() const override 
@@ -140,6 +145,7 @@ public:
 private:
     llvm::Function* m_F;
     bool m_is_extracted;
+    long unsigned m_instructions_count;
 }; // class InputDependentFunctionAnalysisResult
 
 } // namespace input_dependency

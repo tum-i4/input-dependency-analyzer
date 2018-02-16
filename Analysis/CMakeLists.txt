@@ -13,7 +13,7 @@ add_library(InputDependency MODULE
     CachedInputDependencyAnalysis.cpp
     InputDependencyDebugInfoPrinter.cpp
     InputDependencyStatistics.cpp
-    InputDependentBasicBlockAnaliser.cpp
+    #InputDependentBasicBlockAnaliser.cpp
     LibFunctionInfo.cpp
     LibraryFunctionsDebugPass.cpp
     LibraryInfoCollector.cpp

@@ -15,9 +15,15 @@ ClonedFunctionAnalysisResult::ClonedFunctionAnalysisResult(llvm::Function* F)
     , m_is_inputDep(false)
     , m_is_extracted(false)
     , m_instructionsCount(0)
+    , m_dataIndepInstrsCount(0)
 {
-    for (const auto& B : *m_F) {
+    for (auto& B : *m_F) {
         m_instructionsCount += B.getInstList().size();
+        for (auto& I : B) {
+            if (!isDataDependent(&I)) {
+                ++m_dataIndepInstrsCount;
+            }
+        }
     }
 }
 
@@ -192,6 +198,11 @@ long unsigned ClonedFunctionAnalysisResult::get_input_dep_count() const
 long unsigned ClonedFunctionAnalysisResult::get_input_indep_count() const
 {
     return m_inputIndependentInstrs.size();
+}
+
+long unsigned ClonedFunctionAnalysisResult::get_data_indep_count() const
+{
+    return m_dataIndepInstrsCount;
 }
 
 long unsigned ClonedFunctionAnalysisResult::get_input_unknowns_count() const

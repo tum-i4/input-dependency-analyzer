@@ -49,6 +49,7 @@ public:
      long unsigned get_unreachable_instructions_count() const override;
      long unsigned get_input_dep_count() const override;
      long unsigned get_input_indep_count() const override;
+     long unsigned get_data_indep_count() const override;
      long unsigned get_input_unknowns_count() const override;
 
      ClonedFunctionAnalysisResult* toClonedFunctionAnalysisResult() override
@@ -61,6 +62,7 @@ private:
     bool m_is_inputDep;
     bool m_is_extracted;
     unsigned int m_instructionsCount;
+    unsigned int m_dataIndepInstrsCount;
     InstrSet m_inputIndependentInstrs;
     InstrSet m_inputDependentInstrs;
     InstrSet m_dataDependentInstrs;

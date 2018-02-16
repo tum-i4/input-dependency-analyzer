@@ -14,6 +14,7 @@ CachedFunctionAnalysisResult::CachedFunctionAnalysisResult(llvm::Function* F)
     : m_F(F)
     , m_is_inputDep(false)
     , m_is_extracted(false)
+    , m_dataIndepInstrCount(0)
 {
 }
 
@@ -24,6 +25,12 @@ void CachedFunctionAnalysisResult::analyze()
     for (auto& B : *m_F) {
         parse_block_input_dep_metadata(B);
         parse_block_instructions_input_dep_metadata(B);
+    }
+    m_dataIndepInstrCount += get_input_indep_count();
+    for (auto& I : m_controlDepInstructions) {
+        if (!isDataDependent(I)) {
+            ++m_dataIndepInstrCount;
+        }
     }
 }
 
@@ -200,6 +207,11 @@ long unsigned CachedFunctionAnalysisResult::get_input_dep_count() const
 long unsigned CachedFunctionAnalysisResult::get_input_indep_count() const
 {
     return m_inputIndepInstructions.size();
+}
+
+long unsigned CachedFunctionAnalysisResult::get_data_indep_count() const
+{
+    return m_dataIndepInstrCount;
 }
 
 long unsigned CachedFunctionAnalysisResult::get_input_unknowns_count() const

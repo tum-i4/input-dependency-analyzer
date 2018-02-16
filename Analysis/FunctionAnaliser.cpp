@@ -227,6 +227,7 @@ public:
     long unsigned get_unreachable_instructions_count() const;
     long unsigned get_input_dep_count() const;
     long unsigned get_input_indep_count() const;
+    long unsigned get_data_indep_count() const;
     long unsigned get_input_unknowns_count() const;
     FunctionInputDependencyResultInterface* cloneForArguments(const DependencyAnaliser::ArgumentDependenciesMap& inputDepArgs);
     void dump() const;
@@ -604,6 +605,15 @@ long unsigned FunctionAnaliser::Impl::get_input_indep_count() const
     long unsigned count = 0;
     for (const auto& analiser : m_BBAnalysisResults) {
         count += analiser.second->get_input_indep_count();
+    }
+    return count;
+}
+
+long unsigned FunctionAnaliser::Impl::get_data_indep_count() const
+{
+    long unsigned count = 0;
+    for (const auto& analiser : m_BBAnalysisResults) {
+        count += analiser.second->get_data_indep_count();
     }
     return count;
 }
@@ -1305,6 +1315,11 @@ long unsigned FunctionAnaliser::get_input_dep_count() const
 long unsigned FunctionAnaliser::get_input_indep_count() const
 {
     return m_analiser->get_input_indep_count();
+}
+
+long unsigned FunctionAnaliser::get_data_indep_count() const
+{
+    return m_analiser->get_data_indep_count();
 }
 
 long unsigned FunctionAnaliser::get_input_unknowns_count() const

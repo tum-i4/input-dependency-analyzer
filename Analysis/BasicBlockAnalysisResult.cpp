@@ -696,6 +696,18 @@ long unsigned BasicBlockAnalysisResult::get_input_indep_count() const
     return m_inputIndependentInstrs.size();
 }
 
+long unsigned BasicBlockAnalysisResult::get_data_indep_count() const
+{
+    // TODO: think about caching
+    long unsigned count = 0;
+    for (auto& I : *m_BB) {
+        if (!isDataDependent(&I)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 long unsigned BasicBlockAnalysisResult::get_input_unknowns_count() const
 {
     assert(m_BB->getInstList().size() >= get_input_dep_count() + get_input_indep_count());

@@ -57,6 +57,7 @@ public:
     virtual long unsigned get_unreachable_instructions_count() const = 0;
     virtual long unsigned get_input_dep_count() const = 0;
     virtual long unsigned get_input_indep_count() const = 0;
+    virtual long unsigned get_data_indep_count() const = 0;
     virtual long unsigned get_input_unknowns_count() const = 0;
 
     // cast interface

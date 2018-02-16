@@ -48,6 +48,14 @@ private:
         unsigned unreachable_instrs;
         unsigned all_instrs;
     };
+
+    struct data_independent_coverage_data
+    {
+        std::string name;
+        unsigned all_instrs;
+        unsigned data_independent_instrs;
+    };
+
 public:
     InputDependencyStatistics() = default;
     InputDependencyStatistics(const std::string& format,
@@ -75,6 +83,8 @@ public:
     /// by a call to \a invalidate_stats_data function.
     virtual void reportInputDepCoverage();
 
+    virtual void reportDataInpdependentCoverage();
+
     /// Invalidates stat data cached so far. Note cached data will persist, unless this function is called.
     virtual void invalidate_stats_data();
 
@@ -82,10 +92,13 @@ private:
     void report_inputdep_data(const inputdep_data& data);
     void report_input_indep_coverage_data(const input_indep_coverage_data& data);
     void report_input_dep_coverage_data(const input_dep_coverage_data& data);
+    void report_data_indep_coverage_data(const data_independent_coverage_data& data);
     void update_module_coverage_data(input_dep_coverage_data& module_coverage_data,
                                      const input_dep_coverage_data& function_coverage_data) const;
     void update_module_coverage_data(input_indep_coverage_data& module_coverage_data,
                                      const input_indep_coverage_data& function_coverage_data) const;
+    void update_module_coverage_data(data_independent_coverage_data& module_coverage_data,
+                                     const data_independent_coverage_data& function_coverage_data) const;
 
 private:
     llvm::Module* m_module;
@@ -104,6 +117,7 @@ public:
     void reportInputDependencyInfo() override {}
     void reportInputInDepCoverage() override {}
     void reportInputDepCoverage() override {}
+    void reportDataInpdependentCoverage() override {}
     void invalidate_stats_data() override {}
 
     void flush() override {}

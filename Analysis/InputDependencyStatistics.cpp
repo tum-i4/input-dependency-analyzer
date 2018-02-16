@@ -42,6 +42,7 @@ void InputDependencyStatistics::report()
     reportInputDependencyInfo();
     reportInputDepCoverage();
     reportInputInDepCoverage();
+    reportDataInpdependentCoverage();
 }
 
 void InputDependencyStatistics::reportInputDependencyInfo()
@@ -129,10 +130,10 @@ void InputDependencyStatistics::reportInputDepCoverage()
             continue;
         }
         const auto& FA = FA_pos->second;
-        unsigned dep_count = FA->isInputDepFunction() ? F.getBasicBlockList().size() : 0;
+        unsigned dep_count = FA->isInputDepFunction() ? F.getBasicBlockList().size() : FA->get_input_dep_blocks_count();
         unsigned unreachable = FA->get_unreachable_blocks_count();
         unsigned blocks = F.getBasicBlockList().size();
-        unsigned dep_instrs_count = FA->isInputDepFunction() ? get_function_instrs_count(F) : 0;
+        unsigned dep_instrs_count = FA->isInputDepFunction() ? get_function_instrs_count(F) : FA->get_input_dep_count();
         unsigned unreachable_instrs = FA->get_unreachable_instructions_count();
         unsigned instructions = 0;
         if (dep_instrs_count != 0) {
@@ -147,6 +148,30 @@ void InputDependencyStatistics::reportInputDepCoverage()
         update_module_coverage_data(module_coverage_data, input_dep_cov);
     }
     report_input_dep_coverage_data(module_coverage_data);
+    unsetStatsTypeName();
+}
+
+void InputDependencyStatistics::reportDataInpdependentCoverage()
+{
+    setStatsTypeName("data_indep_coverage");
+    data_independent_coverage_data module_coverage_data{m_module->getName(), 0, 0};
+
+    for (auto& F : *m_module) {
+        auto FA_pos = m_IDA->find(&F);
+        if (FA_pos == m_IDA->end()) {
+            continue;
+        }
+        if (F.isDeclaration()) {
+            continue;
+        }
+        const auto& FA = FA_pos->second;
+        unsigned data_indep_count = FA->get_data_indep_count();
+        unsigned instructions = get_function_instrs_count(F);
+        auto data_indep_cov = data_independent_coverage_data{F.getName(), instructions, data_indep_count};
+        report_data_indep_coverage_data(data_indep_cov);
+        update_module_coverage_data(module_coverage_data, data_indep_cov);
+    }
+    report_data_indep_coverage_data(module_coverage_data);
     unsetStatsTypeName();
 }
 
@@ -194,6 +219,14 @@ void InputDependencyStatistics::report_input_dep_coverage_data(const input_dep_c
     write_entry(data.name, "InstrCoverage", instr_coverage);
 }
 
+void InputDependencyStatistics::report_data_indep_coverage_data(const data_independent_coverage_data& data)
+{
+    write_entry(data.name, "NumInstrs", data.all_instrs);
+    write_entry(data.name, "DataIndepInstrs", data.data_independent_instrs);
+    double data_indep_cov = (data.data_independent_instrs * 100.0) / data.all_instrs;
+    write_entry(data.name, "DataIndepCoverage", data_indep_cov);
+}
+
 void InputDependencyStatistics::update_module_coverage_data(
                                      input_dep_coverage_data& module_coverage_data,
                                      const input_dep_coverage_data& function_coverage_data) const
@@ -217,6 +250,15 @@ void InputDependencyStatistics::update_module_coverage_data(
     module_coverage_data.unreachable_instrs += function_coverage_data.unreachable_instrs;
     module_coverage_data.all_instrs += function_coverage_data.all_instrs;
 }
+
+void InputDependencyStatistics::update_module_coverage_data(
+                                data_independent_coverage_data& module_coverage_data,
+                                const data_independent_coverage_data& function_coverage_data) const
+{
+    module_coverage_data.all_instrs += function_coverage_data.all_instrs;
+    module_coverage_data.data_independent_instrs += function_coverage_data.data_independent_instrs;
+}
+
 
 static llvm::cl::opt<std::string> stats_format(
     "stats-format",

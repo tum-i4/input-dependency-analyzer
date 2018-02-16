@@ -90,12 +90,12 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
                         I.setMetadata(metadata_strings::unknown, unknown_md);
                     }
                 }
-                //if (FA->isControlDependent(&I)) {
-                //    I.setMetadata(metadata_strings::control_dep_instr, control_dep_instr_md);
-                //}
-                //if (FA->isDataDependent(&I)) {
-                //    I.setMetadata(metadata_strings::data_dep_instr, data_dep_instr_md);
-                //}
+                if (FA->isControlDependent(&I)) {
+                    I.setMetadata(metadata_strings::control_dep_instr, control_dep_instr_md);
+                }
+                if (FA->isDataDependent(&I)) {
+                    I.setMetadata(metadata_strings::data_dep_instr, data_dep_instr_md);
+                }
             }
         }
     }

@@ -50,6 +50,11 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
     auto* data_dep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::data_dep_instr);
     llvm::MDNode* data_dep_instr_md = llvm::MDNode::get(M.getContext(), data_dep_instr_md_str);
 
+    // TODO: remove later
+    auto* data_indep_instr_md_str = llvm::MDString::get(M.getContext(), "data_indep");
+    llvm::MDNode* data_indep_instr_md = llvm::MDNode::get(M.getContext(), data_indep_instr_md_str);
+
+
     auto* unknown_node_name = llvm::MDString::get(M.getContext(), metadata_strings::unknown);
     llvm::MDNode* unknown_md = llvm::MDNode::get(M.getContext(), unknown_node_name);
     auto* unreachable_node_name = llvm::MDString::get(M.getContext(), metadata_strings::unreachable);
@@ -95,6 +100,8 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
                 }
                 if (FA->isDataDependent(&I)) {
                     I.setMetadata(metadata_strings::data_dep_instr, data_dep_instr_md);
+                } else {
+                    I.setMetadata("data_indep", data_indep_instr_md);
                 }
             }
         }

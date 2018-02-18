@@ -481,6 +481,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         llvm::Function* extracted_f = f.first;
         m_extracted_functions.insert(extracted_f);
         llvm::dbgs() << extracted_f->getName() << "\n";
+        // TODO: this is not quite correct, to create an InputDependentFunctionAnalysisResult for extracted function
         input_dep->insertAnalysisInfo(
                 extracted_f, input_dependency::InputDependencyAnalysis::InputDepResType(new
                 input_dependency::InputDependentFunctionAnalysisResult(extracted_f)));

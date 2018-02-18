@@ -69,6 +69,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     createStatistics(M);
     m_coverageStatistics->setSectionName("input_indep_coverage_before_clonning");
     m_coverageStatistics->reportInputInDepCoverage();
+    m_coverageStatistics->reportDataInpdependentCoverage();
     //m_coverageStatistics->flush();
 
     auto it = M.begin();
@@ -133,6 +134,7 @@ bool FunctionClonePass::runOnModule(llvm::Module& M)
     //dump();
     m_coverageStatistics->setSectionName("input_indep_coverage_after_clonning");
     m_coverageStatistics->reportInputInDepCoverage();
+    m_coverageStatistics->reportDataInpdependentCoverage();
     //m_coverageStatistics->flush();
     m_cloneStatistics->report();
     return isChanged;

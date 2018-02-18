@@ -783,8 +783,9 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
             const auto& value_dep = getValueDependencies(opInst);
             if (value_dep.isDefined()) {
                 deps.mergeDependencies(value_dep.getValueDep());
-            } else {
-                const auto& c_deps = getInstructionDependencies(opInst);
+            }
+            const auto& c_deps = getInstructionDependencies(opInst);
+            if (c_deps.isDefined()) {
                 deps.mergeDependencies(c_deps);
             }
         } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {

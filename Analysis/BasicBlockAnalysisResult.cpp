@@ -378,6 +378,9 @@ void BasicBlockAnalysisResult::markFunctionsForValue(llvm::Value* value)
         if (FA) {
             FA->setIsInputDepFunction(true);
         }
+        auto pos = m_functionCallInfo.insert(std::make_pair(F, FunctionCallDepInfo(*F)));
+        pos.first->second.setIsCallback(true);
+        m_calledFunctions.insert(F);
         InputDepConfig::get().add_input_dep_function(F);
     }
 }

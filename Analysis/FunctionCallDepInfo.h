@@ -22,11 +22,21 @@ public:
     using CallSiteGloblasDependenciesMap = std::unordered_map<const llvm::Instruction*, GlobalVariableDependencyMap>;
 
 public:
-    FunctionCallDepInfo() = default;
+    FunctionCallDepInfo();
     FunctionCallDepInfo(const llvm::Function& F);
 
 public:
     bool empty() const;
+
+    bool isCallbackFunction() const
+    {
+        return m_isCallback;
+    }
+
+    void setIsCallback(bool isCallback)
+    {
+        m_isCallback = isCallback;
+    }
 
     void addCall(const llvm::CallInst* callInst, const ArgumentDependenciesMap& deps);
     void addInvoke(const llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& deps);
@@ -80,6 +90,7 @@ private:
     CallSiteArgumentsDependenciesMap m_callsArgumentsDeps;
     CallSiteGloblasDependenciesMap m_callsGlobalsDeps;
     InstrSet m_callSites;
+    bool m_isCallback;
 };
 
 } // namespace input_dependency

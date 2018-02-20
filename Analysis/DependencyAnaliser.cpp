@@ -1102,6 +1102,9 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
                     arg_FA->setIsInputDepFunction(true);
                 }
                 InputDepConfig::get().add_input_dep_function(arg_F);
+                auto pos = m_functionCallInfo.insert(std::make_pair(arg_F, FunctionCallDepInfo(*arg_F)));
+                pos.first->second.setIsCallback(true);
+                m_calledFunctions.insert(arg_F);
             } else {
                 markCallbackFunctionsForValue(actualArg);
             }

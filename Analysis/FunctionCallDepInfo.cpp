@@ -121,8 +121,15 @@ void finalizeGlobalsDeps(const FunctionCallDepInfo::GlobalVariableDependencyMap&
 
 }
 
+FunctionCallDepInfo::FunctionCallDepInfo()
+    : m_F(nullptr)
+    , m_isCallback(false)
+{
+}
+
 FunctionCallDepInfo::FunctionCallDepInfo(const llvm::Function& F)
-                                : m_F(&F)
+    : m_F(&F)
+    , m_isCallback(false)
 {
 }
 
@@ -260,6 +267,14 @@ FunctionCallDepInfo::getGlobalsDependenciesForInvoke(const llvm::InvokeInst* inv
 FunctionCallDepInfo::ArgumentDependenciesMap FunctionCallDepInfo::getMergedArgumentDependencies() const
 {
     ArgumentDependenciesMap mergedDeps;
+    if (m_isCallback) {
+        auto arg_it = m_F->arg_begin();
+        while (arg_it != m_F->arg_end()) {
+            mergedDeps[const_cast<llvm::Argument*>(&*arg_it)] = ValueDepInfo(DepInfo(DepInfo::INPUT_DEP));
+            ++arg_it;
+        }
+        return mergedDeps;
+    }
     for (const auto& item : m_callsArgumentsDeps) {
         for (const auto& argItem : item.second) {
             mergedDeps[argItem.first].mergeDependencies(argItem.second);

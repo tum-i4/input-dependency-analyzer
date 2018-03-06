@@ -135,12 +135,7 @@ void InputDependencyStatistics::reportInputDepCoverage()
         unsigned blocks = F.getBasicBlockList().size();
         unsigned dep_instrs_count = FA->isInputDepFunction() ? get_function_instrs_count(F) : FA->get_input_dep_count();
         unsigned unreachable_instrs = FA->get_unreachable_instructions_count();
-        unsigned instructions = 0;
-        if (dep_instrs_count != 0) {
-            instructions = dep_instrs_count;
-        } else {
-            instructions = get_function_instrs_count(F);
-        }
+        unsigned instructions = get_function_instrs_count(F);
         auto input_dep_cov = input_dep_coverage_data{F.getName(), dep_count, unreachable, blocks,
                                            dep_instrs_count, unreachable_instrs, instructions};
         m_function_input_dep_function_coverage_data.insert(std::make_pair(&F, input_dep_cov));

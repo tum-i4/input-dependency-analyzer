@@ -166,6 +166,7 @@ public:
     void setIsInputDepFunction(bool isInputDep)
     {
         m_is_inputDep = isInputDep;
+        updateFunctionInputDependencies();
     }
 
     bool isExtractedFunction() const
@@ -791,13 +792,16 @@ DepInfo FunctionAnaliser::Impl::getBasicBlockPredecessorInstructionsDeps(llvm::B
 void FunctionAnaliser::Impl::updateFunctionInputDependencies()
 {
     for (const auto& calledF : m_calledFunctions) {
+        if (calledF == m_F) {
+            continue;
+        }
         auto calledFA = m_FAGetter(calledF);
         if (!calledFA) {
             InputDepConfig::get().add_input_dep_function(calledF);
             continue;
         }
         if (m_is_inputDep) {
-            if (calledFA) {
+            if (calledFA && !calledFA->isInputDepFunction()) {
                 calledFA->setIsInputDepFunction(true);
             }
             InputDepConfig::get().add_input_dep_function(calledF);

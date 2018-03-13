@@ -249,6 +249,18 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
     // %x = getelementptr inbounds %struct.point, %struct.point* %p, i32 0, i32 1
     // for int *p; p[0]
     // %arrayidx = getelementptr inbounds i32, i32* %0, i64 0, where %0 is load of p
+    // first check input dependency of indices
+    DepInfo indexDepInfo;
+    auto idx_it = getElPtr->idx_begin();
+    while (idx_it != getElPtr->idx_end()) {
+        if (auto* idx_inst = llvm::dyn_cast<llvm::Instruction>(&*idx_it)) {
+            indexDepInfo = getInstructionDependencies(idx_inst);
+            if (indexDepInfo.isInputDep()) {
+                break;
+            }
+        }
+        ++idx_it;
+    }
     auto compositeValue = getElPtr->getOperand(0);
     auto depInfo = getCompositeValueDependencies(compositeValue, getElPtr);
     if (!depInfo.isDefined()) {
@@ -264,7 +276,7 @@ void DependencyAnaliser::processGetElementPtrInst(llvm::GetElementPtrInst* getEl
             depInfo = ValueDepInfo(compositeValue->getType(), DepInfo(DepInfo::INPUT_DEP));
         }
     }
-
+    depInfo.mergeDependencies(ValueDepInfo(indexDepInfo));
     updateInstructionDependencies(getElPtr, depInfo.getValueDep());
     updateValueDependencies(getElPtr, depInfo, false); // add getElPtr as value
 }

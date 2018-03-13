@@ -27,6 +27,7 @@ public:
     }
 
 public:
+    virtual void analyze() = 0;
     virtual llvm::Function* getFunction() = 0;
     virtual const llvm::Function* getFunction() const = 0;
     virtual bool isInputDepFunction() const = 0;

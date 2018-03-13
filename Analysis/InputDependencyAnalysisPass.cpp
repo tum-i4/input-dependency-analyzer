@@ -145,6 +145,7 @@ void InputDependencyAnalysisPass::create_input_dependency_analysis(const InputDe
     {
         return &this->getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
     };
+    // memory leak?
     InputDependencyAnalysis* analysis = new InputDependencyAnalysis(m_module);
     analysis->setCallGraph(CG);
     analysis->setVirtualCallSiteAnalysisResult(virtualCallsInfo);

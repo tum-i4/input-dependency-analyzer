@@ -22,6 +22,7 @@ public:
     }
 
 public:
+     void analyze() override {}
     llvm::Function* getFunction() override
     {
         return m_F;

@@ -24,6 +24,7 @@ public:
     void setFunctionCallDepInfo(std::unordered_map<llvm::Function*, FunctionCallDepInfo>&& callDepInfo);
 
 public:
+     void analyze() override {}
      llvm::Function* getFunction() override;
      const llvm::Function* getFunction() const override;
      bool isInputDepFunction() const override;

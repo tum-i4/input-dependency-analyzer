@@ -21,7 +21,7 @@ public:
 public:
     CachedFunctionAnalysisResult(llvm::Function* F);
 
-    void analyze();
+    void analyze() override;
     
 public:
     llvm::Function* getFunction() override;

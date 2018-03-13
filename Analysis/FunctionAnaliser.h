@@ -83,7 +83,7 @@ public:
      * Collects function call site dependency info.
      * \note Assumes that function arguments are user inputs.
      */
-    void analyze();
+    void analyze() override;
 
     /**
      * \brief Refines results of the \link analyze by performing context-sensitive analysis given set of input dep arguments.

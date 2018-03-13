@@ -23,10 +23,10 @@ void CachedInputDependencyAnalysis::run()
         if (Utils::isLibraryFunction(&F, m_module)) {
             continue;
         }
-        CachedFunctionAnalysisResult* cached_function = new CachedFunctionAnalysisResult(&F);
-        cached_function->analyze();
-        auto res = m_functionAnalisers.insert(std::make_pair(&F, InputDepResType(cached_function)));
+        InputDepResType analiser(new CachedFunctionAnalysisResult(&F));
+        auto res = m_functionAnalisers.insert(std::make_pair(&F, analiser));
         assert(res.second);
+        res.first->second->analyze();
     }
 }
 

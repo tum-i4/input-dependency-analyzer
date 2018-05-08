@@ -32,6 +32,7 @@ public:
     bool isInputDependent(llvm::BasicBlock* block, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
     bool isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const override;
+    bool isArgumentDependent(llvm::BasicBlock* block) const override;
 
     /// \name Implementation of DependencyAnaliser interface
     /// \{

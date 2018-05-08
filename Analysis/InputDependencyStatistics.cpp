@@ -6,6 +6,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -24,6 +25,44 @@ unsigned get_function_instrs_count(llvm::Function& F)
     }
     return count;
 }
+
+unsigned get_argument_dependent_instr_count(llvm::Function& F,
+                                            InputDependencyAnalysisInterface::InputDepResType& FA)
+{
+    unsigned argument_dep_instr_count = 0;
+    for (auto& B : F) {
+        for (auto& I : B) {
+            if (!FA->isDataDependent(&I) && FA->isArgumentDependent(&I)) {
+                ++argument_dep_instr_count;
+            }
+        }
+    }
+    return argument_dep_instr_count;
+}
+
+unsigned get_argument_or_data_dependent_loop_instr_count(llvm::Function& F,
+                                                         InputDependencyAnalysisInterface::InputDepResType& FA,
+                                                         llvm::LoopInfo* LI)
+{
+    unsigned argument_dep_instr_count = 0;
+    for (auto& B : F) {
+        auto* loop = LI->getLoopFor(&B);
+        if (!loop) {
+            continue;
+        }
+        if (!FA->isInputDependentBlock(&B) && !FA->isArgumentDependent(&B)) {
+            continue;
+        }
+        for (auto& I : B) {
+            if (!FA->isDataDependent(&I)) {
+                ++argument_dep_instr_count;
+            }
+        }
+    }
+    return argument_dep_instr_count;
+}
+
+
 }
 
 InputDependencyStatistics::InputDependencyStatistics(const std::string& format,
@@ -35,6 +74,11 @@ InputDependencyStatistics::InputDependencyStatistics(const std::string& format,
     , m_IDA(IDA)
 {
     setSectionName("input_dependency_stats");
+}
+
+void InputDependencyStatistics::setLoopInfoGetter(const LoopInfoGetter& loop_info_getter)
+{
+    m_loopInfoGetter = loop_info_getter;
 }
 
 void InputDependencyStatistics::report()
@@ -149,7 +193,7 @@ void InputDependencyStatistics::reportInputDepCoverage()
 void InputDependencyStatistics::reportDataInpdependentCoverage()
 {
     setStatsTypeName("data_indep_coverage");
-    data_independent_coverage_data module_coverage_data{m_module->getName(), 0, 0};
+    data_independent_coverage_data module_coverage_data{m_module->getName(), 0, 0, 0, 0};
 
     for (auto& F : *m_module) {
         auto FA_pos = m_IDA->find(&F);
@@ -162,7 +206,13 @@ void InputDependencyStatistics::reportDataInpdependentCoverage()
         const auto& FA = FA_pos->second;
         unsigned data_indep_count = FA->get_data_indep_count();
         unsigned instructions = get_function_instrs_count(F);
-        auto data_indep_cov = data_independent_coverage_data{F.getName(), instructions, data_indep_count};
+        unsigned argument_dep_data_indeps = get_argument_dependent_instr_count(F, FA_pos->second);
+        unsigned argument_or_data_dep_data_dep_loop_instrs = get_argument_or_data_dependent_loop_instr_count(F,
+                                                                                                             FA_pos->second,
+                                                                                                             m_loopInfoGetter(&F));
+        auto data_indep_cov = data_independent_coverage_data{F.getName(), instructions, data_indep_count,
+                                                             argument_dep_data_indeps,
+                                                             argument_or_data_dep_data_dep_loop_instrs};
         report_data_indep_coverage_data(data_indep_cov);
         update_module_coverage_data(module_coverage_data, data_indep_cov);
     }
@@ -218,6 +268,8 @@ void InputDependencyStatistics::report_data_indep_coverage_data(const data_indep
 {
     write_entry(data.name, "NumInstrs", data.all_instrs);
     write_entry(data.name, "DataIndepInstrs", data.data_independent_instrs);
+    write_entry(data.name, "ArgumentDepInstrs", data.argument_dependent_instrs);
+    write_entry(data.name, "ArgumentOrDataDepLoopInstrs", data.dep_loop_instrs);
     double data_indep_cov = (data.data_independent_instrs * 100.0) / data.all_instrs;
     write_entry(data.name, "DataIndepCoverage", data_indep_cov);
 }
@@ -252,6 +304,8 @@ void InputDependencyStatistics::update_module_coverage_data(
 {
     module_coverage_data.all_instrs += function_coverage_data.all_instrs;
     module_coverage_data.data_independent_instrs += function_coverage_data.data_independent_instrs;
+    module_coverage_data.argument_dependent_instrs += function_coverage_data.argument_dependent_instrs;
+    module_coverage_data.dep_loop_instrs += function_coverage_data.dep_loop_instrs;
 }
 
 
@@ -269,6 +323,7 @@ char InputDependencyStatisticsPass::ID = 0;
 
 void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
+    AU.addRequired<llvm::LoopInfoWrapperPass>();
     AU.addRequired<InputDependencyAnalysisPass>();
     AU.setPreservesAll();
 }
@@ -276,11 +331,16 @@ void InputDependencyStatisticsPass::getAnalysisUsage(llvm::AnalysisUsage& AU) co
 bool InputDependencyStatisticsPass::runOnModule(llvm::Module& M)
 {
     auto IDA = getAnalysis<InputDependencyAnalysisPass>().getInputDependencyAnalysis();
+    const auto& loopInfoGetter = [this] (llvm::Function* F)
+    {
+        return &this->getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
+    };
     std::string file_name = stats_file;
     if (stats_file.empty()) {
         file_name = "stats";
     }
     InputDependencyStatistics statistics(stats_format, stats_file, &M, &IDA->getAnalysisInfo());
+    statistics.setLoopInfoGetter(loopInfoGetter);
     statistics.report();
     statistics.flush();
     return false;

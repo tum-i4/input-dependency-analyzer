@@ -61,7 +61,9 @@ void BasicBlockAnalysisResult::analyze()
 {
     //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {
-        //llvm::dbgs() << "Instruction " << I << "\n";
+        //if (m_BB->getParent()->getName() == "quotearg_buffer_restyled") {
+        //    llvm::dbgs() << "Instruction " << I << "\n";
+        //}
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // collect alloca value with input dependency state INPUT_DEP
             m_valueDependencies.insert(std::make_pair(allocInst,
@@ -532,6 +534,20 @@ bool BasicBlockAnalysisResult::isDataDependent(llvm::Instruction* I) const
 bool BasicBlockAnalysisResult::isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const
 {
     return !isInputDependent(m_BB, depArgs) && isInputDependent(I, depArgs);
+}
+
+bool BasicBlockAnalysisResult::isArgumentDependent(llvm::Instruction* I) const
+{
+    auto pos = m_inputDependentInstrs.find(I);
+    if (pos == m_inputDependentInstrs.end()) {
+        return false;
+    }
+    return pos->second.isInputArgumentDep();
+}
+
+bool BasicBlockAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    return false;
 }
 
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,

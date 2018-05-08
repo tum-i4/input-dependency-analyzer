@@ -42,9 +42,19 @@ void ClonedFunctionAnalysisResult::setDataDependentInstrs(InstrSet&& dataDeps)
     m_dataDependentInstrs = std::move(dataDeps);
 }
 
+void ClonedFunctionAnalysisResult::setArgumentDependentInstrs(InstrSet&& argumentDeps)
+{
+    m_argumentDependentInstrs = std::move(argumentDeps);
+}
+
 void ClonedFunctionAnalysisResult::setInputDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& inputDeps)
 {
     m_inputDependentBasicBlocks = std::move(inputDeps);
+}
+
+void ClonedFunctionAnalysisResult::setArgumentDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& argDeps)
+{
+    m_argumentDependentBasicBlocks = std::move(argDeps);
 }
 
 void ClonedFunctionAnalysisResult::setCalledFunctions(const FunctionSet& calledFunctions)
@@ -122,6 +132,16 @@ bool ClonedFunctionAnalysisResult::isDataDependent(llvm::Instruction* I) const
     return m_dataDependentInstrs.find(I) != m_dataDependentInstrs.end();
 }
 
+bool ClonedFunctionAnalysisResult::isArgumentDependent(llvm::Instruction* I) const
+{
+    return m_argumentDependentInstrs.find(I) != m_argumentDependentInstrs.end();
+}
+
+bool ClonedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    return m_argumentDependentBasicBlocks.find(block) != m_argumentDependentBasicBlocks.end();
+}
+   
 FunctionSet ClonedFunctionAnalysisResult::getCallSitesData() const
 {
     return m_calledFunctions;

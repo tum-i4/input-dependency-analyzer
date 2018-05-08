@@ -167,6 +167,17 @@ bool CachedFunctionAnalysisResult::isDataDependent(llvm::Instruction* I) const
     return m_dataDepInstructions.find(I) != m_dataDepInstructions.end();
 }
 
+// TODO: think how correctly implement this
+bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::Instruction* I) const
+{
+    return false;
+}
+
+bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    return false;
+}
+
 FunctionSet CachedFunctionAnalysisResult::getCallSitesData() const
 {
     llvm::dbgs() << "CachedFunctionAnalysisResult has no information about call site data\n";

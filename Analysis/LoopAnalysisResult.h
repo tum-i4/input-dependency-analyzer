@@ -75,6 +75,8 @@ public:
     bool isControlDependent(llvm::Instruction* instr) const override;
     bool isDataDependent(llvm::Instruction* instr) const override;
     bool isDataDependent(llvm::Instruction* instr, const DependencyAnaliser::ArgumentDependenciesMap& depArgs) const override;
+    bool isArgumentDependent(llvm::Instruction* I) const override;
+    bool isArgumentDependent(llvm::BasicBlock* block) const override;
 
     bool hasValueDependencyInfo(llvm::Value* val) const override;
     ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;

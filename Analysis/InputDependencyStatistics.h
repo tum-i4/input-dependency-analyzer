@@ -8,6 +8,8 @@
 
 namespace llvm {
 class Module;
+class Function;
+class LoopInfo;
 }
 
 namespace input_dependency {
@@ -16,6 +18,7 @@ class InputDependencyStatistics : public Statistics
 {
 private:
     using InputDependencyAnalysisInfo = InputDependencyAnalysis::InputDependencyAnalysisInfo;
+    using LoopInfoGetter = std::function<llvm::LoopInfo* (llvm::Function* F)>;
 
     // input dep info
     struct inputdep_data
@@ -54,6 +57,8 @@ private:
         std::string name;
         unsigned all_instrs;
         unsigned data_independent_instrs;
+        unsigned argument_dependent_instrs;
+        unsigned dep_loop_instrs;
     };
 
 public:
@@ -62,6 +67,8 @@ public:
                               const std::string& file_name,
                               llvm::Module* M,
                               InputDependencyAnalysisInfo* IDA);
+
+    void setLoopInfoGetter(const LoopInfoGetter& loop_info_getter);
 
 public:
     void report() override;
@@ -103,6 +110,7 @@ private:
 private:
     llvm::Module* m_module;
     InputDependencyAnalysisInfo* m_IDA; 
+    LoopInfoGetter m_loopInfoGetter;
 
     // caching stats
     std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_function_coverage_data;

@@ -88,6 +88,16 @@ public:
         return true;
     }
 
+    bool isArgumentDependent(llvm::Instruction* I) const override
+    {
+        return false;
+    }
+
+    bool isArgumentDependent(llvm::BasicBlock* block) const override
+    {
+        return false;
+    }
+
     FunctionSet getCallSitesData() const override
     {
         return FunctionSet();    

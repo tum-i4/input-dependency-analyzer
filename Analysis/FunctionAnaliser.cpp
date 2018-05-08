@@ -203,6 +203,8 @@ public:
     bool isInputDependentBlock(llvm::BasicBlock* block) const;
     bool isControlDependent(llvm::Instruction* I) const;
     bool isDataDependent(llvm::Instruction* I) const;
+    bool isArgumentDependent(llvm::Instruction* I) const;
+    bool isArgumentDependent(llvm::BasicBlock* block) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -345,6 +347,24 @@ bool FunctionAnaliser::Impl::isDataDependent(llvm::Instruction* I) const
         return analysisRes->isDataDependent(I);
     }
     return true;
+}
+
+bool FunctionAnaliser::Impl::isArgumentDependent(llvm::Instruction* I) const
+{
+    const auto& analysisRes = getAnalysisResult(I->getParent());
+    if (analysisRes) {
+        return analysisRes->isArgumentDependent(I);
+    }
+    return false;
+}
+
+bool FunctionAnaliser::Impl::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    const auto& analysisRes = getAnalysisResult(block);
+    if (analysisRes) {
+        return analysisRes->isArgumentDependent(block);
+    }
+    return false;
 }
 
 bool FunctionAnaliser::Impl::isOutArgInputIndependent(llvm::Argument* arg) const
@@ -1239,6 +1259,16 @@ bool FunctionAnaliser::isControlDependent(llvm::Instruction* I) const
 bool FunctionAnaliser::isDataDependent(llvm::Instruction* I) const
 {
     return m_analiser->isDataDependent(I);
+}
+
+bool FunctionAnaliser::isArgumentDependent(llvm::Instruction* I) const
+{
+    return m_analiser->isArgumentDependent(I);
+}
+
+bool FunctionAnaliser::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    return m_analiser->isArgumentDependent(block);
 }
 
 bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const

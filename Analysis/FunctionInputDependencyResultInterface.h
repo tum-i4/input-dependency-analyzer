@@ -42,6 +42,8 @@ public:
     virtual bool isInputDependentBlock(llvm::BasicBlock* block) const = 0;
     virtual bool isControlDependent(llvm::Instruction* I) const = 0;
     virtual bool isDataDependent(llvm::Instruction* I) const = 0;
+    virtual bool isArgumentDependent(llvm::Instruction* I) const = 0;
+    virtual bool isArgumentDependent(llvm::BasicBlock* block) const = 0;
     // these functions may be moved to separate interface, as they are relevent only for some implementations of the this interface
     virtual FunctionSet getCallSitesData() const = 0;
     virtual FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const = 0;

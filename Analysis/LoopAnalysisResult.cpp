@@ -223,6 +223,19 @@ bool LoopAnalysisResult::isDataDependent(llvm::Instruction* instr, const Argumen
     return analysisRes->isDataDependent(instr, depArgs);
 }
 
+bool LoopAnalysisResult::isArgumentDependent(llvm::Instruction* I) const
+{
+    auto parentBB = I->getParent();
+    const auto& analysisRes = getAnalysisResult(parentBB);
+    return analysisRes->isArgumentDependent(I);
+}
+
+bool LoopAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    const auto& analysisRes = getAnalysisResult(block);
+    return m_loopDependencies.isInputArgumentDep() || analysisRes->isArgumentDependent(block); 
+}
+
 bool LoopAnalysisResult::hasValueDependencyInfo(llvm::Value* val) const
 {
     auto pos = m_valueDependencies.find(val);

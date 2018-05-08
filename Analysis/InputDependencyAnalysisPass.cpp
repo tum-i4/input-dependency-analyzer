@@ -168,7 +168,15 @@ void InputDependencyAnalysisPass::dump_statistics()
     if (file_name.empty()) {
         file_name = "stats";
     }
-    InputDependencyStatistics stats(stats_format, file_name, m_module, &m_analysis->getAnalysisInfo());
+    const auto& loopInfoGetter = [this] (llvm::Function* F)
+    {
+        return &this->getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
+    };
+
+    InputDependencyStatistics stats(stats_format, file_name,
+                                    m_module,
+                                    &m_analysis->getAnalysisInfo());
+    stats.setLoopInfoGetter(loopInfoGetter);
     stats.setSectionName("inputdep_stats");
     stats.report();
     stats.flush();

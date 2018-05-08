@@ -103,6 +103,11 @@ bool NonDeterministicReflectingBasicBlockAnaliser::isDataDependent(llvm::Instruc
     return Utils::isInputDependentForArguments(pos->second, depArgs);
 }
 
+bool NonDeterministicReflectingBasicBlockAnaliser::isArgumentDependent(llvm::BasicBlock* block) const
+{
+    return m_nonDeterministicDeps.isInputArgumentDep();
+}
+
 void NonDeterministicReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDependencies& dependencies,
                                                            const DepInfo& mandatory_deps)
 {

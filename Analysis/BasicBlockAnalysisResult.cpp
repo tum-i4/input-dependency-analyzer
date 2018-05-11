@@ -61,9 +61,7 @@ void BasicBlockAnalysisResult::analyze()
 {
     //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {
-        //if (m_BB->getParent()->getName() == "quotearg_buffer_restyled") {
-        //    llvm::dbgs() << "Instruction " << I << "\n";
-        //}
+        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // collect alloca value with input dependency state INPUT_DEP
             m_valueDependencies.insert(std::make_pair(allocInst,

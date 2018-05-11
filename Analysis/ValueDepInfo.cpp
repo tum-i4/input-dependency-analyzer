@@ -176,6 +176,9 @@ void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDep
     auto* get_el_instr =  llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         m_depInfo.mergeDependencies(depInfo.getValueDep());
+        for (auto& dep : m_elementDeps) {
+            dep.mergeDependencies(depInfo);
+        }
         return;
     }
     m_depInfo.mergeDependencies(depInfo.getValueDep());

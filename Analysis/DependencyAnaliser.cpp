@@ -348,7 +348,7 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
         } else {
             llvm::dbgs() << "Did not find function assigned " << *storeInst << "\n";
         }
-    }else if (llvm::dyn_cast<llvm::Constant>(op)) {
+    } else if (llvm::dyn_cast<llvm::Constant>(op)) {
         info.updateCompositeValueDep(DepInfo(DepInfo::INPUT_INDEP));
     } else {
         info.mergeDependencies(getValueDependencies(op));

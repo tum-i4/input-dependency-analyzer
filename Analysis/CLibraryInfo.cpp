@@ -31,7 +31,6 @@ const std::string& calloc = "calloc";
 const std::string& memcpy = "memcpy";
 const std::string& new_operator = "operator new(unsigned long)";
 
-const std::string& exit = "exit";
 const std::string& free = "free";
 const std::string& realloc = "realloc";
 const std::string& fprintf = "fprintf";
@@ -77,7 +76,6 @@ void CLibraryInfo::setup()
 
     add_new_operator();
 
-    add_exit();
     add_free();
     add_realloc();
     add_fprintf();
@@ -317,14 +315,6 @@ void CLibraryInfo::add_new_operator()
                               LibFunctionInfo::LibArgumentDependenciesMap(),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(newopInfo));
-}
-
-void CLibraryInfo::add_exit()
-{
-    LibFunctionInfo exitInfo(C_library::exit,
-                             LibFunctionInfo::LibArgumentDependenciesMap(),
-                             LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
-    m_libFunctionInfoProcessor(std::move(exitInfo));
 }
 
 void CLibraryInfo::add_free()

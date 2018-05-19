@@ -47,7 +47,6 @@ private:
     // not sure if this should be here
     void add_new_operator();
 
-    void add_exit();
     void add_free();
     void add_realloc();
     void add_fprintf();

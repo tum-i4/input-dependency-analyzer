@@ -1048,6 +1048,29 @@ BasicBlocksSnippet::BasicBlocksSnippet(llvm::Function* function,
     }
 }
 
+BasicBlocksSnippet::BasicBlocksSnippet(llvm::Function* function,
+                                       iterator begin,
+                                       iterator end,
+                                       const BlockSet& blocks,
+                                       InstructionsSnippet start)
+    : m_function(function)
+    , m_begin(begin)
+    , m_end(end)
+    , m_blocks(blocks)
+    , m_start(start)
+
+{
+    if (m_start.is_valid_snippet() && !m_start.is_block()) {
+        m_blocks.erase(m_start.get_block());
+    }
+    if (m_start.is_valid_snippet()) {
+        m_instruction_number += m_start.get_instructions_number();
+    }
+    for (const auto& block : m_blocks) {
+        m_instruction_number += block->getInstList().size();
+    }
+}
+
 bool BasicBlocksSnippet::is_valid_snippet() const
 {
     return m_function && BasicBlocksSnippet::is_valid_snippet(m_begin, m_end, m_function);
@@ -1129,7 +1152,9 @@ bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
     if (contains_block(instr_snippet->get_block())) {
         return true;
     }
-    if (instr_snippet->get_begin_index() == 0 && is_predecessing_block_snippet(*this, *instr_snippet)) {
+    if (instr_snippet->get_begin_index() == 0
+            && instr_snippet->is_block()
+            && is_predecessing_block_snippet(*this, *instr_snippet)) {
         return true;
     }
     return false;
@@ -1137,6 +1162,9 @@ bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
 
 void BasicBlocksSnippet::expand()
 {
+    if (!m_start.is_valid_snippet()) {
+        return;
+    }
     m_start.expand();
     // can include block in snippet
     if (m_start.is_block()) {
@@ -1378,7 +1406,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     if (m_start.is_valid_snippet()) {
         m_start.compute_indices();
     }
-    // erase end if end if exit block of a function and is fully contained in a snippet
+    // erase end if end is exit block of a function and is fully contained in a snippet
     llvm::BasicBlock* returnBlock = find_return_block();
     bool has_return_terminator = returnBlock != nullptr;
     llvm::ReturnInst* ret_inst;
@@ -1492,7 +1520,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         auto end_pos = value_to_value_map.find(&*m_end);
         new_function_exit_block = llvm::dyn_cast<llvm::BasicBlock>(&*end_pos->second);
     }
-    //create_return_stores(new_function_exit_block, value_map);
+    create_return_stores(new_function_exit_block, value_map);
 
     llvm::CallInst* call;
     if (has_start_snippet) {

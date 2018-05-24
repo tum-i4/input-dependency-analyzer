@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include "llvm/PassRegistry.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -20,12 +21,257 @@
 #include "Analysis/BasicBlocksUtils.h"
 #include "Analysis/InputDepConfig.h"
 
+// dg includes
+#include "llvm-dg/llvm/LLVMDependenceGraph.h"
+#include "llvm-dg/llvm/Slicer.h"
+#include "llvm-dg/llvm/analysis/PointsTo/PointsTo.h"
+#include "llvm-dg/llvm/analysis/ReachingDefinitions/ReachingDefinitions.h"
+#include "llvm-dg/llvm/analysis/DefUse.h"
+#include "llvm-dg/analysis/PointsTo/PointsToFlowInsensitive.h"
+#include "llvm-dg/analysis/PointsTo/PointsToFlowSensitive.h"
+#include "llvm-dg/analysis/PointsTo/PointsToWithInvalidate.h"
+#include "llvm-dg/analysis/PointsTo/Pointer.h"
+#include "llvm-dg/llvm/analysis/PointsTo/PointsTo.h"
+
 #include <vector>
 #include <memory>
 
 namespace oh {
 
 namespace {
+
+llvm::Loop* get_outermost_loop(llvm::Loop* loop)
+{
+    auto* parent_loop = loop;
+    while (parent_loop) {
+        loop = parent_loop;
+        parent_loop = loop->getParentLoop();
+    }
+    return loop;
+}
+
+class InstructionExtraction
+{
+public:
+    using InputDependencyAnalysisInfo = input_dependency::InputDependencyAnalysisInterface::InputDepResType;
+    using InstructionSet = std::unordered_set<llvm::Instruction*>;
+    using ExtractionPredicate = std::function<bool (llvm::Instruction*)>;
+
+public:
+    InstructionExtraction(llvm::Module* module);
+
+    void set_input_dep_info(InputDependencyAnalysisInfo input_dep_info)
+    {
+        m_input_dep_info = input_dep_info;
+    }
+
+    void collect_instructions(input_dependency::InputDependencyAnalysisInterface& IDA);
+    void collect_function_instructions(llvm::Function* F);
+    bool can_extract(llvm::Instruction* instr,
+                     bool check_reachability,
+                     bool check_operands) const;
+
+private:
+    void collect_argument_reachable_instructions(llvm::Function* F);
+    void collect_global_reachable_instructions(llvm::Function* F);
+    bool derive_instruction_extraction_from_operands(llvm::Instruction* instr,
+                                                     bool check_reachability) const;
+
+private:
+    llvm::Module* m_module;
+    InputDependencyAnalysisInfo m_input_dep_info;
+    std::unordered_map<llvm::Function*, InstructionSet> m_argument_reachable_instructions;
+    std::unordered_map<llvm::Function*, InstructionSet> m_global_reachable_instructions;
+
+    std::unique_ptr<dg::LLVMPointerAnalysis> m_PTA;
+    std::unique_ptr<dg::analysis::rd::LLVMReachingDefinitions> m_RD;
+    std::unique_ptr<dg::LLVMDependenceGraph> m_dg;
+};
+
+InstructionExtraction::InstructionExtraction(llvm::Module* module)
+    : m_module(module)
+    , m_PTA(new dg::LLVMPointerAnalysis(module))
+    , m_RD(new dg::analysis::rd::LLVMReachingDefinitions(module, m_PTA.get()))
+    , m_dg(new dg::LLVMDependenceGraph())
+{
+    // build dg
+    m_PTA->run<dg::analysis::pta::PointsToFlowInsensitive>();
+    m_dg->build(module, m_PTA.get());
+
+    // compute edges
+    m_RD->run<dg::analysis::rd::ReachingDefinitionsAnalysis>();
+
+    dg::LLVMDefUseAnalysis DUA(m_dg.get(), m_RD.get(),
+                               m_PTA.get(), false);
+    DUA.run(); // add def-use edges according that
+    m_dg->computeControlDependencies(dg::CD_ALG::CLASSIC);
+}
+
+void InstructionExtraction::collect_instructions(input_dependency::InputDependencyAnalysisInterface& IDA)
+{
+    for (auto& F : *m_module) {
+        if (F.isDeclaration()) {
+            continue;
+        }
+        auto f_input_dep_info = IDA.getAnalysisInfo(&F);
+        if (f_input_dep_info == nullptr) {
+            continue;
+        }
+        collect_function_instructions(&F);
+    }
+}
+
+void InstructionExtraction::collect_function_instructions(llvm::Function* F)
+{
+    if (m_global_reachable_instructions.find(F) == m_global_reachable_instructions.end()) {
+        collect_global_reachable_instructions(F);
+    }
+    if (m_argument_reachable_instructions.find(F) == m_argument_reachable_instructions.end()) {
+        collect_argument_reachable_instructions(F);
+    }
+}
+
+void InstructionExtraction::collect_argument_reachable_instructions(llvm::Function* F)
+{
+    auto CFs = dg::getConstructedFunctions();
+    dg::LLVMDependenceGraph* F_dg = CFs[F];
+    InstructionSet instructions;
+    if (!F_dg) {
+        m_argument_reachable_instructions.insert(std::make_pair(F, instructions));
+        llvm::dbgs() << "No LLVM dg for function " << F->getName() << "\n";
+        return;
+    }
+
+    auto arg_it = F->arg_begin();
+    while (arg_it != F->arg_end()) {
+        std::list<dg::LLVMNode*> dg_nodes;
+        auto arg_node = F_dg->getNode(&*arg_it);
+        if (arg_node == nullptr) {
+            ++arg_it;
+            continue;
+        }
+        dg_nodes.push_back(arg_node);
+        std::unordered_set<dg::LLVMNode*> processed_nodes;
+        while (!dg_nodes.empty()) {
+            auto node = dg_nodes.back();
+            dg_nodes.pop_back();
+            if (!processed_nodes.insert(node).second) {
+                continue;
+            }
+            //llvm::dbgs() << "dg node: " << *node->getValue() << "\n";
+            auto* inst = llvm::dyn_cast<llvm::Instruction>(node->getValue());
+            if (inst && inst->getParent()->getParent() != F) {
+                continue;
+            }
+            auto dep_it = node->data_begin();
+            while (dep_it != node->data_end()) {
+                dg_nodes.push_back(*dep_it);
+                ++dep_it;
+            }
+            if (!inst) {
+                continue;
+            }
+            instructions.insert(inst);
+        }
+        ++arg_it;
+    }
+    m_argument_reachable_instructions.insert(std::make_pair(F, instructions));
+}
+
+void InstructionExtraction::collect_global_reachable_instructions(llvm::Function* F)
+{
+    auto CFs = dg::getConstructedFunctions();
+    dg::LLVMDependenceGraph* F_dg = CFs[F];
+    InstructionSet instructions;
+    if (!F_dg) {
+        m_global_reachable_instructions.insert(std::make_pair(F, instructions));
+        llvm::dbgs() << "No LLVM dg for function " << F->getName() << "\n";
+        return;
+    }
+
+    auto global_it = m_module->global_begin();
+    while (global_it != m_module->global_end()) {
+        std::list<dg::LLVMNode*> dg_nodes;
+        auto global_node = F_dg->getNode(&*global_it);
+        if (global_node == nullptr) {
+            ++global_it;
+            continue;
+        }
+        dg_nodes.push_back(global_node);
+        std::unordered_set<dg::LLVMNode*> processed_nodes;
+        while (!dg_nodes.empty()) {
+            auto node = dg_nodes.back();
+            dg_nodes.pop_back();
+            if (!processed_nodes.insert(node).second) {
+                continue;
+            }
+            //llvm::dbgs() << "dg node: " << *node->getValue() << "\n";
+            auto* inst = llvm::dyn_cast<llvm::Instruction>(node->getValue());
+            if (inst && inst->getParent()->getParent() != F) {
+                continue;
+            }
+            auto dep_it = node->data_begin();
+            while (dep_it != node->data_end()) {
+                dg_nodes.push_back(*dep_it);
+                ++dep_it;
+            }
+            if (!inst || inst->getParent()->getParent() != F) {
+                continue;
+            }
+            instructions.insert(inst);
+        }
+        ++global_it;
+    }
+    m_global_reachable_instructions.insert(std::make_pair(F, instructions));
+    // TODO:
+}
+
+bool InstructionExtraction::derive_instruction_extraction_from_operands(llvm::Instruction* instr,
+                                                                        bool check_reachability) const
+{
+    for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
+        auto* op_instr = llvm::dyn_cast<llvm::Instruction>(&*op);
+        if (!op_instr) {
+            continue;
+        }
+        if (llvm::dyn_cast<llvm::AllocaInst>(op_instr)) {
+            continue;
+        }
+        if (can_extract(op_instr, check_reachability, false)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool InstructionExtraction::can_extract(llvm::Instruction* instr,
+                                        bool check_reachability,
+                                        bool check_operands) const
+{
+    if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
+        return false;
+    }
+    llvm::Function* F = instr->getParent()->getParent();
+    if (m_input_dep_info->isDataDependent(instr)) {
+        return true;
+    }
+    if (check_reachability) {
+        auto F_global_reachables = m_global_reachable_instructions.find(F);
+        if ((F_global_reachables != m_global_reachable_instructions.end())
+                && (F_global_reachables->second.find(instr) != F_global_reachables->second.end())) {
+            return true;
+        }
+        auto F_arg_reachables = m_argument_reachable_instructions.find(F);
+        if ((F_arg_reachables != m_argument_reachable_instructions.end())
+                && (F_arg_reachables->second.find(instr) != F_arg_reachables->second.end())) {
+            return true;
+        }
+    }
+    if (check_operands) {
+        return derive_instruction_extraction_from_operands(instr, check_reachability);
+    }
+    return false;
+}
 
 class SnippetsCreator
 {
@@ -52,6 +298,16 @@ public:
         m_pdom = pdom;
     }
 
+    void set_loop_info(llvm::LoopInfo* loopInfo)
+    {
+        m_loop_info = loopInfo;
+    }
+
+    void set_instruction_extraction_predicate(InstructionExtraction* instr_extr)
+    {
+        m_extract_instruction = instr_extr;
+    }
+
     const snippet_list& get_snippets() const
     {
         return m_snippets;
@@ -67,14 +323,10 @@ public:
     void expand_snippets();
 
 private:
-    snippet_list collect_block_snippets(llvm::Function::iterator block_it);
-    template <class T>
-    bool derive_input_dependency_from_args(T* I) const;
-    bool can_root_blocks_snippet(llvm::BasicBlock* block) const;
-    BasicBlockRange get_blocks_snippet(llvm::Function::iterator begin_block_pos);
-    llvm::BasicBlock* find_block_postdominator(llvm::BasicBlock* block);
-    void update_processed_blocks(const llvm::BasicBlock* block,
-                                 const llvm::BasicBlock* stop_block,
+    Snippet_type create_block_snippet(llvm::BasicBlock* B);
+    snippet_list create_instruction_snippets(llvm::BasicBlock* B);
+    Snippet_type create_block_snippet_from_loop(llvm::Loop* loop);
+    void update_processed_blocks(Snippet_type snippet,
                                  std::unordered_set<const llvm::BasicBlock*>& processed_blocks);
 
 private:
@@ -82,8 +334,9 @@ private:
     bool m_is_whole_function_snippet;
     InputDependencyAnalysisInfo m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
+    llvm::LoopInfo* m_loop_info;
+    InstructionExtraction* m_extract_instruction;
     snippet_list m_snippets;
-    std::unordered_set<llvm::Instruction*> derived_input_dep_instructions;
 };
 
 void SnippetsCreator::collect_snippets(bool expand)
@@ -97,36 +350,18 @@ void SnippetsCreator::collect_snippets(bool expand)
             ++it;
             continue;
         }
-        auto pos = processed_blocks.find(B);
-        if (pos != processed_blocks.end()) {
+        if (processed_blocks.find(B) != processed_blocks.end()) {
             ++it;
             continue;
         }
-        auto block_snippets = collect_block_snippets(it);
-        if (!can_root_blocks_snippet(B)) {
-            ++it;
-            processed_blocks.insert(B);
-            m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
-            continue;
-        }
-        // assert back end iter is block's terminator
-        auto blocks_range = get_blocks_snippet(it);
-        if (!BasicBlocksSnippet::is_valid_snippet(blocks_range.first, blocks_range.second, &m_F)) {
-            llvm::dbgs() << "Failed to create snippet out of blocks, starting with block "
-                         << B->getName() << "\n";
+        if (Snippet_type block_snippet = create_block_snippet(B)) {
+            update_processed_blocks(block_snippet, processed_blocks);
+            m_snippets.push_back(block_snippet);
         } else {
-            auto back = block_snippets.back();
-            block_snippets.pop_back();
-            update_processed_blocks(&*blocks_range.first, &*blocks_range.second, processed_blocks);
-            Snippet_type blocks_snippet(new BasicBlocksSnippet(&m_F,
-                                                               blocks_range.first,
-                                                               blocks_range.second,
-                                                               *back->to_instrSnippet()));
-            block_snippets.push_back(blocks_snippet);
+            auto instr_snippets = create_instruction_snippets(B);
+            processed_blocks.insert(B);
+            m_snippets.insert(m_snippets.end(), instr_snippets.begin(), instr_snippets.end());
         }
-        // for some blocks will run insert twice
-        processed_blocks.insert(B);
-        m_snippets.insert(m_snippets.end(), block_snippets.begin(), block_snippets.end());
         ++it;
     }
     if (expand) {
@@ -190,48 +425,50 @@ void SnippetsCreator::expand_snippets()
     }
 }
 
-SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Function::iterator block_it)
+SnippetsCreator::Snippet_type SnippetsCreator::create_block_snippet(llvm::BasicBlock* B)
+{
+    auto* loop = m_loop_info->getLoopFor(B);
+    if (!loop) {
+        return Snippet_type();
+    }
+    llvm::BasicBlock* header = loop->getHeader();
+    auto* header_terminator = header->getTerminator();
+    bool check_operands = m_input_dep_info->isInputDepFunction();
+    if (m_input_dep_info->isInputDependentBlock(B)
+        || m_extract_instruction->can_extract(header_terminator,
+                         check_operands || m_input_dep_info->isInputDependentBlock(header),
+                         check_operands || m_input_dep_info->isInputDependentBlock(header))) {
+        return create_block_snippet_from_loop(get_outermost_loop(loop));
+    }
+    for (auto& B : loop->getBlocks()) {
+        auto* term = B->getTerminator();
+        if (m_input_dep_info->isInputDependentBlock(B)
+            || m_extract_instruction->can_extract(term,
+                                       check_operands || m_input_dep_info->isInputDependentBlock(B),
+                                       check_operands || m_input_dep_info->isInputDependentBlock(B))) {
+            return create_block_snippet_from_loop(get_outermost_loop(loop));
+        }
+    }
+    return Snippet_type();
+}
+
+SnippetsCreator::snippet_list SnippetsCreator::create_instruction_snippets(llvm::BasicBlock* block)
 {
     snippet_list snippets;
-    auto block = &*block_it;
-    InstructionsSnippet::iterator begin = block->end();
-    InstructionsSnippet::iterator end = block->end();
+    InstructionsSnippet::iterator snippet_begin = block->end();
+    InstructionsSnippet::iterator snippet_end = block->end();
     auto it = block->begin();
+    bool check_reachability = m_input_dep_info->isInputDepFunction()
+                                        || m_input_dep_info->isInputDependentBlock(block);
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
-        if (llvm::dyn_cast<llvm::AllocaInst>(I)) {
-            ++it;
-            continue;
+        bool check_operands = check_reachability;
+        if (!check_operands) {
+            check_operands |= (llvm::dyn_cast<llvm::CallInst>(I) != nullptr);
+            check_operands |= (llvm::dyn_cast<llvm::InvokeInst>(I) != nullptr);
         }
-        //llvm::dbgs() << "instr " << *I << "\n";
-        bool is_input_dep = m_input_dep_info->isInputDependent(I);
-        if (!is_input_dep) {
-            // TODO: what other instructions might be intresting?
-            if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
-                llvm::Function* called_f = callInst->getCalledFunction();
-                if (callInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
-                    is_input_dep = derive_input_dependency_from_args(callInst);
-                    if (is_input_dep) {
-                        derived_input_dep_instructions.insert(callInst);
-                    }
-                }
-            } else if (auto* invokeInst = llvm::dyn_cast<llvm::InvokeInst>(I)) {
-                llvm::Function* called_f = invokeInst->getCalledFunction();
-                if (invokeInst->getFunctionType()->getReturnType()->isVoidTy() && (!called_f || !called_f->isIntrinsic())) {
-                    is_input_dep = derive_input_dependency_from_args(invokeInst);
-                    if (is_input_dep) {
-                        derived_input_dep_instructions.insert(invokeInst);
-                    }
-                }
-            }
-        }
-        if (!is_input_dep) {
-            if (InstructionsSnippet::is_valid_snippet(begin, end, block)) {
-                snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
-                begin = block->end();
-                end = block->end();
-            }
-        } else {
+        bool can_extract = m_extract_instruction->can_extract(I, check_reachability, check_operands);
+        if (can_extract) {
             if (auto store = llvm::dyn_cast<llvm::StoreInst>(I)) {
                 // Skip the instruction storing argument to a local variable. This should happen anyway, no need to extract
                 if (llvm::dyn_cast<llvm::Argument>(store->getValueOperand())) {
@@ -239,137 +476,93 @@ SnippetsCreator::snippet_list SnippetsCreator::collect_block_snippets(llvm::Func
                     continue;
                 }
             }
-            if (begin != block->end()) {
-                end = it;
+            if (snippet_begin != block->end()) {
+                snippet_end = it;
             } else {
-                begin = it;
-                end = it;
+                snippet_begin = it;
+                snippet_end = it;
+            }
+        } else {
+            if (InstructionsSnippet::is_valid_snippet(snippet_begin, snippet_end, block)) {
+                snippets.push_back(Snippet_type(new InstructionsSnippet(block, snippet_begin, snippet_end)));
+                snippet_begin = block->end();
+                snippet_end = block->end();
             }
         }
         ++it;
     }
-    if (InstructionsSnippet::is_valid_snippet(begin, end, block)) {
-        snippets.push_back(Snippet_type(new InstructionsSnippet(block, begin, end)));
+    if (InstructionsSnippet::is_valid_snippet(snippet_begin, snippet_end, block)) {
+        snippets.push_back(Snippet_type(new InstructionsSnippet(block, snippet_begin, snippet_end)));
     }
     return snippets;
 }
 
-template <class T>
-bool SnippetsCreator::derive_input_dependency_from_args(T* I) const
+SnippetsCreator::Snippet_type SnippetsCreator::create_block_snippet_from_loop(llvm::Loop* loop)
 {
-    // return true if at least one argument are input dependent
-    bool is_input_dep = false;
-    for (unsigned i = 0; i < I->getNumArgOperands(); ++i) {
-        auto op = I->getArgOperand(i);
-        if (auto op_inst = llvm::dyn_cast<llvm::Instruction>(op)) {
-            is_input_dep = m_input_dep_info->isInputDependent(op_inst);
-            if (is_input_dep) {
+    std::unordered_set<llvm::BasicBlock*> blocks;
+    blocks.insert(loop->getBlocks().begin(), loop->getBlocks().end());
+
+    llvm::BasicBlock* begin_block = loop->getHeader();
+    auto begin = Utils::get_block_pos(begin_block);
+    llvm::BasicBlock* exit_block = loop->getExitBlock();
+    if (!exit_block) {
+        llvm::SmallVector<llvm::BasicBlock*, 10> exit_blocks;
+        loop->getExitBlocks(exit_blocks);
+        const auto& header_node = (*m_pdom)[begin_block];
+        for (auto& block : exit_blocks) {
+            const auto& b_node = (*m_pdom)[block];
+            if (m_pdom->dominates(b_node, header_node)) {
+                exit_block = block;
                 break;
             }
         }
-        //else if (llvm::dyn_cast<llvm::Constant>(op)) {
-        //    is_input_dep = false;
-        //    break;
-        //}
-    }
-    return is_input_dep;
-}
-
-bool SnippetsCreator::can_root_blocks_snippet(llvm::BasicBlock* block) const
-{
-    if (m_input_dep_info->isInputDependentBlock(block)) {
-        return true;
-    }
-    auto terminator = block->getTerminator();
-    if (derived_input_dep_instructions.find(terminator) != derived_input_dep_instructions.end()) {
-        return true;
-    }
-    if (!m_input_dep_info->isInputDependent(terminator)) {
-        return false;
-    }
-    auto branch = llvm::dyn_cast<llvm::BranchInst>(terminator);
-    if (branch) {
-        return branch->isConditional();
-    }
-    auto switch_inst = llvm::dyn_cast<llvm::SwitchInst>(terminator);
-    if (switch_inst) {
-        return true;
-    }
-    auto invoke_inst = llvm::dyn_cast<llvm::InvokeInst>(terminator);
-    return invoke_inst != nullptr;
-}
-
-SnippetsCreator::BasicBlockRange SnippetsCreator::get_blocks_snippet(llvm::Function::iterator begin_block_pos)
-{
-    auto end_block = find_block_postdominator(&*begin_block_pos);
-    llvm::Function::iterator end_block_pos = Utils::get_block_pos(end_block);
-    while (m_input_dep_info->isInputDependentBlock(end_block) && end_block != &end_block->getParent()->back()) {
-        end_block = find_block_postdominator(&*end_block_pos);
-        end_block_pos = Utils::get_block_pos(end_block);
-    }
-    return std::make_pair(begin_block_pos, end_block_pos);
-}
-
-llvm::BasicBlock* SnippetsCreator::find_block_postdominator(llvm::BasicBlock* block)
-{
-    const auto& b_node = (*m_pdom)[block];
-    auto F = block->getParent();
-    auto block_to_process = block;
-    std::unordered_set<llvm::BasicBlock*> seen_blocks;
-    while (block_to_process != nullptr) {
-        if (block_to_process != block) {
-            auto pr_node = (*m_pdom)[block_to_process];
-            if (m_pdom->dominates(pr_node, b_node)) {
-                break;
+        if (!exit_block) {
+            // assuming that neares common dominator will dominate all other exit blocks
+            auto it = exit_blocks.begin();
+            while (!exit_block && it != exit_blocks.end()) {
+                exit_block = m_pdom->findNearestCommonDominator(begin_block, *it);
+                ++it;
+            }
+            blocks.insert(exit_blocks.begin(), exit_blocks.end());
+        }
+        // one of exit blocks does not have terminating instruction. Then just choose one which has
+        if (!exit_block) {
+            for (auto block : exit_blocks) {
+                if (!llvm::dyn_cast<llvm::UnreachableInst>(block->getTerminator())) {
+                    exit_block = block;
+                    break;
+                }
             }
         }
-        auto succ = succ_begin(block_to_process);
-        if (succ == succ_end(block_to_process)) {
-            // block_to_process is the exit block
-            block_to_process = nullptr;
-            break;
-        }
-
-        llvm::BasicBlock* tmp_block;
-        do {
-            tmp_block = *succ;
-        } while (!seen_blocks.insert(tmp_block).second && ++succ != succ_end(block_to_process));
-        block_to_process = tmp_block;
     }
-    if (block_to_process == nullptr) {
-        block_to_process = &block->getParent()->back();
-    }
-    assert(block_to_process != nullptr);
-    return block_to_process;
+    auto end = Utils::get_block_pos(exit_block);
+    return Snippet_type(new BasicBlocksSnippet(&m_F, begin, end, InstructionsSnippet()));
 }
 
-void SnippetsCreator::update_processed_blocks(const llvm::BasicBlock* block,
-                                              const llvm::BasicBlock* stop_block,
+
+void SnippetsCreator::update_processed_blocks(Snippet_type snippet,
                                               std::unordered_set<const llvm::BasicBlock*>& processed_blocks)
 {
-    if (block == stop_block) {
+    auto* block_snippet = snippet->to_blockSnippet();
+    if (!block_snippet) {
         return;
     }
-    auto res = processed_blocks.insert(block);
-    if (!res.second) {
-        return; // block is added, hence successors are also processed
-    }
-    auto it = succ_begin(block);
-    while (it != succ_end(block)) {
-        update_processed_blocks(*it, stop_block, processed_blocks);
-        ++it;
-    }
+    processed_blocks.insert(block_snippet->get_blocks().begin(), block_snippet->get_blocks().end());
 }
 
 void run_on_function(llvm::Function& F,
                      llvm::PostDominatorTree* PDom,
+                     llvm::LoopInfo* loopInfo,
                      const SnippetsCreator::InputDependencyAnalysisInfo& input_dep_info,
+                     InstructionExtraction* instr_extr_pred,
                      std::unordered_map<llvm::Function*, unsigned>& extracted_functions)
 {
     // map from block to snippets?
     SnippetsCreator creator(F);
     creator.set_input_dep_info(input_dep_info);
     creator.set_post_dom_tree(PDom);
+    creator.set_loop_info(loopInfo);
+    creator.set_instruction_extraction_predicate(instr_extr_pred);
     creator.collect_snippets(true);
     if (creator.is_whole_function_snippet()) {
         llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
@@ -436,6 +629,7 @@ char FunctionExtractionPass::ID = 0;
 void FunctionExtractionPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+    AU.addRequired<llvm::LoopInfoWrapperPass>();
     // FunctionExtractionPass does not preserve results of InputDependency Analysis.
     // While it adds extracted functions as input dependent functions, the CFG of old functions change, thus input
     // dependency results are invalidated.
@@ -451,6 +645,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
     m_coverageStatistics->reportInputDepCoverage();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
+    InstructionExtraction extract_instr_pred(&M);
+    extract_instr_pred.collect_instructions(*input_dep);
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
         if (F.isDeclaration()) {
@@ -462,16 +658,10 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             llvm::dbgs() << "Skip: No input dep info for function " << F.getName() << "\n";
             continue;
         }
-        //auto f_input_dep_info = input_dep_info->toFunctionAnalysisResult();
-        if (!f_input_dep_info) {
-            continue;
-        }
-        if (f_input_dep_info->isInputDepFunction()) {
-            llvm::dbgs() << "Skip: Input dependent function " << F.getName() << "\n";
-            continue;
-        }
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
-        run_on_function(F, PDom, f_input_dep_info, extracted_functions);
+        llvm::LoopInfo* loopInfo = &getAnalysis<llvm::LoopInfoWrapperPass>(F).getLoopInfo();
+        extract_instr_pred.set_input_dep_info(f_input_dep_info);
+        run_on_function(F, PDom, loopInfo, f_input_dep_info, &extract_instr_pred, extracted_functions);
         modified = true;
         llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";
     }

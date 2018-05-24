@@ -147,8 +147,18 @@ public:
                        iterator begin,
                        iterator end,
                        InstructionsSnippet start);
+    BasicBlocksSnippet(llvm::Function* function,
+                       iterator begin,
+                       iterator end,
+                       const BlockSet& blocks,
+                       InstructionsSnippet start);
 
 public:
+    const BlockSet& get_blocks() const
+    {
+        return m_blocks;
+    }
+
     bool is_valid_snippet() const override;
     unsigned get_instructions_number() const override;
     bool contains_instruction(llvm::Instruction* instr) const override;

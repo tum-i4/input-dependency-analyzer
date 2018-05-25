@@ -573,6 +573,9 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
         auto type = get_value_type(val);
         if (!llvm::dyn_cast<llvm::AllocaInst>(val)) {
             arg_types.push_back(type);
+        } else if (type->isArrayTy()) {
+            llvm::dbgs() << "Do not extract function with array type\n";
+            return nullptr;
         } else {
             arg_types.push_back(type->getPointerTo());
         }
@@ -782,6 +785,9 @@ llvm::Function* InstructionsSnippet::to_function()
     ArgIdxToValueMap arg_index_to_value;
     llvm::Type* return_type = m_returnInst ? m_block->getParent()->getReturnType() : llvm::Type::getVoidTy(Ctx);
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, return_type, arg_index_to_value);
+    if (!type) {
+        return nullptr;
+    }
 
     std::string f_name = unique_name_generator::get().get_unique(m_block->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
@@ -1436,6 +1442,10 @@ llvm::Function* BasicBlocksSnippet::to_function()
     // maps argument index to corresponding value
     ArgIdxToValueMap arg_index_to_value;
     llvm::FunctionType* type = create_function_type(Ctx, m_used_values, return_type, arg_index_to_value);
+    if (!type) {
+        return nullptr;
+    }
+
     std::string f_name = unique_name_generator::get().get_unique(m_begin->getParent()->getName());
     llvm::Function* new_F = llvm::Function::Create(type,
                                                    llvm::GlobalValue::LinkageTypes::ExternalLinkage,

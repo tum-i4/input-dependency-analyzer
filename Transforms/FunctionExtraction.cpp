@@ -463,9 +463,15 @@ SnippetsCreator::snippet_list SnippetsCreator::create_instruction_snippets(llvm:
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
         bool check_operands = check_reachability;
-        if (!check_operands) {
-            check_operands |= (llvm::dyn_cast<llvm::CallInst>(I) != nullptr);
-            check_operands |= (llvm::dyn_cast<llvm::InvokeInst>(I) != nullptr);
+        if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
+            llvm::Function* called_f = callInst->getCalledFunction();
+            check_operands &=  callInst->getFunctionType()->getReturnType()->isVoidTy()
+                                && (!called_f || !called_f->isIntrinsic());
+        }
+        if (auto* invokeInst =  llvm::dyn_cast<llvm::InvokeInst>(I)) {
+            llvm::Function* called_f = invokeInst->getCalledFunction();
+            check_operands &=  invokeInst->getFunctionType()->getReturnType()->isVoidTy()
+                                    && (!called_f || !called_f->isIntrinsic());
         }
         bool can_extract = m_extract_instruction->can_extract(I, check_reachability, check_operands);
         if (can_extract) {

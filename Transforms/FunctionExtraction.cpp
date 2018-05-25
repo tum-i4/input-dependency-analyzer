@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Analysis/LoopInfo.h"
 
 #include "llvm/PassRegistry.h"
@@ -673,11 +674,14 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     }
 
     llvm::dbgs() << "\nExtracted functions are \n";
+    const std::string extracted = "extracted";
+    auto* extracted_function_md_str = llvm::MDString::get(M.getContext(), extracted);
+    llvm::MDNode* extracted_function_md = llvm::MDNode::get(M.getContext(), extracted_function_md_str);
     for (const auto& f : extracted_functions) {
         llvm::Function* extracted_f = f.first;
         m_extracted_functions.insert(extracted_f);
+        extracted_f->setMetadata(extracted, extracted_function_md);
         llvm::dbgs() << extracted_f->getName() << "\n";
-        // TODO: this is not quite correct, to create an InputDependentFunctionAnalysisResult for extracted function
         input_dep->insertAnalysisInfo(
                 extracted_f, input_dependency::InputDependencyAnalysis::InputDepResType(new
                 input_dependency::InputDependentFunctionAnalysisResult(extracted_f)));

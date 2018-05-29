@@ -59,6 +59,9 @@ ValueSet Utils::dissolveInstruction(llvm::Instruction* instr)
             if (auto allocInstr = llvm::dyn_cast<llvm::AllocaInst>(instrop)) {
                 values.insert(llvm::dyn_cast<llvm::Value>(op));
                 continue;
+            } else if (auto callInstr = llvm::dyn_cast<llvm::CallInst>(instrop)) {
+                values.insert(llvm::dyn_cast<llvm::Value>(op));
+                continue;
             }
             const auto& vals = dissolveInstruction(instrop);
             values.insert(vals.begin(), vals.end());

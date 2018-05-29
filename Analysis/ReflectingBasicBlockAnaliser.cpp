@@ -741,12 +741,12 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     graph.build(m_valueDependencies, m_initialDependencies);
 
     // write dot for value dependency graph
-    //if (m_BB->getParent()->getName() == "snake_game_over") {
-    //    std::string name = m_BB->getParent()->getName();
-    //    name += "_";
-    //    name += m_BB->getName();
-    //    graph.dump(name);
-    //}
+//    if (m_BB->getParent()->getName() == "get_dht") {
+//        std::string name = m_BB->getParent()->getName();
+//        name += "_";
+//        name += m_BB->getName();
+//        graph.dump(name);
+//    }
 
     resolveDependencies(graph.get_leaves(), m_valueDependencies);
 

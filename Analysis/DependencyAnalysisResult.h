@@ -63,6 +63,7 @@ public:
     virtual DepInfo getInstructionDependencies(llvm::Instruction* instr) const = 0;
 
     virtual const ValueDependencies& getValuesDependencies() const = 0;
+    virtual const ValueDependencies& getInitialValuesDependencies() const = 0;
     virtual const ValueDepInfo& getReturnValueDependencies() const = 0;
 
     virtual const ArgumentDependenciesMap& getOutParamsDependencies() const = 0;

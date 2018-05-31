@@ -252,6 +252,9 @@ bool InstructionExtraction::can_extract(llvm::Instruction* instr,
     if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
         return false;
     }
+    if (llvm::dyn_cast<llvm::TerminatorInst>(instr)) {
+        return false;
+    }
     llvm::Function* F = instr->getParent()->getParent();
     if (m_input_dep_info->isDataDependent(instr)) {
         return true;
@@ -355,14 +358,9 @@ void SnippetsCreator::collect_snippets(bool expand)
             ++it;
             continue;
         }
-        if (Snippet_type block_snippet = create_block_snippet(B)) {
-            update_processed_blocks(block_snippet, processed_blocks);
-            m_snippets.push_back(block_snippet);
-        } else {
-            auto instr_snippets = create_instruction_snippets(B);
-            processed_blocks.insert(B);
-            m_snippets.insert(m_snippets.end(), instr_snippets.begin(), instr_snippets.end());
-        }
+        auto instr_snippets = create_instruction_snippets(B);
+        processed_blocks.insert(B);
+        m_snippets.insert(m_snippets.end(), instr_snippets.begin(), instr_snippets.end());
         ++it;
     }
     if (expand) {

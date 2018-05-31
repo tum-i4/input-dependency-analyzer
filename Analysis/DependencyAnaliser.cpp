@@ -415,14 +415,17 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         updateLibFunctionCallInstructionDependencies(callInst, argDepMap);
     } else {
         updateFunctionCallSiteInfo(callInst, F);
+        if (m_FAG(F) != nullptr) {
+            updateCallSiteOutArgDependencies(callInst, F);
+        } else {
+            updateCallInputDependentOutArgDependencies(callInst);
+        }
         // cyclic call
         // analysis result of callee is not available. e.g cyclic calls, recursive calls
         if (m_FAG(F) == nullptr || m_FAG(F)->isInputDepFunction()) {
-            updateCallInputDependentOutArgDependencies(callInst);
             updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
             updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
         } else {
-            updateCallSiteOutArgDependencies(callInst, F);
             updateCallInstructionDependencies(callInst, F);
             updateGlobalsAfterFunctionCall(callInst, F);
         }
@@ -1033,18 +1036,18 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
     }
     auto depInfo = getValueDependencies(argVal);
     if (depInfo.isDefined()) {
-        addControlDependencies(depInfo);
+        //addControlDependencies(depInfo);
         return depInfo;
     }
     if (auto* argInst = llvm::dyn_cast<llvm::Instruction>(argVal)) {
         auto instrDeps = getInstructionDependencies(argInst);
-        addControlDependencies(instrDeps);
+        //addControlDependencies(instrDeps);
         return ValueDepInfo(argVal->getType(), instrDeps);
     }
     auto args = isInput(argVal);
     if (!args.empty()) {
         DepInfo depInfo(DepInfo::INPUT_ARGDEP, args);
-        addControlDependencies(depInfo);
+        //addControlDependencies(depInfo);
         return ValueDepInfo(argVal->getType(), depInfo);
     }
     return ValueDepInfo();

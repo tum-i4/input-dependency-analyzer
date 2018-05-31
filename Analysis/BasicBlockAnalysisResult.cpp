@@ -605,6 +605,11 @@ const BasicBlockAnalysisResult::ValueDependencies& BasicBlockAnalysisResult::get
     return m_valueDependencies;
 }
 
+const BasicBlockAnalysisResult::ValueDependencies& BasicBlockAnalysisResult::getInitialValuesDependencies() const
+{
+    return m_initialDependencies;
+}
+
 const ValueDepInfo& BasicBlockAnalysisResult::getReturnValueDependencies() const
 {
     return m_returnValueDependencies;

@@ -82,6 +82,7 @@ public:
     ValueDepInfo getValueDependencyInfo(llvm::Value* val) override;
     DepInfo getInstructionDependencies(llvm::Instruction* instr) const override;
     const DependencyAnaliser::ValueDependencies& getValuesDependencies() const override;
+    const DependencyAnaliser::ValueDependencies& getInitialValuesDependencies() const override;
     const ValueDepInfo& getReturnValueDependencies() const override;
     const DependencyAnaliser::ArgumentDependenciesMap& getOutParamsDependencies() const override;
     const DependencyAnaliser::ValueCallbackMap& getCallbackFunctions() const override;

@@ -290,6 +290,11 @@ const DependencyAnaliser::ValueDependencies& LoopAnalysisResult::getValuesDepend
     return m_valueDependencies;
 }
 
+const DependencyAnaliser::ValueDependencies& LoopAnalysisResult::getInitialValuesDependencies() const
+{
+    return m_initialDependencies;
+}
+
 const ValueDepInfo& LoopAnalysisResult::getReturnValueDependencies() const
 {
     return m_returnValueDependencies;
@@ -717,6 +722,13 @@ void LoopAnalysisResult::reflect()
         assert(pos != m_BBAnalisers.end());
         auto valueDeps = pos->second->getValuesDependencies();
         for (const auto& dep : valueDeps) {
+            auto res = valueDependencies.insert(dep);
+            if (!res.second) {
+                res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());
+            }
+        }
+        auto initialValueDeps = pos->second->getInitialValuesDependencies();
+        for (const auto& dep : initialValueDeps) {
             auto res = valueDependencies.insert(dep);
             if (!res.second) {
                 res.first->second.getValueDep().mergeDependencies(dep.second.getValueDep());

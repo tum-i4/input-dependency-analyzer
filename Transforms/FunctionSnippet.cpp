@@ -665,19 +665,21 @@ bool InstructionsSnippet::intersects(const Snippet& snippet) const
     return snippet.intersects(*this);
 }
 
-void InstructionsSnippet::expand()
+Snippet::InstructionSet InstructionsSnippet::expand()
 {
     InstructionSet instructions;
     snippet_instructions(instructions);
     auto it = m_end;
+    InstructionSet new_instructions;
     do {
         llvm::Instruction* instr = &*it;
-        expand_for_instruction(instr, instructions);
+        expand_for_instruction(instr, instructions, new_instructions);
         // not to decrement begin
         if (it == m_begin) {
             break;
         }
     } while (it-- != m_begin);
+    return new_instructions;
 }
 
 void InstructionsSnippet::adjust_end()
@@ -981,14 +983,15 @@ void InstructionsSnippet::snippet_instructions(InstructionSet& instrs) const
 }
 
 void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
-                                                 InstructionSet& instructions)
+                                                 InstructionSet& instructions,
+                                                 InstructionSet& new_instructions)
 {
     //llvm::dbgs() << "expand for instr " << *instr << "\n";
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(instr)) {
         assert(instructions.find(instr) != instructions.end());
         if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(load->getPointerOperand())) {
         } else if (auto loaded_inst = llvm::dyn_cast<llvm::Instruction>(load->getPointerOperand())) {
-            expand_for_instruction_operand(loaded_inst, instructions);
+            expand_for_instruction_operand(loaded_inst, instructions, new_instructions);
         }
         return;
     }
@@ -997,26 +1000,27 @@ void InstructionsSnippet::expand_for_instruction(llvm::Instruction* instr,
         if (llvm::dyn_cast<llvm::AllocaInst>(value_op)) {
             return;
         }
-        expand_for_instruction_operand(value_op, instructions);
+        expand_for_instruction_operand(value_op, instructions, new_instructions);
         auto storeTo = store->getPointerOperand();
         // e.g. for pointer loadInst will be pointer operand, but it should not be used as value
         if (llvm::dyn_cast<llvm::AllocaInst>(storeTo)) {
         } else {
-            expand_for_instruction_operand(storeTo, instructions);
+            expand_for_instruction_operand(storeTo, instructions, new_instructions);
         }
     } else if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(instr)) {
         for (int i = callInst->getNumArgOperands() -1; i >= 0; --i) {
-            expand_for_instruction_operand(callInst->getArgOperand(i), instructions);
+            expand_for_instruction_operand(callInst->getArgOperand(i), instructions, new_instructions);
         }
     } else {
         for (unsigned i = 0; i < instr->getNumOperands(); ++i) {
-            expand_for_instruction_operand(instr->getOperand(i), instructions);
+            expand_for_instruction_operand(instr->getOperand(i), instructions, new_instructions);
         }
     }
 }
 
 void InstructionsSnippet::expand_for_instruction_operand(llvm::Value* val,
-                                                         InstructionSet& instructions)
+                                                         InstructionSet& instructions,
+                                                         InstructionSet& new_instructions)
 {
     auto instr = llvm::dyn_cast<llvm::Instruction>(val);
     if (!instr) {
@@ -1038,6 +1042,7 @@ void InstructionsSnippet::expand_for_instruction_operand(llvm::Value* val,
     if (!res.second) {
         return;
     }
+    new_instructions.insert(instr);
     //llvm::dbgs() << "Expand: add " << *instr << "\n";
     if (m_begin_idx > new_begin_idx) {
         m_begin = new_begin;
@@ -1178,18 +1183,19 @@ bool BasicBlocksSnippet::intersects(const Snippet& snippet) const
     return false;
 }
 
-void BasicBlocksSnippet::expand()
+Snippet::InstructionSet BasicBlocksSnippet::expand()
 {
     if (!m_start.is_valid_snippet()) {
-        return;
+        return Snippet::InstructionSet();
     }
-    m_start.expand();
+    const auto& new_instructions = m_start.expand();
     // can include block in snippet
     if (m_start.is_block()) {
         //m_begin = Utils::get_block_pos(m_start.get_block());
         m_begin = m_start.get_block()->getIterator();
         m_start.clear();
     }
+    return new_instructions;
 }
 
 void BasicBlocksSnippet::adjust_end()

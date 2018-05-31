@@ -49,7 +49,7 @@ public:
     virtual llvm::BasicBlock* get_begin_block() const = 0;
     virtual llvm::BasicBlock* get_end_block() const = 0;
     virtual bool intersects(const Snippet& snippet) const = 0;
-    virtual void expand() = 0;
+    virtual InstructionSet expand() = 0;
     virtual void adjust_end() = 0;
     virtual void collect_used_values(const Snippet* parent_snippet) = 0;
     virtual bool merge(const Snippet& snippet) = 0;
@@ -96,7 +96,7 @@ public:
     bool is_single_instr_snippet() const override;
     bool is_function() const override;
     bool intersects(const Snippet& snippet) const override;
-    void expand() override;
+    InstructionSet expand() override;
     void adjust_end() override;
     void collect_used_values(const Snippet* parent_snippet) override;
     bool merge(const Snippet& snippet) override;
@@ -122,9 +122,11 @@ public:
 private:
     void snippet_instructions(InstructionSet& instrs) const;
     void expand_for_instruction(llvm::Instruction* instr,
-                                InstructionSet& instructions);
+                                InstructionSet& instructions,
+                                InstructionSet& new_instructions);
     void expand_for_instruction_operand(llvm::Value* val,
-                                        InstructionSet& instructions);
+                                        InstructionSet& instructions,
+                                        InstructionSet& new_instructions);
     bool can_erase_snippet() const;
 
 private:
@@ -169,7 +171,7 @@ public:
     }
     bool is_function() const override;
     bool intersects(const Snippet& snippet) const override;
-    void expand() override;
+    InstructionSet expand() override;
     void adjust_end() override;
     void collect_used_values(const Snippet* parent_snippet) override;
     bool merge(const Snippet& snippet) override;

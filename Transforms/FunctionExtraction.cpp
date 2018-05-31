@@ -322,6 +322,11 @@ public:
         return m_is_whole_function_snippet;
     }
 
+    int get_number_of_extracted_data_indep_instrs() const
+    {
+        return m_extracted_data_indep_instrs.size();
+    }
+
 public:
     void collect_snippets(bool expand);
     void expand_snippets();
@@ -332,6 +337,7 @@ private:
     Snippet_type create_block_snippet_from_loop(llvm::Loop* loop);
     void update_processed_blocks(Snippet_type snippet,
                                  std::unordered_set<const llvm::BasicBlock*>& processed_blocks);
+    void add_to_extraced_data_indep_instrs(const std::unordered_set<llvm::Instruction*>& expanded_instrs);
 
 private:
     llvm::Function& m_F;
@@ -341,6 +347,7 @@ private:
     llvm::LoopInfo* m_loop_info;
     InstructionExtraction* m_extract_instruction;
     snippet_list m_snippets;
+    std::unordered_set<llvm::Instruction*> m_extracted_data_indep_instrs;
 };
 
 void SnippetsCreator::collect_snippets(bool expand)
@@ -374,7 +381,8 @@ void SnippetsCreator::expand_snippets()
         if (!snippet) {
             continue;
         }
-        snippet->expand();
+        const auto& expanded_instrs = snippet->expand();
+        add_to_extraced_data_indep_instrs(expanded_instrs);
         snippet->adjust_end();
     }
     if (m_snippets.size() == 1) {
@@ -555,12 +563,22 @@ void SnippetsCreator::update_processed_blocks(Snippet_type snippet,
     processed_blocks.insert(block_snippet->get_blocks().begin(), block_snippet->get_blocks().end());
 }
 
+void SnippetsCreator::add_to_extraced_data_indep_instrs(const std::unordered_set<llvm::Instruction*>& expanded_instrs)
+{
+    for (auto& instr : expanded_instrs) {
+        if (!m_input_dep_info->isDataDependent(instr)) {
+            m_extracted_data_indep_instrs.insert(instr);
+        }
+    }
+}
+
 void run_on_function(llvm::Function& F,
                      llvm::PostDominatorTree* PDom,
                      llvm::LoopInfo* loopInfo,
                      const SnippetsCreator::InputDependencyAnalysisInfo& input_dep_info,
                      InstructionExtraction* instr_extr_pred,
-                     std::unordered_map<llvm::Function*, unsigned>& extracted_functions)
+                     std::unordered_map<llvm::Function*, unsigned>& extracted_functions,
+                     int& numberOfExtractedDataIndepInstrs)
 {
     // map from block to snippets?
     SnippetsCreator creator(F);
@@ -569,6 +587,7 @@ void run_on_function(llvm::Function& F,
     creator.set_loop_info(loopInfo);
     creator.set_instruction_extraction_predicate(instr_extr_pred);
     creator.collect_snippets(true);
+    numberOfExtractedDataIndepInstrs += creator.get_number_of_extracted_data_indep_instrs();
     if (creator.is_whole_function_snippet()) {
         llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
         input_dependency::InputDepConfig::get().add_extracted_function(&F);
@@ -652,6 +671,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     InstructionExtraction extract_instr_pred(&M);
     extract_instr_pred.collect_instructions(*input_dep);
+    int numberOfExtractedDataIndepInstrs = 0;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";
         if (F.isDeclaration()) {
@@ -666,7 +686,8 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
         llvm::LoopInfo* loopInfo = &getAnalysis<llvm::LoopInfoWrapperPass>(F).getLoopInfo();
         extract_instr_pred.set_input_dep_info(f_input_dep_info);
-        run_on_function(F, PDom, loopInfo, f_input_dep_info, &extract_instr_pred, extracted_functions);
+        run_on_function(F, PDom, loopInfo, f_input_dep_info, &extract_instr_pred,
+                        extracted_functions, numberOfExtractedDataIndepInstrs);
         modified = true;
         llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";
     }
@@ -690,6 +711,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
             m_extractionStatistics->add_extractedFunction(extracted_f->getName());
         }
     }
+    llvm::dbgs() << "Number of extracted data independent instructions " << numberOfExtractedDataIndepInstrs << "\n";
     m_coverageStatistics->setSectionName("input_dep_coverage_after_extraction");
     m_coverageStatistics->invalidate_stats_data();
     m_coverageStatistics->reportInputDepCoverage();

@@ -99,16 +99,19 @@ void InputDependentBasicBlockAnaliser::updateInstructionDependencies(llvm::Instr
     BasicBlockAnalysisResult::updateInstructionDependencies(instr, DepInfo(DepInfo::INPUT_DEP));
 }
 
-void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
+void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info,
+                                                               bool update_aliases, int arg_idx)
 {
-    BasicBlockAnalysisResult::updateValueDependencies(value, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)), update_aliases);
+    BasicBlockAnalysisResult::updateValueDependencies(value, ValueDepInfo(DepInfo(DepInfo::INPUT_DEP)),
+                                                      update_aliases, arg_idx);
 }
 
-void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
+void InputDependentBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info,
+                                                               bool update_aliases, int arg_idx)
 {
     ValueDepInfo newInfo = info;
     newInfo.updateCompositeValueDep(DepInfo(DepInfo::INPUT_DEP));
-    BasicBlockAnalysisResult::updateValueDependencies(value, newInfo, update_aliases);
+    BasicBlockAnalysisResult::updateValueDependencies(value, newInfo, update_aliases, arg_idx);
 }
 
 void InputDependentBasicBlockAnaliser::updateReturnValueDependencies(const ValueDepInfo& info)

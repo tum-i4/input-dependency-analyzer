@@ -184,7 +184,8 @@ ValueDepInfo NonDeterministicReflectingBasicBlockAnaliser::getCompositeValueDepe
     return ReflectingBasicBlockAnaliser::getCompositeValueDependencies(value, element_instr);
 }
 
-void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
+void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info,
+                                                                           bool update_aliases, int arg_idx)
 {
     auto res = m_valueDataDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
     if (!res.second) {
@@ -193,10 +194,11 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm:
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
     }
-    ReflectingBasicBlockAnaliser::updateValueDependencies(value, info, update_aliases);
+    ReflectingBasicBlockAnaliser::updateValueDependencies(value, info, update_aliases, arg_idx);
 }
 
-void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
+void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info,
+                                                                           bool update_aliases, int arg_idx)
 {
     auto res = m_valueDataDependencies.insert(std::make_pair(value, info));
     if (!res.second) {
@@ -205,7 +207,7 @@ void NonDeterministicReflectingBasicBlockAnaliser::updateValueDependencies(llvm:
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
     }
-    ReflectingBasicBlockAnaliser::updateValueDependencies(value, info, update_aliases);
+    ReflectingBasicBlockAnaliser::updateValueDependencies(value, info, update_aliases, arg_idx);
 }
 
 void NonDeterministicReflectingBasicBlockAnaliser::updateCompositeValueDependencies(llvm::Value* value,

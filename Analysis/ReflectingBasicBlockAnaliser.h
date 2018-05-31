@@ -51,7 +51,7 @@ public:
 protected:
     DepInfo getInstructionDependencies(llvm::Instruction* instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
+    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info, int arg_idx = -1) override;
 
 private:
     DepInfo getLoadInstrDependencies(llvm::LoadInst* instr);

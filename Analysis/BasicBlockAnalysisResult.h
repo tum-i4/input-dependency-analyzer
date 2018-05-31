@@ -64,8 +64,8 @@ protected:
     ValueDepInfo getValueDependencies(llvm::Value* value) override;
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) override;
-    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases, int arg_idx = -1) override;
+    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases, int arg_idx = -1) override;
     void updateCompositeValueDependencies(llvm::Value* value,
                                           llvm::Instruction* elInstr,
                                           const ValueDepInfo& info) override;
@@ -73,7 +73,7 @@ protected:
     ValueDepInfo getRefInfo(llvm::Instruction* instr) override;
     void updateAliasesDependencies(llvm::Value* val, const ValueDepInfo& info, ValueDependencies& valueDependencies) override;
     void updateAliasesDependencies(llvm::Value* val, llvm::Instruction* elInstr, const ValueDepInfo& info, ValueDependencies& valueDependencies) override;
-    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info) override;
+    void updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info, int arg_idx = -1) override;
     void updateModAliasesDependencies(llvm::StoreInst* storeInst, const ValueDepInfo& info) override;
     void updateRefAliasesDependencies(llvm::Instruction* instr, const ValueDepInfo& info);
     void markCallbackFunctionsForValue(llvm::Value* value) override;

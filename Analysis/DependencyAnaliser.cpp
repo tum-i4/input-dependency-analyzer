@@ -10,6 +10,7 @@
 #include "Utils.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 
@@ -377,11 +378,19 @@ void DependencyAnaliser::processStoreInst(llvm::StoreInst* storeInst)
     if (auto* getElPtr = llvm::dyn_cast<llvm::GetElementPtrInst>(storeTo)) {
         updateDependencyForGetElementPtr(getElPtr, info);
     } else {
-        updateValueDependencies(storeTo, info, true);
+        auto* md = storeInst->getMetadata("extraction_store");
+        int idx = -1;
+        if (md) {
+            auto constInt = llvm::mdconst::extract<llvm::ConstantInt>(md->getOperand(0));
+            if (constInt) {
+                idx = constInt->getZExtValue();
+            }
+        }
+        updateValueDependencies(storeTo, info, true, idx);
         //updateModAliasesDependencies(storeInst, info);
         llvm::Value* memoryValue = getMemoryValue(storeTo);
         if (memoryValue && memoryValue != storeTo) {
-            updateValueDependencies(memoryValue, info, true);
+            updateValueDependencies(memoryValue, info, true, idx);
         }
     }
 }

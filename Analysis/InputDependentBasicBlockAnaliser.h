@@ -85,8 +85,8 @@ protected:
     ValueDepInfo getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr) override;
 
     void updateInstructionDependencies(llvm::Instruction* instr, const DepInfo& info) override;
-    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases) override;
-    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases) override;
+    void updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases, int arg_idx = -1) override;
+    void updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases, int arg_idx = -1) override;
     void updateReturnValueDependencies(const ValueDepInfo& info) override;
     /// \}
 };

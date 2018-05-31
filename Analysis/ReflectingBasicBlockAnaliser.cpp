@@ -333,7 +333,9 @@ void ReflectingBasicBlockAnaliser::updateInstructionDependencies(llvm::Instructi
     }
 }
 
-void ReflectingBasicBlockAnaliser::updateAliasingOutArgDependencies(llvm::Value* val, const ValueDepInfo& info)
+void ReflectingBasicBlockAnaliser::updateAliasingOutArgDependencies(llvm::Value* val,
+                                                                    const ValueDepInfo& info,
+                                                                    int arg_idx)
 {
     if (m_outArgDependencies.empty()) {
         return;
@@ -341,6 +343,9 @@ void ReflectingBasicBlockAnaliser::updateAliasingOutArgDependencies(llvm::Value*
     ValueDepInfo localInfo = info;
     addControlDependencies(localInfo);
     for (auto& arg : m_outArgDependencies) {
+        if (arg_idx != -1 && arg_idx != arg.first->getArgNo()) {
+            continue;
+        }
         auto alias = m_AAR.alias(val, arg.first);
         if (alias == llvm::AliasResult::NoAlias) {
             continue;

@@ -65,7 +65,7 @@ void BasicBlockAnalysisResult::analyze()
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // collect alloca value with input dependency state INPUT_DEP
             m_valueDependencies.insert(std::make_pair(allocInst,
-                                                ValueDepInfo(allocInst->getAllocatedType(), DepInfo(DepInfo::INPUT_DEP))));
+                        ValueDepInfo(allocInst->getAllocatedType(), DepInfo(DepInfo::INPUT_DEP))));
             // collect alloca instruction with input dependency state INPUT_INDEP
             updateInstructionDependencies(allocInst, DepInfo(DepInfo::INPUT_DEP));
         } else if (auto* retInst = llvm::dyn_cast<llvm::ReturnInst>(&I)) {
@@ -156,7 +156,8 @@ void BasicBlockAnalysisResult::updateInstructionDependencies(llvm::Instruction* 
     };
 }
 
-void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const DepInfo& info,
+                                                       bool update_aliases, int arg_idx)
 {
     assert(info.isDefined());
     if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
@@ -169,11 +170,12 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     }
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDependencies);
-        updateAliasingOutArgDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second, arg_idx);
     }
 }
 
-void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
+void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info,
+                                                       bool update_aliases, int arg_idx)
 {
     assert(info.isDefined());
     if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
@@ -186,7 +188,7 @@ void BasicBlockAnalysisResult::updateValueDependencies(llvm::Value* value, const
     }
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDependencies);
-        updateAliasingOutArgDependencies(value, res.first->second);
+        updateAliasingOutArgDependencies(value, res.first->second, arg_idx);
     }
 }
 
@@ -214,7 +216,6 @@ void BasicBlockAnalysisResult::updateReturnValueDependencies(const ValueDepInfo&
 ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::Instruction* instr)
 {
     ValueDepInfo info;
-    //llvm::dbgs() << *instr << "\n";
     const auto& DL = instr->getModule()->getDataLayout();
     for (const auto& dep : m_valueDependencies) {
         if (!dep.first->getType()->isSized()) {
@@ -300,16 +301,21 @@ void BasicBlockAnalysisResult::updateAliasesDependencies(llvm::Value* val, llvm:
     }
 }
 
-void BasicBlockAnalysisResult::updateAliasingOutArgDependencies(llvm::Value* value, const ValueDepInfo& info)
+void BasicBlockAnalysisResult::updateAliasingOutArgDependencies(llvm::Value* value, const ValueDepInfo& info, int arg_idx)
 {
     llvm::Instruction* value_instr = llvm::dyn_cast<llvm::Instruction>(value);
     for (auto& arg : m_outArgDependencies) {
+        if (arg_idx != -1 && arg_idx != arg.first->getArgNo()) {
+            continue;
+        }
         auto alias = m_AAR.alias(value, arg.first);
         if (alias != llvm::AliasResult::NoAlias) {
+            //llvm::dbgs() << "   May alias\n";
             if (alias == llvm::AliasResult::MayAlias || alias == llvm::AliasResult::PartialAlias) {
                 value_instr ? arg.second.mergeDependencies(value_instr, info)
                             : arg.second.mergeDependencies(info);
             } else if (alias == llvm::AliasResult::MustAlias) {
+                //llvm::dbgs() << "   Must alias\n";
                 value_instr ? arg.second.updateValueDep(value_instr, info)
                             : arg.second.updateValueDep(info);
             }

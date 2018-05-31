@@ -7,6 +7,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -181,7 +182,8 @@ void collect_values(InstructionsSnippet::iterator begin,
 void setup_function_mappings(llvm::Function* new_F,
                              ArgIdxToValueMap& arg_index_to_value,
                              ValueToValueMap& value_ptr_map,
-                             ValueToValueMap& value_map)
+                             ValueToValueMap& value_map,
+                             std::unordered_map<llvm::Value*, int>& operand_indices)
 {
     // Create block for new function
     llvm::BasicBlock* entry_block = llvm::BasicBlock::Create(new_F->getParent()->getContext(), "entry", new_F);
@@ -192,13 +194,13 @@ void setup_function_mappings(llvm::Function* new_F,
     auto arg_it = new_F->arg_begin();
     unsigned i = 0;
     while (arg_it != new_F->arg_end()) {
-        const std::string arg_name = "arg" + std::to_string(i);
-        arg_it->setName(arg_name);
         auto ptr_type = llvm::dyn_cast<llvm::PointerType>(arg_it->getType());
         //assert(ptr_type != nullptr);
         llvm::Value* val = arg_index_to_value[i];
+        arg_it->setName(val->getName());
         auto val_type = get_value_type(val);
 
+        const std::string& arg_name = arg_it->getName();
         if (ptr_type) {
             auto new_ptr_val = builder.CreateAlloca(ptr_type, nullptr,  arg_name + ".ptr");
             builder.CreateStore(&*arg_it, new_ptr_val);
@@ -207,6 +209,7 @@ void setup_function_mappings(llvm::Function* new_F,
             auto load = builder.CreateLoad(ptr_load);
             builder.CreateStore(load, new_val);
             value_map[new_ptr_val] = new_val;
+            operand_indices[new_ptr_val] = i;
             value_ptr_map[val] = new_val;
         } else {
             auto new_val = builder.CreateAlloca(arg_it->getType(), nullptr, arg_name + ".el");
@@ -351,7 +354,8 @@ void remap_instructions_in_new_function(llvm::BasicBlock* block,
 }
 
 void create_return_stores(llvm::BasicBlock* block,
-                          const ValueToValueMap& value_map)
+                          const ValueToValueMap& value_map,
+                          const std::unordered_map<llvm::Value*, int>& operand_indices)
 {
     //llvm::dbgs() << "  Create return stores\n";
     llvm::IRBuilder<> builder(block);
@@ -360,7 +364,14 @@ void create_return_stores(llvm::BasicBlock* block,
     for (auto& ret_entry : value_map) {
         auto load_ptr = builder.CreateLoad(ret_entry.first);
         auto load_val = builder.CreateLoad(ret_entry.second);
-        builder.CreateStore(load_val, load_ptr);
+        auto* storeInst = builder.CreateStore(load_val, load_ptr);
+        auto index = operand_indices.find(ret_entry.first);
+        assert(index != operand_indices.end());
+        llvm::LLVMContext& Ctx = block->getParent()->getContext();
+        auto* idx_md = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
+                                                              index->second));
+        llvm::MDNode* idx_md_node = llvm::MDNode::get(Ctx, idx_md);
+        storeInst->setMetadata("extraction_store", idx_md_node);
     }
 }
 
@@ -807,7 +818,8 @@ llvm::Function* InstructionsSnippet::to_function()
     // this map contains mapping from c_ptr to c_local
     ValueToValueMap value_map;
 
-    setup_function_mappings(new_F, arg_index_to_value, value_ptr_map, value_map);
+    std::unordered_map<llvm::Value*, int> operand_indices;
+    setup_function_mappings(new_F, arg_index_to_value, value_ptr_map, value_map, operand_indices);
     llvm::BasicBlock* entry_block = &new_F->getEntryBlock();
 
     unsigned setup_size = entry_block->size();
@@ -820,7 +832,7 @@ llvm::Function* InstructionsSnippet::to_function()
         auto retInst = llvm::ReturnInst::Create(new_F->getParent()->getContext());
         entry_block->getInstList().push_back(retInst);
     }
-    create_return_stores(entry_block, value_map);
+    create_return_stores(entry_block, value_map, operand_indices);
 
     auto insert_before = m_begin;
     auto callInst = create_call_to_snippet_function(new_F, &*insert_before, true, arg_index_to_value, value_ptr_map);
@@ -1453,7 +1465,8 @@ llvm::Function* BasicBlocksSnippet::to_function()
                                                    m_function->getParent());
     ValueToValueMap value_ptr_map;
     ValueToValueMap value_map;
-    setup_function_mappings(new_F, arg_index_to_value, value_ptr_map, value_map);
+    std::unordered_map<llvm::Value*, int> operand_indices;
+    setup_function_mappings(new_F, arg_index_to_value, value_ptr_map, value_map, operand_indices);
     const bool has_start_snippet = m_start.is_valid_snippet();
     llvm::ValueToValueMapTy value_to_value_map;
     create_value_to_value_map(value_ptr_map, value_to_value_map);
@@ -1530,7 +1543,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         auto end_pos = value_to_value_map.find(&*m_end);
         new_function_exit_block = llvm::dyn_cast<llvm::BasicBlock>(&*end_pos->second);
     }
-    create_return_stores(new_function_exit_block, value_map);
+    create_return_stores(new_function_exit_block, value_map, operand_indices);
 
     llvm::CallInst* call;
     if (has_start_snippet) {

@@ -144,29 +144,39 @@ ValueDepInfo NonDeterministicBasicBlockAnaliser::getCompositeValueDependencies(l
     return pos->second.getValueDep(element_instr);
 }
 
-void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info, bool update_aliases)
+void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const DepInfo& info,
+                                                                 bool update_aliases, int arg_idx)
 {
     auto res = m_valueDataDependencies.insert(std::make_pair(value, ValueDepInfo(info)));
+    bool input_indep = info.isInputIndep();
     if (!res.second) {
+        input_indep &= res.first->second.isInputIndep();
         res.first->second.updateCompositeValueDep(info);
     }
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
     }
-    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
+    BasicBlockAnalysisResult::updateValueDependencies(value,
+                                                      !input_indep ? addOnDependencyInfo(info) : info,
+                                                      update_aliases, arg_idx);
 }
 
-void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info, bool update_aliases)
+void NonDeterministicBasicBlockAnaliser::updateValueDependencies(llvm::Value* value, const ValueDepInfo& info,
+                                                                 bool update_aliases, int arg_idx)
 {
     auto res = m_valueDataDependencies.insert(std::make_pair(value, info));
+    bool input_indep = info.isInputIndep();
     if (!res.second) {
+        input_indep &= res.first->second.isInputIndep();
         res.first->second.updateValueDep(info);
     }
     if (update_aliases) {
         updateAliasesDependencies(value, res.first->second, m_valueDataDependencies);
     }
 
-    BasicBlockAnalysisResult::updateValueDependencies(value, addOnDependencyInfo(info), update_aliases);
+    BasicBlockAnalysisResult::updateValueDependencies(value,
+                                                      !input_indep ? addOnDependencyInfo(info) : info,
+                                                      update_aliases, arg_idx);
 }
 
 void NonDeterministicBasicBlockAnaliser::updateCompositeValueDependencies(llvm::Value* value,

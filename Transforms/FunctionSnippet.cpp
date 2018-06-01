@@ -966,7 +966,10 @@ bool InstructionsSnippet::is_function() const
     if (F->getBasicBlockList().size() > 1) {
         return false;
     }
-    return m_block->getInstList().size() == F->getEntryBlock().getInstList().size();
+    if (is_block()) {
+        return m_block->getInstList().size() == F->getEntryBlock().getInstList().size();
+    }
+    return false;
 }
 
 void InstructionsSnippet::compute_indices()

@@ -70,13 +70,15 @@ public:
     void collect_function_instructions(llvm::Function* F);
     bool can_extract(llvm::Instruction* instr,
                      bool check_reachability,
-                     bool check_operands) const;
+                     bool check_operands,
+                     bool no_data_indep_operand) const;
 
 private:
     void collect_argument_reachable_instructions(llvm::Function* F);
     void collect_global_reachable_instructions(llvm::Function* F);
-    bool derive_instruction_extraction_from_operands(llvm::Instruction* instr,
-                                                     bool check_reachability) const;
+    bool has_extractable_operand(llvm::Instruction* instr,
+                                 bool check_reachability) const;
+    bool has_data_indep_operands(llvm::Instruction* instr) const;
 
 private:
     llvm::Module* m_module;
@@ -224,11 +226,10 @@ void InstructionExtraction::collect_global_reachable_instructions(llvm::Function
         ++global_it;
     }
     m_global_reachable_instructions.insert(std::make_pair(F, instructions));
-    // TODO:
 }
 
-bool InstructionExtraction::derive_instruction_extraction_from_operands(llvm::Instruction* instr,
-                                                                        bool check_reachability) const
+bool InstructionExtraction::has_extractable_operand(llvm::Instruction* instr,
+                                                    bool check_reachability) const
 {
     for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
         auto* op_instr = llvm::dyn_cast<llvm::Instruction>(&*op);
@@ -238,7 +239,24 @@ bool InstructionExtraction::derive_instruction_extraction_from_operands(llvm::In
         if (llvm::dyn_cast<llvm::AllocaInst>(op_instr)) {
             continue;
         }
-        if (can_extract(op_instr, check_reachability, false)) {
+        if (can_extract(op_instr, check_reachability, false, false)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool InstructionExtraction::has_data_indep_operands(llvm::Instruction* instr) const
+{
+    for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
+        auto* op_instr = llvm::dyn_cast<llvm::Instruction>(&*op);
+        if (!op_instr) {
+            continue;
+        }
+        if (llvm::dyn_cast<llvm::AllocaInst>(op_instr)) {
+            continue;
+        }
+        if (!m_input_dep_info->isDataDependent(op_instr)) {
             return true;
         }
     }
@@ -247,7 +265,8 @@ bool InstructionExtraction::derive_instruction_extraction_from_operands(llvm::In
 
 bool InstructionExtraction::can_extract(llvm::Instruction* instr,
                                         bool check_reachability,
-                                        bool check_operands) const
+                                        bool check_operands,
+                                        bool no_data_indep_operand) const
 {
     if (llvm::dyn_cast<llvm::AllocaInst>(instr)) {
         return false;
@@ -256,6 +275,12 @@ bool InstructionExtraction::can_extract(llvm::Instruction* instr,
         return false;
     }
     llvm::Function* F = instr->getParent()->getParent();
+    if (m_input_dep_info->isDataDependent(instr)) {
+        if (no_data_indep_operand) {
+            return !has_data_indep_operands(instr);
+        }
+        return true;
+    }
     if (m_input_dep_info->isDataDependent(instr)) {
         return true;
     }
@@ -272,7 +297,7 @@ bool InstructionExtraction::can_extract(llvm::Instruction* instr,
         }
     }
     if (check_operands) {
-        return derive_instruction_extraction_from_operands(instr, check_reachability);
+        return has_extractable_operand(instr, check_reachability);
     }
     return false;
 }
@@ -288,6 +313,7 @@ public:
 public:
     SnippetsCreator(llvm::Function& F)
         : m_F(F)
+        , m_dont_extract_data_indeps(false)
         , m_is_whole_function_snippet(false)
     {
     }
@@ -312,6 +338,11 @@ public:
         m_extract_instruction = instr_extr;
     }
 
+    void set_dont_extract_data_indeps(bool dont_extract)
+    {
+        m_dont_extract_data_indeps = dont_extract;
+    }
+
     const snippet_list& get_snippets() const
     {
         return m_snippets;
@@ -328,11 +359,11 @@ public:
     }
 
 public:
-    void collect_snippets(bool expand);
+    void collect_snippets();
     void expand_snippets();
+    void merge_snippets();
 
 private:
-    Snippet_type create_block_snippet(llvm::BasicBlock* B);
     snippet_list create_instruction_snippets(llvm::BasicBlock* B);
     Snippet_type create_block_snippet_from_loop(llvm::Loop* loop);
     void update_processed_blocks(Snippet_type snippet,
@@ -345,12 +376,13 @@ private:
     InputDependencyAnalysisInfo m_input_dep_info;
     llvm::PostDominatorTree* m_pdom;
     llvm::LoopInfo* m_loop_info;
+    bool m_dont_extract_data_indeps;
     InstructionExtraction* m_extract_instruction;
     snippet_list m_snippets;
     std::unordered_set<llvm::Instruction*> m_extracted_data_indep_instrs;
 };
 
-void SnippetsCreator::collect_snippets(bool expand)
+void SnippetsCreator::collect_snippets()
 {
     llvm::dbgs() << "Start collecting snippets\n";
     std::unordered_set<const llvm::BasicBlock*> processed_blocks;
@@ -370,9 +402,10 @@ void SnippetsCreator::collect_snippets(bool expand)
         m_snippets.insert(m_snippets.end(), instr_snippets.begin(), instr_snippets.end());
         ++it;
     }
-    if (expand) {
+    if (!m_dont_extract_data_indeps) {
         expand_snippets();
     }
+    merge_snippets();
 }
 
 void SnippetsCreator::expand_snippets()
@@ -385,11 +418,16 @@ void SnippetsCreator::expand_snippets()
         add_to_extraced_data_indep_instrs(expanded_instrs);
         snippet->adjust_end();
     }
+}
+
+void SnippetsCreator::merge_snippets()
+{
     if (m_snippets.size() == 1) {
         if ((*m_snippets.begin())->is_single_instr_snippet()) {
             m_snippets.clear();
         }
     }
+
     std::vector<int> to_erase;
     for (unsigned i = 0; i < m_snippets.size(); ++i) {
         if (!m_snippets[i]) {
@@ -432,33 +470,6 @@ void SnippetsCreator::expand_snippets()
     }
 }
 
-SnippetsCreator::Snippet_type SnippetsCreator::create_block_snippet(llvm::BasicBlock* B)
-{
-    auto* loop = m_loop_info->getLoopFor(B);
-    if (!loop) {
-        return Snippet_type();
-    }
-    llvm::BasicBlock* header = loop->getHeader();
-    auto* header_terminator = header->getTerminator();
-    bool check_operands = m_input_dep_info->isInputDepFunction();
-    if (m_input_dep_info->isInputDependentBlock(B)
-        || m_extract_instruction->can_extract(header_terminator,
-                         check_operands || m_input_dep_info->isInputDependentBlock(header),
-                         check_operands || m_input_dep_info->isInputDependentBlock(header))) {
-        return create_block_snippet_from_loop(get_outermost_loop(loop));
-    }
-    for (auto& B : loop->getBlocks()) {
-        auto* term = B->getTerminator();
-        if (m_input_dep_info->isInputDependentBlock(B)
-            || m_extract_instruction->can_extract(term,
-                                       check_operands || m_input_dep_info->isInputDependentBlock(B),
-                                       check_operands || m_input_dep_info->isInputDependentBlock(B))) {
-            return create_block_snippet_from_loop(get_outermost_loop(loop));
-        }
-    }
-    return Snippet_type();
-}
-
 SnippetsCreator::snippet_list SnippetsCreator::create_instruction_snippets(llvm::BasicBlock* block)
 {
     snippet_list snippets;
@@ -469,7 +480,7 @@ SnippetsCreator::snippet_list SnippetsCreator::create_instruction_snippets(llvm:
                                         || m_input_dep_info->isInputDependentBlock(block);
     while (it != block->end()) {
         llvm::Instruction* I = &*it;
-        bool check_operands = check_reachability;
+        bool check_operands = !m_dont_extract_data_indeps && check_reachability;
         if (auto* callInst = llvm::dyn_cast<llvm::CallInst>(I)) {
             llvm::Function* called_f = callInst->getCalledFunction();
             check_operands &=  callInst->getFunctionType()->getReturnType()->isVoidTy()
@@ -480,7 +491,8 @@ SnippetsCreator::snippet_list SnippetsCreator::create_instruction_snippets(llvm:
             check_operands &=  invokeInst->getFunctionType()->getReturnType()->isVoidTy()
                                     && (!called_f || !called_f->isIntrinsic());
         }
-        bool can_extract = m_extract_instruction->can_extract(I, check_reachability, check_operands);
+        bool can_extract = m_extract_instruction->can_extract(I, check_reachability,
+                                                              check_operands, m_dont_extract_data_indeps);
         if (can_extract) {
             if (auto store = llvm::dyn_cast<llvm::StoreInst>(I)) {
                 // Skip the instruction storing argument to a local variable. This should happen anyway, no need to extract
@@ -577,6 +589,7 @@ void run_on_function(llvm::Function& F,
                      llvm::LoopInfo* loopInfo,
                      const SnippetsCreator::InputDependencyAnalysisInfo& input_dep_info,
                      InstructionExtraction* instr_extr_pred,
+                     bool dont_extract_data_indeps,
                      std::unordered_map<llvm::Function*, unsigned>& extracted_functions,
                      int& numberOfExtractedDataIndepInstrs)
 {
@@ -586,7 +599,8 @@ void run_on_function(llvm::Function& F,
     creator.set_post_dom_tree(PDom);
     creator.set_loop_info(loopInfo);
     creator.set_instruction_extraction_predicate(instr_extr_pred);
-    creator.collect_snippets(true);
+    creator.set_dont_extract_data_indeps(dont_extract_data_indeps);
+    creator.collect_snippets();
     numberOfExtractedDataIndepInstrs += creator.get_number_of_extracted_data_indep_instrs();
     if (creator.is_whole_function_snippet()) {
         llvm::dbgs() << "Whole function " << F.getName() << " is input dependent\n";
@@ -633,6 +647,11 @@ void ExtractionStatistics::report()
     flush();
 }
 
+static llvm::cl::opt<bool> dont_extract_data_indep(
+    "dont-extract-data-indeps",
+    llvm::cl::desc("Do not extract data indep instrs"),
+    llvm::cl::value_desc("boolean flag"));
+
 static llvm::cl::opt<bool> stats(
     "extraction-stats",
     llvm::cl::desc("Dump statistics"),
@@ -664,6 +683,9 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
 {
     bool modified = false;
     auto input_dep = getAnalysis<input_dependency::InputDependencyAnalysisPass>().getInputDependencyAnalysis();
+    if (dont_extract_data_indep) {
+        llvm::dbgs() << "Will not extract any data indep instruction\n";
+    }
 
     createStatistics(M, *input_dep);
     m_coverageStatistics->setSectionName("input_dep_coverage_before_extraction");
@@ -686,7 +708,7 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
         llvm::PostDominatorTree* PDom = &getAnalysis<llvm::PostDominatorTreeWrapperPass>(F).getPostDomTree();
         llvm::LoopInfo* loopInfo = &getAnalysis<llvm::LoopInfoWrapperPass>(F).getLoopInfo();
         extract_instr_pred.set_input_dep_info(f_input_dep_info);
-        run_on_function(F, PDom, loopInfo, f_input_dep_info, &extract_instr_pred,
+        run_on_function(F, PDom, loopInfo, f_input_dep_info, &extract_instr_pred, dont_extract_data_indep,
                         extracted_functions, numberOfExtractedDataIndepInstrs);
         modified = true;
         llvm::dbgs() << "Done function extraction on function " << F.getName() << "\n";

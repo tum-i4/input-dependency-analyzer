@@ -169,11 +169,14 @@ void ValueDepInfo::mergeDependencies(const ValueDepInfo& depInfo)
 
 void ValueDepInfo::mergeDependencies(llvm::Instruction* el_instr, const ValueDepInfo& depInfo)
 {
+    auto* get_el_instr =  llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!m_isComposite) {
-        m_depInfo.mergeDependencies(depInfo.getValueDep());
+        // Fix for bug #92.This is a quick fix which needs to be reviewed again.
+        if (!get_el_instr) {
+            m_depInfo.mergeDependencies(depInfo.getValueDep());
+        }
         return;
     }
-    auto* get_el_instr =  llvm::dyn_cast<llvm::GetElementPtrInst>(el_instr);
     if (!get_el_instr) {
         m_depInfo.mergeDependencies(depInfo.getValueDep());
         for (auto& dep : m_elementDeps) {

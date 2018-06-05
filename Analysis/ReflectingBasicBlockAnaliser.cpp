@@ -146,7 +146,7 @@ void resolveNodeDeps(value_dependence_graph::nodeT& node,
     if (val_dep.getValueDependencies().empty() && val_dep.isValueDep()) {
         val_dep.setDependency(DepInfo::INPUT_INDEP);
     }
-    assert(!val_dep.isValueDep() || val_dep.isOnlyGlobalValueDependent());
+    //assert(!val_dep.isValueDep() || val_dep.isOnlyGlobalValueDependent());
     for (auto& dep_node : node->get_dependent_values()) {
         dep_node->remove_depends_on(node);
         if (dep_node->is_root()) {
@@ -359,6 +359,13 @@ void ReflectingBasicBlockAnaliser::updateAliasingOutArgDependencies(llvm::Value*
             }
         }
     }
+}
+
+ValueDepInfo ReflectingBasicBlockAnaliser::getCompositeValueDependencies(llvm::Value* value, llvm::Instruction* element_instr)
+{
+    auto valueDepInfo = BasicBlockAnalysisResult::getCompositeValueDependencies(value, element_instr);
+    valueDepInfo.getValueDependencies().insert(value);
+    return valueDepInfo;
 }
 
 DepInfo ReflectingBasicBlockAnaliser::getLoadInstrDependencies(llvm::LoadInst* instr)

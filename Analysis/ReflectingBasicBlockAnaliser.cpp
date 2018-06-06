@@ -175,7 +175,9 @@ void resolveDependencies(value_dependence_graph::node_set& nodes,
     while (!leaves.empty()) {
         auto leaf = leaves.back();
         leaves.pop_back();
-        processed.insert(leaf);
+        if (!processed.insert(leaf).second) {
+            continue;
+        }
         if (leaf->is_root()) {
             continue;
         } else if (leaf->is_compound()) {
@@ -256,9 +258,12 @@ DepInfo ReflectingBasicBlockAnaliser::getInstructionDependencies(llvm::Instructi
         return valpos->second;
     }
     auto deppos = m_inputDependentInstrs.find(instr);
+    if (deppos == m_inputDependentInstrs.end()) {
+        return DepInfo(DepInfo::VALUE_DEP, ValueSet{instr});
+    }
     assert(deppos != m_inputDependentInstrs.end());
-    assert(deppos->second.isInputDep() || deppos->second.isInputArgumentDep()
-    || deppos->second.isOnlyGlobalValueDependent());
+    //assert(deppos->second.isInputDep() || deppos->second.isInputArgumentDep()
+    //|| deppos->second.isOnlyGlobalValueDependent());
     return deppos->second;
 }
 
@@ -753,7 +758,7 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     graph.build(m_valueDependencies, m_initialDependencies);
 
     // write dot for value dependency graph
-    //if (m_BB->getParent()->getName() == "test") {
+    //if (m_BB->getParent()->getName() == "id3_compat_fixup") {
     //    std::string name = m_BB->getParent()->getName();
     //    name += "_";
     //    name += m_BB->getName();
@@ -761,7 +766,6 @@ void ReflectingBasicBlockAnaliser::resolveValueDependencies(const DependencyAnal
     //}
 
     resolveDependencies(graph.get_leaves(), m_valueDependencies);
-
     for (auto& item : m_valueDependencies) {
         if (item.second.isValueDep() && !item.second.isOnlyGlobalValueDependent()) {
             auto& value_dependencies = item.second.getValueDependencies();

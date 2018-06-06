@@ -70,7 +70,7 @@ void CLibraryInfo::setup()
     add_abs();
     add_labs();
     add_strlen();
-    add_malloc();
+    //add_malloc();
     add_calloc();
     add_memcpy();
 

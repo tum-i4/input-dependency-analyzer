@@ -1,0 +1,103 @@
+{
+    "functions": [
+    {
+        "name": "strchr",
+         "deps": [
+         {
+             "0": ["indep"],
+             "return": [0, 1]
+         }
+         ]
+    },
+    {
+        "name": "toupper",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "sin",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "log10",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "exp",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "cos",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "write",
+         "deps": [
+         {
+             "0" : ["indep"],
+             "return": ["dep"]
+         }
+         ]
+    },
+    {
+        "name": "ftruncate",
+        "deps": [
+        {
+            "0" : ["indep"],
+            "return": ["dep"]
+        }
+        ]
+    },
+    {
+        "name": "fabs",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "atan2",
+         "deps": [
+         {
+             "return": [0, 1]
+         }
+         ]
+    },
+    {
+        "name": "sqrt",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    },
+    {
+        "name": "floor",
+         "deps": [
+         {
+             "return": [0]
+         }
+         ]
+    }
+    ]
+}

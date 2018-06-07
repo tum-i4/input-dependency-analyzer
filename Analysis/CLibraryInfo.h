@@ -39,6 +39,7 @@ private:
     void add_abs();
     void add_labs();
     void add_strlen();
+    void add_setlocale();
 
     void add_malloc();
     void add_calloc();

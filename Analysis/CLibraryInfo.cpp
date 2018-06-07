@@ -25,6 +25,7 @@ const std::string& system = "system";
 const std::string& abs = "abs";
 const std::string& labs = "labs";
 const std::string& strlen = "strlen";
+const std::string& setlocale = "setlocale";
 
 const std::string& malloc = "malloc";
 const std::string& calloc = "calloc";
@@ -70,6 +71,7 @@ void CLibraryInfo::setup()
     add_abs();
     add_labs();
     add_strlen();
+    add_setlocale();
     //add_malloc();
     add_calloc();
     add_memcpy();
@@ -277,6 +279,16 @@ void CLibraryInfo::add_strlen()
                                LibFunctionInfo::LibArgumentDependenciesMap(),
                                LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_ARGDEP, {0}});
     m_libFunctionInfoProcessor(std::move(strlenInfo));
+}
+
+void CLibraryInfo::add_setlocale()
+{
+    // char* setlocale( int category, const char* locale);
+    LibFunctionInfo::LibArgumentDependenciesMap argDeps;
+    addArgWithDeps(1, {1}, argDeps);
+    LibFunctionInfo setlocale(C_library::setlocale,
+                              std::move(argDeps),
+                              LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_DEP});
 }
 
 void CLibraryInfo::add_malloc()

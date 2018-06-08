@@ -50,6 +50,23 @@ llvm::FunctionType* getFunctionType(llvm::Value* val)
     return func_type;
 }
 
+llvm::Function* getCalledFunctionFromCalledValue(llvm::Value* calledValue)
+{
+    llvm::Function* F = nullptr;
+    llvm::Value* value = calledValue;
+    if (auto* constExpr = llvm::dyn_cast<llvm::ConstantExpr>(calledValue)) {
+        llvm::Instruction* instr = constExpr->getAsInstruction();
+        for (auto op = instr->op_begin(); op != instr->op_end(); ++op) {
+            if (F = llvm::dyn_cast<llvm::Function>(*op)) {
+                break;
+            }
+        }
+        delete instr;
+    }
+    return F;
+}
+
+
 } // unnamed namespace
 
 
@@ -402,21 +419,24 @@ void DependencyAnaliser::processCallInst(llvm::CallInst* callInst)
         // This could happen for example when calling virtual functions
         F = getAliasingFunction(callInst->getCalledValue());
         if (F == nullptr) {
-            if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
-                processCallSiteWithMultipleTargets(callInst, m_virtualCallsInfo.getVirtualCallCandidates(callInst));
-            } else if (m_indirectCallsInfo.hasIndirectTargets(callInst)) {
-                processCallSiteWithMultipleTargets(callInst, m_indirectCallsInfo.getIndirectTargets(callInst));
-            } else {
-                // make all out args input dependent
-                updateCallInputDependentOutArgDependencies(callInst);
-                // make return value input dependent
-                updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
-                updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
-                InputDepInstructionsRecorder::get().record(callInst);
-                // make all globals input dependent?
+            F = getCalledFunctionFromCalledValue(callInst->getCalledValue());
+            if (F == nullptr) {
+                if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
+                    processCallSiteWithMultipleTargets(callInst, m_virtualCallsInfo.getVirtualCallCandidates(callInst));
+                } else if (m_indirectCallsInfo.hasIndirectTargets(callInst)) {
+                    processCallSiteWithMultipleTargets(callInst, m_indirectCallsInfo.getIndirectTargets(callInst));
+                } else {
+                    // make all out args input dependent
+                    updateCallInputDependentOutArgDependencies(callInst);
+                    // make return value input dependent
+                    updateInstructionDependencies(callInst, DepInfo(DepInfo::INPUT_DEP));
+                    updateValueDependencies(callInst, DepInfo(DepInfo::INPUT_DEP), false);
+                    InputDepInstructionsRecorder::get().record(callInst);
+                    // make all globals input dependent?
+                }
+                return;
             }
         }
-        return;
     }
     if (Utils::isLibraryFunction(F, m_F->getParent())) {
         const ArgumentDependenciesMap& argDepMap = gatherFunctionCallSiteInfo(callInst, F);

@@ -108,10 +108,10 @@ protected:
     void updateCallInputDependentOutArgDependencies(llvm::CallInst* callInst);
     void updateInvokeInputDependentOutArgDependencies(llvm::InvokeInst* invokeInst);
 
-    void updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
-    void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, const ArgumentDependenciesMap& argDepMap);
-    void updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst, const ArgumentDependenciesMap& argDepMap);
-    void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionCallInstOutArgDependencies(llvm::CallInst* callInst, llvm::Function* F, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionInvokeInstOutArgDependencies(llvm::InvokeInst* callInst, llvm::Function* F, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionCallInstructionDependencies(llvm::CallInst* callInst, llvm::Function* F, const ArgumentDependenciesMap& argDepMap);
+    void updateLibFunctionInvokeInstructionDependencies(llvm::InvokeInst* invokeInst, llvm::Function* F, const ArgumentDependenciesMap& argDepMap);
 
 private:
     void updateDependencyForGetElementPtr(llvm::GetElementPtrInst* getElPtr, const ValueDepInfo& info);

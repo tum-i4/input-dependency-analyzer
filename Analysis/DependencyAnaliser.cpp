@@ -1308,6 +1308,10 @@ void DependencyAnaliser::finalizeInstructions(const GlobalVariableDependencyMap&
     auto instrpos = instructions.begin();
     while (instrpos != instructions.end()) {
         auto* BB = instrpos->first->getParent();
+        if (BB->getParent()->getName() == "wblong"
+            && BB->getName() == "for.cond") {
+            llvm::dbgs() << "Stop\n";
+        }
         if (!instrpos->second.isValueDep()) {
             ++instrpos;
             continue;
@@ -1332,6 +1336,7 @@ bool DependencyAnaliser::finalizeValueDependencies(const GlobalVariableDependenc
     }
     toFinalize.mergeDependencies(newInfo);
     valueDependencies.clear();
+    return is_global_dep;
 }
 
 DepInfo DependencyAnaliser::getFinalizedDepInfo(const ValueSet& values,

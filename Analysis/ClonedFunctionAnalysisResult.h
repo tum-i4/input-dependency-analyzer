@@ -20,6 +20,7 @@ public:
     void setInputIndepInstrs(InstrSet&& inputIndeps);
     void setDataDependentInstrs(InstrSet&& dataDeps);
     void setArgumentDependentInstrs(InstrSet&& argumentDeps);
+    void setGlobalDependentInstrs(InstrSet&& globalDeps);
     void setInputDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& inputDeps);
     void setArgumentDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& argDeps);
     void setCalledFunctions(const FunctionSet& calledFunctions);
@@ -42,6 +43,7 @@ public:
      bool isDataDependent(llvm::Instruction* I) const override;
      bool isArgumentDependent(llvm::Instruction* I) const override;
      bool isArgumentDependent(llvm::BasicBlock* block) const override;
+     bool isGlobalDependent(llvm::Instruction* I) const override;
 
      FunctionSet getCallSitesData() const override;
      FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
@@ -72,6 +74,7 @@ private:
     InstrSet m_inputDependentInstrs;
     InstrSet m_dataDependentInstrs;
     InstrSet m_argumentDependentInstrs;
+    InstrSet m_globalDependentInstrs;
     FunctionSet m_calledFunctions;
     std::unordered_set<llvm::BasicBlock*> m_inputDependentBasicBlocks;
     std::unordered_set<llvm::BasicBlock*> m_argumentDependentBasicBlocks;

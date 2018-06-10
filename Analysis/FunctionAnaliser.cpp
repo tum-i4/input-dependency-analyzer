@@ -205,6 +205,7 @@ public:
     bool isDataDependent(llvm::Instruction* I) const;
     bool isArgumentDependent(llvm::Instruction* I) const;
     bool isArgumentDependent(llvm::BasicBlock* block) const;
+    bool isGlobalDependent(llvm::Instruction* I) const;
     bool isOutArgInputIndependent(llvm::Argument* arg) const;
     ValueDepInfo getOutArgDependencies(llvm::Argument* arg) const;
     bool isReturnValueInputIndependent() const;
@@ -363,6 +364,15 @@ bool FunctionAnaliser::Impl::isArgumentDependent(llvm::BasicBlock* block) const
     const auto& analysisRes = getAnalysisResult(block);
     if (analysisRes) {
         return analysisRes->isArgumentDependent(block);
+    }
+    return false;
+}
+
+bool FunctionAnaliser::Impl::isGlobalDependent(llvm::Instruction* I) const
+{
+    const auto& analysisRes = getAnalysisResult(I->getParent());
+    if (analysisRes) {
+        return analysisRes->isGlobalDependent(I);
     }
     return false;
 }
@@ -661,6 +671,7 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
     InstrSet inputDeps;
     InstrSet inputIndeps;
     InstrSet dataDeps;
+    InstrSet globalDeps;
     std::unordered_set<llvm::BasicBlock*> inputDepBlocks;
     std::unordered_map<llvm::Instruction*, llvm::Instruction*> local_instr_map;
     for (auto& B : *m_F) {
@@ -689,6 +700,9 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
             if (!mapped_instr) {
                 continue;
             }
+            if (analysisRes->isGlobalDependent(&I)) {
+                globalDeps.insert(mapped_instr);
+            }
             if (!analysisRes || analysisRes->isInputDependent(&I, inputDepArgs)) {
                 inputDeps.insert(mapped_instr);
                 if (analysisRes->isDataDependent(&I, inputDepArgs)) {
@@ -705,6 +719,7 @@ FunctionAnaliser::Impl::cloneForArguments(const DependencyAnaliser::ArgumentDepe
     clonedResults->setInputDepInstrs(std::move(inputDeps));
     clonedResults->setDataDependentInstrs(std::move(dataDeps));
     clonedResults->setInputIndepInstrs(std::move(inputIndeps));
+    clonedResults->setGlobalDependentInstrs(std::move(globalDeps));
 
     // clone call site information
     std::unordered_map<llvm::Function*, FunctionCallDepInfo> clonned_call_dep_info;
@@ -1269,6 +1284,11 @@ bool FunctionAnaliser::isArgumentDependent(llvm::Instruction* I) const
 bool FunctionAnaliser::isArgumentDependent(llvm::BasicBlock* block) const
 {
     return m_analiser->isArgumentDependent(block);
+}
+
+bool FunctionAnaliser::isGlobalDependent(llvm::Instruction* I) const
+{
+    return m_analiser->isGlobalDependent(I);
 }
 
 bool FunctionAnaliser::isOutArgInputIndependent(llvm::Argument* arg) const

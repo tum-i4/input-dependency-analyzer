@@ -57,6 +57,7 @@ public:
     virtual bool isDataDependent(llvm::Instruction* I, const ArgumentDependenciesMap& depArgs) const = 0;
     virtual bool isArgumentDependent(llvm::Instruction* I) const = 0;
     virtual bool isArgumentDependent(llvm::BasicBlock* block) const = 0;
+    virtual bool isGlobalDependent(llvm::Instruction* I) const = 0;
 
     virtual bool hasValueDependencyInfo(llvm::Value* val) const = 0;
     virtual ValueDepInfo getValueDependencyInfo(llvm::Value* val) = 0;

@@ -87,19 +87,22 @@ void CachedFunctionAnalysisResult::add_all_instructions_to(llvm::BasicBlock& B, 
 
 void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::Instruction& I)
 {
-    if (auto* input_indep_instr = I.getMetadata(metadata_strings::input_indep_instr)) {
+    if (I.getMetadata(metadata_strings::input_indep_instr)) {
         m_inputIndepInstructions.insert(&I);
-    } else if (auto* unknown_instr = I.getMetadata(metadata_strings::unknown)) {
+    } else if (I.getMetadata(metadata_strings::unknown)) {
         m_unknownInstructions.insert(&I);
-    } else if (auto* input_dep_instr = I.getMetadata(metadata_strings::input_dep_instr)) {
+    } else if (I.getMetadata(metadata_strings::input_dep_instr)) {
         m_inputDepInstructions.insert(&I);
-        if (auto* control_dep_instr = I.getMetadata(metadata_strings::control_dep_instr)) {
+        if (I.getMetadata(metadata_strings::control_dep_instr)) {
             m_controlDepInstructions.insert(&I);
         }
-        if (auto* data_dep_instr = I.getMetadata(metadata_strings::data_dep_instr)) {
+        if (I.getMetadata(metadata_strings::data_dep_instr)) {
             m_dataDepInstructions.insert(&I);
         }
 
+    }
+    if ( I.getMetadata(metadata_strings::global_dep_instr)) {
+        m_globalDepInstructions.insert(&I);
     }
 }
 
@@ -177,6 +180,11 @@ bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::Instruction* I) con
 bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const
 {
     return false;
+}
+
+bool CachedFunctionAnalysisResult::isGlobalDependent(llvm::Instruction* I) const
+{
+    return m_globalDepInstructions.find(I) != m_globalDepInstructions.end();
 }
 
 FunctionSet CachedFunctionAnalysisResult::getCallSitesData() const

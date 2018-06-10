@@ -47,6 +47,11 @@ void ClonedFunctionAnalysisResult::setArgumentDependentInstrs(InstrSet&& argumen
     m_argumentDependentInstrs = std::move(argumentDeps);
 }
 
+void ClonedFunctionAnalysisResult::setGlobalDependentInstrs(InstrSet&& globalDeps)
+{
+    m_globalDependentInstrs = std::move(globalDeps);
+}
+
 void ClonedFunctionAnalysisResult::setInputDependentBasicBlocks(std::unordered_set<llvm::BasicBlock*>&& inputDeps)
 {
     m_inputDependentBasicBlocks = std::move(inputDeps);
@@ -142,6 +147,12 @@ bool ClonedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) 
     return m_argumentDependentBasicBlocks.find(block) != m_argumentDependentBasicBlocks.end();
 }
    
+bool ClonedFunctionAnalysisResult::isGlobalDependent(llvm::Instruction* I) const
+{
+    // TODO: implement
+    return false;
+}
+
 FunctionSet ClonedFunctionAnalysisResult::getCallSitesData() const
 {
     return m_calledFunctions;

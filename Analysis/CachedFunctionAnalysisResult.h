@@ -39,6 +39,7 @@ public:
     bool isDataDependent(llvm::Instruction* I) const override;
     bool isArgumentDependent(llvm::Instruction* I) const override;
     bool isArgumentDependent(llvm::BasicBlock* block) const override;
+    bool isGlobalDependent(llvm::Instruction* I) const override;
 
     FunctionSet getCallSitesData() const override;
     FunctionCallDepInfo getFunctionCallDepInfo(llvm::Function* F) const override;
@@ -71,6 +72,7 @@ private:
     Instructions m_inputIndepInstructions;
     Instructions m_controlDepInstructions;
     Instructions m_dataDepInstructions;
+    Instructions m_globalDepInstructions;
     Instructions m_unknownInstructions;
     Instructions m_unreachableInstructions;
     long unsigned m_dataIndepInstrCount;

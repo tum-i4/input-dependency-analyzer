@@ -61,7 +61,6 @@ void BasicBlockAnalysisResult::analyze()
 {
     //llvm::dbgs() << "Analise block " << m_BB->getName() << "\n";
     for (auto& I : *m_BB) {
-        //llvm::dbgs() << "Instruction " << I << "\n";
         if (auto* allocInst = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
             // collect alloca value with input dependency state INPUT_DEP
             m_valueDependencies.insert(std::make_pair(allocInst,
@@ -554,6 +553,11 @@ bool BasicBlockAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) cons
     return false;
 }
 
+bool BasicBlockAnalysisResult::isGlobalDependent(llvm::Instruction* I) const
+{
+    return m_globalDependentInstrs.find(I) != m_globalDependentInstrs.end();
+}
+
 bool BasicBlockAnalysisResult::isInputIndependent(llvm::Instruction* instr,
                                                   const ArgumentDependenciesMap& depArgs) const
 {
@@ -761,6 +765,17 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
             }
         }
     }
+    if (auto constExpr = llvm::dyn_cast<llvm::ConstantExpr>(loadOp)) {
+        auto* opinstr = constExpr->getAsInstruction();
+        if (opinstr) {
+            instrDepInfo = getInstructionDependencies(opinstr);
+            delete opinstr;
+            if (instrDepInfo.isDefined()) {
+                updateValueDependencies(instr, instrDepInfo, false);
+                return instrDepInfo;
+            }
+        }
+    }
 
     valueDepInfo = getRefInfo(instr);
     if (valueDepInfo.isDefined()) {
@@ -819,6 +834,7 @@ DepInfo BasicBlockAnalysisResult::determineInstructionDependenciesFromOperands(l
         } else if (auto* opVal = llvm::dyn_cast<llvm::Value>(op)) {
             if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(opVal)) {
                 m_referencedGlobals.insert(global);
+                deps.mergeDependencies(DepInfo(DepInfo::VALUE_DEP, ValueSet{global}));
             }
             auto c_args = isInput(opVal);
             if (!c_args.empty()) {

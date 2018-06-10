@@ -148,8 +148,8 @@ protected:
     static llvm::Value* getMemoryValue(llvm::Value* instrOp);
 
     void finalizeInstructions(const GlobalVariableDependencyMap& globalDeps, InstrDependencyMap& instructions);
-    void finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
-    DepInfo getFinalizedDepInfo(const ValueSet& values, const GlobalVariableDependencyMap& globalDeps);
+    bool finalizeValueDependencies(const GlobalVariableDependencyMap& globalDeps, DepInfo& toFinalize);
+    DepInfo getFinalizedDepInfo(const ValueSet& values, const GlobalVariableDependencyMap& globalDeps, bool& is_global_dep);
 
 protected:
     llvm::Function* m_F;
@@ -167,6 +167,7 @@ protected:
     FunctionSet m_calledFunctions;
     FunctionCallsArgumentDependencies m_functionCallInfo;
     InstrSet m_inputIndependentInstrs;
+    InstrSet m_globalDependentInstrs;
     InstrDependencyMap m_inputDependentInstrs;
     InstrSet m_finalInputDependentInstrs;
     ValueDependencies m_valueDependencies;

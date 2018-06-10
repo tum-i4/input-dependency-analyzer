@@ -98,6 +98,11 @@ public:
         return false;
     }
 
+    bool isGlobalDependent(llvm::Instruction* I) const override
+    {
+        return false;
+    }
+
     FunctionSet getCallSitesData() const override
     {
         return FunctionSet();    

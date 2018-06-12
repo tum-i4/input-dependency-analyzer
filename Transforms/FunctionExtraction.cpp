@@ -66,8 +66,6 @@ public:
         m_input_dep_info = input_dep_info;
     }
 
-    void collect_instructions(input_dependency::InputDependencyAnalysisInterface& IDA);
-    void collect_function_instructions(llvm::Function* F);
     bool can_extract(llvm::Instruction* instr,
                      bool check_reachability,
                      bool check_operands,
@@ -83,149 +81,11 @@ private:
 private:
     llvm::Module* m_module;
     InputDependencyAnalysisInfo m_input_dep_info;
-    std::unordered_map<llvm::Function*, InstructionSet> m_argument_reachable_instructions;
-    std::unordered_map<llvm::Function*, InstructionSet> m_global_reachable_instructions;
-
-    std::unique_ptr<dg::LLVMPointerAnalysis> m_PTA;
-    std::unique_ptr<dg::analysis::rd::LLVMReachingDefinitions> m_RD;
-    std::unique_ptr<dg::LLVMDependenceGraph> m_dg;
 };
 
 InstructionExtraction::InstructionExtraction(llvm::Module* module)
     : m_module(module)
-    , m_PTA(new dg::LLVMPointerAnalysis(module))
-    , m_RD(new dg::analysis::rd::LLVMReachingDefinitions(module, m_PTA.get()))
-    , m_dg(new dg::LLVMDependenceGraph())
 {
-    // build dg
-    m_PTA->run<dg::analysis::pta::PointsToFlowInsensitive>();
-    m_dg->build(module, m_PTA.get());
-
-    // compute edges
-    m_RD->run<dg::analysis::rd::ReachingDefinitionsAnalysis>();
-
-    dg::LLVMDefUseAnalysis DUA(m_dg.get(), m_RD.get(),
-                               m_PTA.get(), false);
-    DUA.run(); // add def-use edges according that
-    m_dg->computeControlDependencies(dg::CD_ALG::CLASSIC);
-}
-
-void InstructionExtraction::collect_instructions(input_dependency::InputDependencyAnalysisInterface& IDA)
-{
-    for (auto& F : *m_module) {
-        if (F.isDeclaration()) {
-            continue;
-        }
-        auto f_input_dep_info = IDA.getAnalysisInfo(&F);
-        if (f_input_dep_info == nullptr) {
-            continue;
-        }
-        collect_function_instructions(&F);
-    }
-}
-
-void InstructionExtraction::collect_function_instructions(llvm::Function* F)
-{
-    if (m_global_reachable_instructions.find(F) == m_global_reachable_instructions.end()) {
-        collect_global_reachable_instructions(F);
-    }
-    if (m_argument_reachable_instructions.find(F) == m_argument_reachable_instructions.end()) {
-        collect_argument_reachable_instructions(F);
-    }
-}
-
-void InstructionExtraction::collect_argument_reachable_instructions(llvm::Function* F)
-{
-    auto CFs = dg::getConstructedFunctions();
-    dg::LLVMDependenceGraph* F_dg = CFs[F];
-    InstructionSet instructions;
-    if (!F_dg) {
-        m_argument_reachable_instructions.insert(std::make_pair(F, instructions));
-        llvm::dbgs() << "No LLVM dg for function " << F->getName() << "\n";
-        return;
-    }
-
-    auto arg_it = F->arg_begin();
-    while (arg_it != F->arg_end()) {
-        std::list<dg::LLVMNode*> dg_nodes;
-        auto arg_node = F_dg->getNode(&*arg_it);
-        if (arg_node == nullptr) {
-            ++arg_it;
-            continue;
-        }
-        dg_nodes.push_back(arg_node);
-        std::unordered_set<dg::LLVMNode*> processed_nodes;
-        while (!dg_nodes.empty()) {
-            auto node = dg_nodes.back();
-            dg_nodes.pop_back();
-            if (!processed_nodes.insert(node).second) {
-                continue;
-            }
-            //llvm::dbgs() << "dg node: " << *node->getValue() << "\n";
-            auto* inst = llvm::dyn_cast<llvm::Instruction>(node->getValue());
-            if (inst && inst->getParent()->getParent() != F) {
-                continue;
-            }
-            auto dep_it = node->data_begin();
-            while (dep_it != node->data_end()) {
-                dg_nodes.push_back(*dep_it);
-                ++dep_it;
-            }
-            if (!inst) {
-                continue;
-            }
-            instructions.insert(inst);
-        }
-        ++arg_it;
-    }
-    m_argument_reachable_instructions.insert(std::make_pair(F, instructions));
-}
-
-void InstructionExtraction::collect_global_reachable_instructions(llvm::Function* F)
-{
-    auto CFs = dg::getConstructedFunctions();
-    dg::LLVMDependenceGraph* F_dg = CFs[F];
-    InstructionSet instructions;
-    if (!F_dg) {
-        m_global_reachable_instructions.insert(std::make_pair(F, instructions));
-        llvm::dbgs() << "No LLVM dg for function " << F->getName() << "\n";
-        return;
-    }
-
-    auto global_it = m_module->global_begin();
-    while (global_it != m_module->global_end()) {
-        std::list<dg::LLVMNode*> dg_nodes;
-        auto global_node = F_dg->getNode(&*global_it);
-        if (global_node == nullptr) {
-            ++global_it;
-            continue;
-        }
-        dg_nodes.push_back(global_node);
-        std::unordered_set<dg::LLVMNode*> processed_nodes;
-        while (!dg_nodes.empty()) {
-            auto node = dg_nodes.back();
-            dg_nodes.pop_back();
-            if (!processed_nodes.insert(node).second) {
-                continue;
-            }
-            //llvm::dbgs() << "dg node: " << *node->getValue() << "\n";
-            auto* inst = llvm::dyn_cast<llvm::Instruction>(node->getValue());
-            if (inst && inst->getParent()->getParent() != F) {
-                continue;
-            }
-            auto dep_it = node->data_begin();
-            while (dep_it != node->data_end()) {
-                dg_nodes.push_back(*dep_it);
-                ++dep_it;
-            }
-            if (!inst || inst->getParent()->getParent() != F) {
-                continue;
-            }
-            instructions.insert(inst);
-        }
-        ++global_it;
-    }
-    m_global_reachable_instructions.insert(std::make_pair(F, instructions));
 }
 
 bool InstructionExtraction::has_extractable_operand(llvm::Instruction* instr,
@@ -285,14 +145,10 @@ bool InstructionExtraction::can_extract(llvm::Instruction* instr,
         return true;
     }
     if (check_reachability) {
-        auto F_global_reachables = m_global_reachable_instructions.find(F);
-        if ((F_global_reachables != m_global_reachable_instructions.end())
-                && (F_global_reachables->second.find(instr) != F_global_reachables->second.end())) {
+        if (m_input_dep_info->isGlobalDependent(instr)) {
             return true;
         }
-        auto F_arg_reachables = m_argument_reachable_instructions.find(F);
-        if ((F_arg_reachables != m_argument_reachable_instructions.end())
-                && (F_arg_reachables->second.find(instr) != F_arg_reachables->second.end())) {
+        if (m_input_dep_info->isArgumentDependent(instr)) {
             return true;
         }
     }
@@ -692,7 +548,6 @@ bool FunctionExtractionPass::runOnModule(llvm::Module& M)
     m_coverageStatistics->reportInputDepCoverage();
     std::unordered_map<llvm::Function*, unsigned> extracted_functions;
     InstructionExtraction extract_instr_pred(&M);
-    extract_instr_pred.collect_instructions(*input_dep);
     int numberOfExtractedDataIndepInstrs = 0;
     for (auto& F : M) {
         llvm::dbgs() << "\nStart function extraction on function " << F.getName() << "\n";

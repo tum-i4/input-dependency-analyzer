@@ -149,8 +149,7 @@ bool ClonedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) 
    
 bool ClonedFunctionAnalysisResult::isGlobalDependent(llvm::Instruction* I) const
 {
-    // TODO: implement
-    return false;
+    return m_globalDependentInstrs.find(I) != m_globalDependentInstrs.end();
 }
 
 FunctionSet ClonedFunctionAnalysisResult::getCallSitesData() const

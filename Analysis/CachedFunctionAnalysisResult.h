@@ -73,6 +73,7 @@ private:
     Instructions m_controlDepInstructions;
     Instructions m_dataDepInstructions;
     Instructions m_globalDepInstructions;
+    Instructions m_argumentDepInstructions;
     Instructions m_unknownInstructions;
     Instructions m_unreachableInstructions;
     long unsigned m_dataIndepInstrCount;

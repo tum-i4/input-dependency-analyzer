@@ -101,8 +101,11 @@ void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::In
         }
 
     }
-    if ( I.getMetadata(metadata_strings::global_dep_instr)) {
+    if (I.getMetadata(metadata_strings::global_dep_instr)) {
         m_globalDepInstructions.insert(&I);
+    }
+    if (I.getMetadata(metadata_strings::argument_dep_instr)) {
+        m_argumentDepInstructions.insert(&I);
     }
 }
 
@@ -171,10 +174,9 @@ bool CachedFunctionAnalysisResult::isDataDependent(llvm::Instruction* I) const
     return m_dataDepInstructions.find(I) != m_dataDepInstructions.end();
 }
 
-// TODO: think how correctly implement this
 bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::Instruction* I) const
 {
-    return false;
+    return m_argumentDepInstructions.find(I) != m_argumentDepInstructions.end();
 }
 
 bool CachedFunctionAnalysisResult::isArgumentDependent(llvm::BasicBlock* block) const

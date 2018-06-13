@@ -19,6 +19,7 @@ public:
     const static std::string data_dep_instr;
     const static std::string data_indep_instr;
     const static std::string global_dep_instr;
+    const static std::string argument_dep_instr;
     const static std::string unknown;
     const static std::string unreachable;
     const static std::string extracted;

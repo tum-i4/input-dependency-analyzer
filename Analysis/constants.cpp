@@ -13,6 +13,7 @@ const std::string metadata_strings::control_dep_instr = "control_dep_instr";
 const std::string metadata_strings::data_dep_instr = "data_dep_instr";
 const std::string metadata_strings::data_indep_instr = "data_indep_instr";
 const std::string metadata_strings::global_dep_instr = "global_dep_instr";
+const std::string metadata_strings::argument_dep_instr = "argument_dep_instr";
 const std::string metadata_strings::unknown = "unknown";
 const std::string metadata_strings::unreachable = "unreachable";
 const std::string metadata_strings::extracted = "extracted";

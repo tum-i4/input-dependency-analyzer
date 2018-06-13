@@ -54,6 +54,8 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
 
     auto* global_dep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::global_dep_instr);
     llvm::MDNode* global_dep_instr_md = llvm::MDNode::get(M.getContext(), global_dep_instr_md_str);
+    auto* arg_dep_instr_md_str = llvm::MDString::get(M.getContext(), metadata_strings::argument_dep_instr);
+    llvm::MDNode* arg_dep_instr_md = llvm::MDNode::get(M.getContext(), arg_dep_instr_md_str);
 
     auto* unknown_node_name = llvm::MDString::get(M.getContext(), metadata_strings::unknown);
     llvm::MDNode* unknown_md = llvm::MDNode::get(M.getContext(), unknown_node_name);
@@ -100,6 +102,9 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
                 }
                 if (FA->isGlobalDependent(&I)) {
                     I.setMetadata(metadata_strings::global_dep_instr, global_dep_instr_md);
+                }
+                if (FA->isArgumentDependent(&I)) {
+                    I.setMetadata(metadata_strings::argument_dep_instr, arg_dep_instr_md);
                 }
                 if (FA->isDataDependent(&I)) {
                     I.setMetadata(metadata_strings::data_dep_instr, data_dep_instr_md);

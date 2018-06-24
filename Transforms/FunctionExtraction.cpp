@@ -230,21 +230,16 @@ void SnippetsCreator::collect_snippets()
 {
     llvm::dbgs() << "Start collecting snippets\n";
     std::unordered_set<const llvm::BasicBlock*> processed_blocks;
-    auto it = m_F.begin();
-    while (it != m_F.end()) {
-        auto B = &*it;
-        if (input_dependency::BasicBlocksUtils::get().isBlockUnreachable(B)) {
-            ++it;
+    for (auto& B : m_F) {
+        if (input_dependency::BasicBlocksUtils::get().isBlockUnreachable(&B)) {
             continue;
         }
-        if (processed_blocks.find(B) != processed_blocks.end()) {
-            ++it;
+        if (processed_blocks.find(&B) != processed_blocks.end()) {
             continue;
         }
-        auto instr_snippets = create_instruction_snippets(B);
-        processed_blocks.insert(B);
+        auto instr_snippets = create_instruction_snippets(&B);
+        processed_blocks.insert(&B);
         m_snippets.insert(m_snippets.end(), instr_snippets.begin(), instr_snippets.end());
-        ++it;
     }
     if (!m_dont_extract_data_indeps) {
         expand_snippets();

@@ -61,7 +61,7 @@ llvm::Function* getCalledFunctionFromCalledValue(llvm::Value* calledValue)
                 break;
             }
         }
-        instr->eraseFromParent();
+        instr->deleteValue();
     }
     return F;
 }
@@ -1072,7 +1072,7 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
         llvm::Instruction* instr = constExpr->getAsInstruction();
         auto depInfo = determineInstructionDependenciesFromOperands(instr);
         addControlDependencies(depInfo);
-        instr->eraseFromParent();
+        instr->deleteValue();
         return ValueDepInfo(argVal->getType(), depInfo);
     }
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
@@ -1250,7 +1250,7 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
         if (auto* constExpr = llvm::dyn_cast<llvm::ConstantExpr>(instrOp)) {
             auto constInstr = constExpr->getAsInstruction();
             auto memVal = getMemoryValue(constInstr->getOperand(0));
-            constInstr->eraseFromParent();
+            constInstr->deleteValue();
             return memVal;
         }
         return instrOp;
@@ -1294,7 +1294,7 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     //global = llvm::dyn_cast<llvm::GlobalValue>(op);
     if (clean) {
         // Deleting as does not belong to any basic block. 
-        elPtrInst->eraseFromParent();
+        elPtrInst->deleteValue();
     }
     if (op == nullptr) {
         return getMemoryValue(op);

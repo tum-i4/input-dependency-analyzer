@@ -935,6 +935,9 @@ bool InstructionsSnippet::is_valid_snippet(iterator begin,
                                            llvm::BasicBlock* block)
 {
     bool valid = (begin != block->end());
+    if (!valid) {
+        return valid;
+    }
     valid &= (begin->getParent() == block);
     if (end != block->end()) {
         valid &= (end->getParent() == block);

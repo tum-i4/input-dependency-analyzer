@@ -769,7 +769,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         auto* opinstr = constExpr->getAsInstruction();
         if (opinstr) {
             instrDepInfo = getInstructionDependencies(opinstr);
-            opinstr->eraseFromParent();
+            opinstr->deleteValue();
             if (instrDepInfo.isDefined()) {
                 updateValueDependencies(instr, instrDepInfo, false);
                 return instrDepInfo;

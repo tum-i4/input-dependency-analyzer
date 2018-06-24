@@ -15,7 +15,7 @@ using ArgumentSet = input_dependency::ArgumentSet;
 IndexToArgumentMap getFunctionIndexToArgMap(llvm::Function* F)
 {
     std::unordered_map<int, llvm::Argument*> indexToArg;
-    for (auto& arg : F->getArgumentList()) {
+    for (auto& arg : F->args()) {
         indexToArg.emplace(arg.getArgNo(), &arg);
     }
     return indexToArg;

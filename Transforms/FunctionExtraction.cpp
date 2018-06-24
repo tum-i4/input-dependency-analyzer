@@ -22,18 +22,6 @@
 #include "Analysis/BasicBlocksUtils.h"
 #include "Analysis/InputDepConfig.h"
 
-// dg includes
-#include "llvm-dg/llvm/LLVMDependenceGraph.h"
-#include "llvm-dg/llvm/Slicer.h"
-#include "llvm-dg/llvm/analysis/PointsTo/PointsTo.h"
-#include "llvm-dg/llvm/analysis/ReachingDefinitions/ReachingDefinitions.h"
-#include "llvm-dg/llvm/analysis/DefUse.h"
-#include "llvm-dg/analysis/PointsTo/PointsToFlowInsensitive.h"
-#include "llvm-dg/analysis/PointsTo/PointsToFlowSensitive.h"
-#include "llvm-dg/analysis/PointsTo/PointsToWithInvalidate.h"
-#include "llvm-dg/analysis/PointsTo/Pointer.h"
-#include "llvm-dg/llvm/analysis/PointsTo/PointsTo.h"
-
 #include <vector>
 #include <memory>
 

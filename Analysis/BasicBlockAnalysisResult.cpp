@@ -221,7 +221,7 @@ ValueDepInfo BasicBlockAnalysisResult::getRefInfo(llvm::Instruction* instr)
             continue;
         }
         auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
-        if (modRef == llvm::ModRefInfo::MRI_Ref) {
+        if (modRef == llvm::ModRefInfo::MustRef || modRef == llvm::ModRefInfo::Ref) {
             info.mergeDependencies(dep.second);
         }
     }
@@ -330,7 +330,7 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
             continue;
         }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
-        if (modRef == llvm::ModRefInfo::MRI_Mod) {
+        if (modRef == llvm::ModRefInfo::MustMod || modRef == llvm::ModRefInfo::Mod) {
             // if modifies given value should modify other aliases too, thus no need to set update_aliases flag
             updateValueDependencies(dep.first, info, false);
         }
@@ -343,7 +343,7 @@ void BasicBlockAnalysisResult::updateModAliasesDependencies(llvm::StoreInst* sto
             continue;
         }
         auto modRef = m_AAR.getModRefInfo(storeInst, dep.first, DL.getTypeStoreSize(dep.first->getType()));
-        if (modRef == llvm::ModRefInfo::MRI_Mod) {
+        if (modRef == llvm::ModRefInfo::MustMod || modRef == llvm::ModRefInfo::Mod) {
             updateValueDependencies(dep.first, info, false);
         }
     }
@@ -357,7 +357,7 @@ void BasicBlockAnalysisResult::updateRefAliasesDependencies(llvm::Instruction* i
             continue;
         }
         auto modRef = m_AAR.getModRefInfo(instr, dep.first, DL.getTypeStoreSize(dep.first->getType()));
-        if (modRef == llvm::ModRefInfo::MRI_Ref) {
+        if (modRef == llvm::ModRefInfo::MustRef || modRef == llvm::ModRefInfo::Ref) {
             updateValueDependencies(dep.first, info, false);
         }
         auto alias = m_AAR.alias(instr, dep.first);
@@ -769,7 +769,7 @@ DepInfo BasicBlockAnalysisResult::getLoadInstrDependencies(llvm::LoadInst* instr
         auto* opinstr = constExpr->getAsInstruction();
         if (opinstr) {
             instrDepInfo = getInstructionDependencies(opinstr);
-            delete opinstr;
+            opinstr->eraseFromParent();
             if (instrDepInfo.isDefined()) {
                 updateValueDependencies(instr, instrDepInfo, false);
                 return instrDepInfo;

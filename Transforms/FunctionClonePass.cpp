@@ -215,7 +215,7 @@ std::pair<llvm::Function*, bool> FunctionClonePass::doCloneForArguments(
                                                        const input_dependency::FunctionCallDepInfo::ArgumentDependenciesMap& argDeps)
 {
     const FunctionClone::mask& mask = FunctionClone::createMaskForCall(argDeps,
-                                                                       calledF->getArgumentList().size(),
+                                                                       calledF->arg_size(),
                                                                        calledF->isVarArg());
     // no need to clone for all input dep arguments
     if (!mask.empty() && std::all_of(mask.begin(), mask.end(), [] (bool b) {return b;})) {

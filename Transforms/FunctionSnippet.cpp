@@ -227,7 +227,7 @@ void create_value_to_value_map(const ValueToValueMap& value_ptr_map,
 {
     for (auto& entry : value_ptr_map) {
         //llvm::dbgs() << "add to value-to-value map " << *entry.first << "   " << *entry.second << "\n";
-        value_to_value_map.insert(std::make_pair(entry.first, llvm::WeakVH(entry.second)));
+        value_to_value_map.insert(std::make_pair(entry.first, llvm::WeakTrackingVH(entry.second)));
     }
 }
 
@@ -261,7 +261,7 @@ void clone_snippet_to_function(llvm::BasicBlock* block,
         ++inst_it;
         llvm::Instruction* new_I = I->clone();
         new_function_instructions.push_back(new_I);
-        value_to_value_map.insert(std::make_pair(I, llvm::WeakVH(new_I)));
+        value_to_value_map.insert(std::make_pair(I, llvm::WeakTrackingVH(new_I)));
     }
 }
 
@@ -273,7 +273,7 @@ void clone_allocas(llvm::BasicBlock* block,
     for (auto alloca : allocas) {
         llvm::Instruction* new_I = alloca->clone();
         new_function_instructions.push_back(new_I);
-        value_to_value_map.insert(std::make_pair(alloca, llvm::WeakVH(new_I)));
+        value_to_value_map.insert(std::make_pair(alloca, llvm::WeakTrackingVH(new_I)));
     }
 }
 
@@ -300,12 +300,12 @@ llvm::SmallVector<llvm::BasicBlock*, 10> clone_blocks_snippet_to_function(llvm::
         if (input_dependency::BasicBlocksUtils::get().isBlockUnreachable(block)) {
             input_dependency::BasicBlocksUtils::get().addUnreachableBlock(clone);
         }
-        value_to_value_map.insert(std::make_pair(block, llvm::WeakVH(clone)));
+        value_to_value_map.insert(std::make_pair(block, llvm::WeakTrackingVH(clone)));
         blocks.push_back(clone);
     }
     if (blocks_to_clone.find(&*end) == blocks_to_clone.end() && clone_end) {
         auto exit_clone = llvm::CloneBasicBlock(&*end, value_to_value_map, "", new_F);
-        value_to_value_map.insert(std::make_pair(&*end, llvm::WeakVH(exit_clone)));
+        value_to_value_map.insert(std::make_pair(&*end, llvm::WeakTrackingVH(exit_clone)));
         blocks.push_back(exit_clone);
     }
     return blocks;
@@ -518,7 +518,7 @@ void erase_block_snippet(llvm::Function* function,
         if (block == &*end && !erase_end) {
             continue;
         }
-        block_map.insert(std::make_pair(block, llvm::WeakVH(dummy_block)));
+        block_map.insert(std::make_pair(block, llvm::WeakTrackingVH(dummy_block)));
 
         // add all phi nodes, as those are not reported as use :[[
         // note this is not necessarily solving the problem with other uses
@@ -538,15 +538,15 @@ void erase_block_snippet(llvm::Function* function,
         return;
     }
 
-    block_map.insert(std::make_pair(&*end, llvm::WeakVH(dummy_block)));
-    block_map.insert(std::make_pair(&*begin, llvm::WeakVH(dummy_block)));
+    block_map.insert(std::make_pair(&*end, llvm::WeakTrackingVH(dummy_block)));
+    block_map.insert(std::make_pair(&*begin, llvm::WeakTrackingVH(dummy_block)));
     auto user_it = users_to_remap.begin();
     while (user_it != users_to_remap.end()) {
         llvm::Instruction* term = *user_it;
         ++user_it;
         for (llvm::Use& op : term->operands()) {
             llvm::Value* val = &*op;
-            block_map.insert(std::make_pair(val, llvm::WeakVH(dummy_block)));
+            block_map.insert(std::make_pair(val, llvm::WeakTrackingVH(dummy_block)));
         }
         llvm::ValueMapper mapper(block_map);
         mapper.remapInstruction(*term);
@@ -1481,7 +1481,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
     create_value_to_value_map(value_ptr_map, value_to_value_map);
     llvm::BasicBlock* entry_block = &new_F->getEntryBlock();
     if (has_start_snippet) {
-        value_to_value_map.insert(std::make_pair(m_start.get_block(), llvm::WeakVH(entry_block)));
+        value_to_value_map.insert(std::make_pair(m_start.get_block(), llvm::WeakTrackingVH(entry_block)));
     }
     // this function will also create new exit block
     bool has_tail_snippet = m_tail.is_valid_snippet();
@@ -1493,7 +1493,7 @@ llvm::Function* BasicBlocksSnippet::to_function()
         //llvm::dbgs() << "Create empty tail block\n";
         llvm::BasicBlock* tail_block = llvm::BasicBlock::Create(new_F->getContext(), m_tail.get_block()->getName());
         new_F->getBasicBlockList().push_back(tail_block);
-        value_to_value_map.insert(std::make_pair(m_tail.get_block(), llvm::WeakVH(tail_block)));
+        value_to_value_map.insert(std::make_pair(m_tail.get_block(), llvm::WeakTrackingVH(tail_block)));
     }
     //llvm::dbgs() << "   Clone blocks\n";
     clone_allocas(entry_block, m_allocas_to_extract, value_to_value_map);

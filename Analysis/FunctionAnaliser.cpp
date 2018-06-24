@@ -770,8 +770,7 @@ void FunctionAnaliser::Impl::dump() const
 
 void FunctionAnaliser::Impl::collectArguments()
 {
-    auto& arguments = m_F->getArgumentList();
-    std::for_each(arguments.begin(), arguments.end(),
+    std::for_each(m_F->arg_begin(), m_F->arg_end(),
             [this] (llvm::Argument& arg) {
                 this->m_inputs.push_back(&arg);
                 llvm::Value* val = llvm::dyn_cast<llvm::Value>(&arg);

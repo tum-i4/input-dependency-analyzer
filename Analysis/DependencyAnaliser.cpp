@@ -20,11 +20,11 @@ namespace {
 
 llvm::Argument* getFunctionArgument(llvm::Function* F, unsigned index)
 {
-    auto it = F->getArgumentList().begin();
+    auto it = F->arg_begin();
     while (index-- != 0) {
         ++it;
     }
-    if (it == F->getArgumentList().end()) {
+    if (it == F->arg_end()) {
         return nullptr;
     }
     return &*it;
@@ -61,7 +61,7 @@ llvm::Function* getCalledFunctionFromCalledValue(llvm::Value* calledValue)
                 break;
             }
         }
-        delete instr;
+        instr->eraseFromParent();
     }
     return F;
 }
@@ -887,7 +887,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
                                                                 llvm::Function* F,
                                                                 const DependencyAnaliser::ArgumentValueGetter& argumentValueGetter)
 {
-    for (auto& arg : F->getArgumentList()) {
+    for (auto& arg : F->args()) {
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         if (!arg.getType()->isPointerTy()) {
             continue;
@@ -896,7 +896,7 @@ void DependencyAnaliser::updateInputDepLibFunctionCallOutArgDependencies(
     }
     // TODO: add this for all call instruction processors
     if (F->isVarArg()) {
-        int index = F->getArgumentList().size();
+        int index = F->arg_size();
         llvm::Value* actualArg = argumentValueGetter(index);
         while (actualArg != nullptr) {
             if (!actualArg->getType()->isPointerTy()) {
@@ -1072,7 +1072,7 @@ ValueDepInfo DependencyAnaliser::getArgumentValueDependecnies(llvm::Value* argVa
         llvm::Instruction* instr = constExpr->getAsInstruction();
         auto depInfo = determineInstructionDependenciesFromOperands(instr);
         addControlDependencies(depInfo);
-        delete instr;
+        instr->eraseFromParent();
         return ValueDepInfo(argVal->getType(), depInfo);
     }
     if (auto constVal = llvm::dyn_cast<llvm::Constant>(argVal)) {
@@ -1103,7 +1103,7 @@ void DependencyAnaliser::updateCallOutArgDependencies(llvm::Function* F,
 {
     const FunctionAnaliser* FA = m_FAG(F);
     assert(FA != nullptr);
-    for (auto& arg : F->getArgumentList()) {
+    for (auto& arg : F->args()) {
         if (!arg.getType()->isPointerTy()) {
             continue;
         }
@@ -1148,7 +1148,7 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
     libInfo.resolveLibFunctionInfo(F, Fname);
     const auto& libFInfo = libInfo.getLibFunctionInfo(Fname);
     assert(libFInfo.isResolved());
-    for (auto& arg : F->getArgumentList()) {
+    for (auto& arg : F->args()) {
         llvm::Value* actualArg = argumentValueGetter(arg.getArgNo());
         if (!actualArg) {
             llvm::dbgs() << "No actual value for formal argument " << arg << "\n";
@@ -1250,7 +1250,7 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
         if (auto* constExpr = llvm::dyn_cast<llvm::ConstantExpr>(instrOp)) {
             auto constInstr = constExpr->getAsInstruction();
             auto memVal = getMemoryValue(constInstr->getOperand(0));
-            delete constInstr;
+            constInstr->eraseFromParent();
             return memVal;
         }
         return instrOp;
@@ -1294,7 +1294,7 @@ llvm::Value* DependencyAnaliser::getMemoryValue(llvm::Value* instrOp)
     //global = llvm::dyn_cast<llvm::GlobalValue>(op);
     if (clean) {
         // Deleting as does not belong to any basic block. 
-        delete elPtrInst;
+        elPtrInst->eraseFromParent();
     }
     if (op == nullptr) {
         return getMemoryValue(op);

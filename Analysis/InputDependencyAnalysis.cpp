@@ -83,7 +83,7 @@ void InputDependencyAnalysis::run()
         // Copy the current SCC and increment past it so that the pass can hack
         // on the SCC if it wants to without invalidating our iterator.
         const std::vector<llvm::CallGraphNode *> &NodeVec = *CGI;
-        CurSCC.initialize(NodeVec.data(), NodeVec.data() + NodeVec.size());
+        CurSCC.initialize(NodeVec);
 
         for (llvm::CallGraphNode* node : CurSCC) {
             llvm::Function* F = node->getFunction();
@@ -226,9 +226,8 @@ void InputDependencyAnalysis::finalizeForArguments(llvm::Function* F, InputDepRe
     }
 
     if (m_calleeCallersInfo.find(F) == m_calleeCallersInfo.end()) {
-        auto& arguments = F->getArgumentList();
         DependencyAnaliser::ArgumentDependenciesMap arg_deps;
-        for (auto& arg : arguments) {
+        for (auto& arg : F->args()) {
             arg_deps.insert(std::make_pair(&arg, ValueDepInfo(arg.getType(), DepInfo(DepInfo::INPUT_DEP))));
         }
         f_analiser->finalizeArguments(arg_deps);

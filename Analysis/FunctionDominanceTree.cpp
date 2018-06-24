@@ -110,7 +110,7 @@ bool FunctionDominanceTreePass::runOnModule(llvm::Module& M)
     llvm::CallGraphSCC CurSCC(CG, &CGI);
     while (!CGI.isAtEnd()) {
         const std::vector<llvm::CallGraphNode *> &NodeVec = *CGI;
-        CurSCC.initialize(NodeVec.data(), NodeVec.data() + NodeVec.size());
+        CurSCC.initialize(NodeVec);
         for (llvm::CallGraphNode* node : CurSCC) {
             llvm::Function* F = node->getFunction();
             if (F == nullptr || F->isDeclaration()) {

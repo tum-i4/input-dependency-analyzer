@@ -22,20 +22,28 @@ namespace llvm {
 template <>
 struct GraphTraits<input_dependency::FunctionInputDependencyResultInterface*> : public GraphTraits<BasicBlock*>
 {
-    static NodeType* getEntryNode(input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
-    typedef Function::iterator nodes_iterator;
-    static nodes_iterator nodes_begin(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->begin();}
-    static nodes_iterator nodes_end(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->end();}
+    static NodeRef getEntryNode(input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
+    using nodes_iterator = pointer_iterator<Function::iterator>;
+    static nodes_iterator nodes_begin(input_dependency::FunctionInputDependencyResultInterface* FA) {
+        return nodes_iterator(FA->getFunction()->begin());
+    }
+    static nodes_iterator nodes_end(input_dependency::FunctionInputDependencyResultInterface* FA) {
+        return nodes_iterator(FA->getFunction()->end());
+    }
     static size_t size(input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->size();}
 };
 
 template<>
 struct GraphTraits<const input_dependency::FunctionInputDependencyResultInterface*> : public GraphTraits<const BasicBlock*>
 {
-    static NodeType* getEntryNode(const input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
-    typedef Function::const_iterator nodes_iterator;
-    static nodes_iterator nodes_begin(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->begin();}
-    static nodes_iterator nodes_end(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->end();}
+    static NodeRef getEntryNode(const input_dependency::FunctionInputDependencyResultInterface* FA) {return &FA->getFunction()->getEntryBlock();}
+    using nodes_iterator = pointer_iterator<Function::const_iterator>;
+    static nodes_iterator nodes_begin(const input_dependency::FunctionInputDependencyResultInterface* FA)  {
+        return nodes_iterator(FA->getFunction()->begin());
+    }
+    static nodes_iterator nodes_end(const input_dependency::FunctionInputDependencyResultInterface* FA)  {
+        return nodes_iterator(FA->getFunction()->end());
+    }
     static size_t size(const input_dependency::FunctionInputDependencyResultInterface* FA) {return FA->getFunction()->size();}
 };
 
@@ -134,7 +142,7 @@ public:
             raw_string_ostream OS(Str);
             SwitchInst::ConstCaseIt Case =
                 SwitchInst::ConstCaseIt::fromSuccessorIndex(SI, SuccNo);
-            OS << Case.getCaseValue()->getValue();
+            OS << (*Case).getCaseValue()->getValue();
             return OS.str();
         }
         return "";

@@ -1,6 +1,8 @@
 Analysis/.*.swp
 OH/.*.swp
 Transforms/.*.swp
+lib/.*.swp
+include/.*.swp
 CutVertice/.*.swp
 build/
 tests/

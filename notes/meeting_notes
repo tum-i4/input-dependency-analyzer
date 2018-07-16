@@ -1,0 +1,337 @@
+9.10.2017
+***************************
+1. Make slides on composite type analysis algorithms
+2. add more programs to evaluation data set
+3. test on libraries
+
+on paper:
+    definitions for source, sinks and props
+    try specifying main as source for taint analizer
+    specify that talking about clang taint analizer
+    see if taint analizers in general should handle control flow deps
+
+Data set
+    1. 2048_game
+    2. micro snake
+    3. C snake
+    4. tetris
+    5. zopfli
+    6. bzip
+    7. tinyxml2
+    8. cryptoopt - library of cryptopgraphic schemes. contains number of indipendent source files
+        https://github.com/weidai11/cryptopp.git
+        https://cryptopp.com/
+    9. math-atlas - Automatically Tuned Linear Algebra Software (ATLAS)
+        https://github.com/math-atlas/math-atlas.git
+    10. tar
+
+    11. coreutils
+        yes
+        who
+        expand
+        ....
+
+
+ curl - https://github.com/curl/curl.git
+ no idea how compile to bitcode
+
+
+16.10.2017
+LLVM reports array ellements to alias each other and in general case that might be true, the way two pointer arguments
+of a function alias. Thus to avoid true negatives (reporting input indep while being input dep) need to make
+conservative assumption, that is if an element of an array is assigned input dep, make whole array input dep. Moreover
+keep that input dependency information, even if an element is assigned input indep value afterwards.
+
+----- Implemented this by differentiating between may and must aliases. It ensures no true negatives, and provides
+better results. Note for one dimensional arrays it works, but for multidimensional it operates as decribed above.
+
+problems during implementations:
+    1. function call with getElementPtr as output argument. When updating out arg dependencies, the dep info of an array
+    (struct) is updated instead of element. - fixed
+    2. if a single element of input dep arg is returned, it's going to be dependent on arg, not the corresponding
+    element of that arg. thus input indep return may be considered input dep. This will add false positives, not is safe
+    for true negatives, thus may be left as is, before we can think of a good solution.
+        One solution might be for argument dependencies add which element of argument is the dependency on, but this
+        will make things more complex, and would be better to try find another solution.
+    3. for multidimensional arrays input dep of a single el matches input dep of the whole row, which is not always the
+    case. This also does not add true negatives, but may add false positives.
+
+check if struct members are considered aliasing each other
+my guess is fields of different types should not alias - they are partial aliases
+    1. they do partial alias together, which however can be ignored, as is done now
+       all fields may alias with struct object, but this is not casusing any problem now
+       the first field of a struct (same for array), must aliases with object, which again does not cause problems with
+       current implementation.
+
+issue #11:
+    while testing output of scc noticed a strange behaviour, the output differs depending on whether scc is used with or
+        without inverse. Doing normal scc without inverse, starting with entry block gives correct results, while doing
+        inverse starting from back reports blocks from inner loop. ----- this is not strange, the order of blocks in scc
+        is not strictly defined. what I was doing, was getting first block scc and it may be different.
+
+Fixing inconsistencies between master and issue8 branch
+    1. in master constant arg for a call from non-det branch is still considered input indep,
+       in new branch it is considered input dep - fixed
+    2. consider switch statement inside a loop. If any of the blocks of that switch do "exit" (unreachable), they are
+    not analized by loop analiser (happens in 2048_game.c main function) - fixed
+    3. getElementPtr instruction with negative index, happens when substructing from pointer. InputDep was crashing, as
+    for constant index it was expecting positive index. Modified code to process negative index as if it is not a
+        constant. Actually can not think of a better solution. Otherwise would need to somehow maintain the current
+        position for each pointer. Note, this can not happen for structs or classes. Found the problem when running on
+        coreutils.
+    4. issue with determining if block postdominates its predecessors in a loop. A block that did postdominate, was
+    reported as not as. The problem was checking if a loop block postominates a header, which can not be true, as there
+    is always another path from block header to exit node, in case of finite loops. Maybe this was added on purpose,
+    don't remeber, but it's breaking some correct cases, for sure.
+    5. when creating basicBlockAnaliser, did not consider case when block is value dependent, e.g. depends on global.
+    Was creating normal basic block analiser, thus losing dependency info on global. In both tetris and 2048 was case
+    when block was depending on global, which was input dep, but because of this bug, block wwas not marked as input dep
+
+    ****** 6. need to process some llvm intrinsics such as memcpy, memset
+    ****** 7. for recursion calls getReturnValueDependencies from its own analysis result and gets the already existing
+                info, which is not always correct. E.g if at call site return value is still input indep, but later
+                becomes input dep, will get the input indep info. The is true for arguments.
+                Can fix by adding value dependency for self calls, i.e. at cal site make call depend on its return
+                value. When returning to function resolve that dependency. This will make analysis more complex, as
+                value dependencies will propagate all over the source, while now it's only in loops.
+
+
+test tinyxml 
+    manually check input dep instructions
+    try run OH
+
+comiple new three projects
+
+
+
+25.10.2017
+    mark not called function arguments to be input dep
+    try tinyxml with client
+    compile the other projects
+
+
+bla bla bla
+ go compile to llvm IR gprc (nervaynacnum a, kacin lineir, ee, liner)
+
+
+
+for meeting 30.10.2017
+  manually check input dependency for
+  micro snake and C snake
+
+   1. constant argument was marked as input dep, due to an issue in nondeterministic block analysis getArgumentDepInfo
+   function
+   2. In mergeDependencies of ValueDepInfo, if function was called for e.g. index 1, but no info exists for index 0,
+   index 0 was marked as input indep. This conflicted with the implementation of getValueDep, for which if no info
+   exists for given index, the dependency of whole composite type was returned. Changed mergeDependencies to make index
+   0 in the given example to have value dependency of whole composite type.
+   3. in phi node processing, if incomming values are constant, but blocks leading to this phi node are input dep, the
+   result of phi node should be input dep, but it was input indep.
+
+   4. consider latch block that has no use of any value, hence values list is empty, but it still has value dependent
+   instructions, where dependency comes from predecessing blocks. This instructions will not be resolved of value
+   dependencies. e.g. see c_snake draw_fruit function. Fixed this issue by adding all initial value dependencies that
+   are somehow mentioned in instruction dependencies, however this question rises now and then, and could be better
+   solved by applying livneness analysis. Then we'll have all information which values should be carried along basic
+   blocks.
+   5. in Utils::dissolveInstruction, of instr contains global, it was not counted as it was filtering by constant branch
+   6. in reflecting block value resolving, for a value node, the value itself is reased from val dep list, which is
+   correct for local values, but breaks analysis for global variables. globals should remain dependent on themselves to
+   have finalization pass work correctly
+   7. global variable dependencies were erased from instruction dependencies while resolving loop value dependencies,
+   this is wrong, as global dependencies should be resolved later, during finalization phase.
+   8. wrong processing of COnstat expression, when it is created from non constant instruction
+   9. sprintf is variadic function, but the last arg is not processed. removed it from configuration, so it's always
+   input dep, մինչև տենանք ինչ ա գալիս գլխներիս
+
+    
+test tinyxml
+    input dep pass runs without failures
+    functions in a test are correct - main and print_xml
+    if using std::string LoadFile is also correctly setting this pointer to input dep
+    checking with constant filename - correct, both filename and this are input indep
+    RootElement is input dep
+    print_xml argument is input dep
+    XMLElement->Name() this pointer is input dep
+
+    add test cases:
+        parse file with input dep file name
+        parse file with input indep file name
+        run OH
+            OH fails both for master and issue8 branches
+
+compile other programs from dataser
+1. mcu
+
+
+
+30.10.2017
+  protected paths with and without cloning
+  calls with constants in non-det branch (all calls)
+  cloning: if all call sites are from input dep branches, do not clone
+
+
+
+for 08.11.2017 meeting
+    1. built mcu to llvm bitcode
+        the linking is still done manually.
+    2. changes loop traversal order algorithm. there was a problem for for(; ;).
+    Overall made the path construction assumptions a bit weaker. It may affect runtime a bit. but not that much
+    3. mcu fails on loop analysis
+        consider 3 level loop, where the inner most has goto to the outter most loop. Loop analysis would fail when analizing the outter most
+        loop block for which the goto block is predecessor. The reason it could not find the analysis result for the
+        inner loop block in its analized blocks list. Modified to go up in loop hierarchy from inner loop, until reaches
+        one for which analysis result is known.
+    4. mcu run - value dependent function call arguments during finalize - fixed. 
+       argument was finalized for global dependencies, but the globals were not removed from dependency list
+    5. function finalization order. function f1 has indirect call for which f2 is valid target and is processed
+    correspondingly. However during finalization f2 is finalized before f1, hence argument dependency info is
+    incomplete. Fixed by considering arguments input dependent for this case. A proper fix would be making sure caller
+    is finalized before callee.
+    6. Some global variables are not added to functions' referenced globals list. This results on not having those
+    globals in finalization list, but if function has some instructions dependent on those globals, the finalization
+    will be inaccurate. Fixed by adding globals in updateValueDependency functions, if given value is a global.
+    
+    bitcode bzip
+    7. during block traversal order construction, scc node with more than one block, which however does not construct a
+    loop
+    8. modified blocks traversal algorithm to use CFG instead of SCC. Will leave both versions
+    
+    core utils: who
+    9. issue with reflecting value dependencies on call site globals inside a loop for indirect call targets
+
+    portable LibreSSL
+    
+
+OH on libxml
+    passes
+
+add tests for bitcode kaleidaascope projects
+
++1. broken loops. If see a block for which a predecessor is not analized and its not in a loop, break analysis. This is a sign of bad goto. Can have a option to continue even if this happens.
++2. #issue15 
+3. #issue16 - part
+4. compile the others
+5. compile llgo
+
+
+
+
+do later:
+       consider having loopAnalysis and FunctionAnalysis deriving from the same base class
+       do not run virtual/indirect as analysis, but run it on a given module
+       can have some struct/class incapsulating all intermediate analysis results
+
+
+22.11.2017
+    - jsoncpp
+    - logging - find library
+    - issue 16 no nead for weights
+    - issue 13 - numOfMediateInst is - number of instructions added for extraction
+    - transparent caching
+
+formatting:
+    input dependency stats
+
+    input indep coverage
+    -----------------------------
+    numInDepInstr
+    numInstr
+    InDepCoverage
+    numInDepBlock
+    numBlock
+    InDepBlockCoverage
+    numInDepFuncs
+    inDepFuncs["" ""]
+
+    input dep coverage
+    ----------------------------
+    numDepInstr
+    numInstr
+    DepInstrCoverage
+    numDepBlock
+    numBlocks
+    DepBlockCoverage
+    numDepFuncs
+    DepFuncs ["" "" ]
+
+    Clone stats
+    ----------------------
+    numOfClonnedInst
+    numOfInstAfterCloning
+    numOfInDepInstAfterCloning
+    clonnedFuncs ["","",""]
+
+    input indep coverage
+
+    Extraction stats
+    --------------------------
+    numOfExtractedInst
+    numOfMediateInst
+    extractedFuncs: ["","",""]
+
+    input dep coverage
+
+    for each transformation pass report coverage information before and after
+    for clonning that would be coverage of input indep instrs
+    for extraction that is coverage of input dep instrs, in input dep functions
+
+
+
+29.11.2017
+    - issue for handler in tetris descirbe problem +
+    - how about c++ callable functions
+    - try use memchache
+    - is initialzied (for return value)
+        can handle with local analysis info? value not assigned any value has UNKNOWN status?
+    - clonning for functions wihtout arguments (input dep input indep)  +
+    - remove original function after clonning
+    - transparent caching ***
+    
+
+Input dependency coverage - extend control flow dependency from CFG to CG input dep functions ...
+Change name for oh assert to something that is less likely to be in other modules???
+memcached
+    memcached.x.bc - input dep
+    sizes - input dep, oh (no input dep)
+    testapp - input dep, oh, clone, extraction-
+
+
+07.12.2017
+memcached - run with Mohsen's OH
+in input_dep_covergae_statistics issue with requesting num of input dep blocks - open issue on this one
+issue #28
+transparent cache - with metadata
+
+
+
+for 13.12.2017 meeting
+    issue #28 - mark uninitialized value unknown
+    statistcs incorrect numbers for input dependent blocks/instructions in input dep function covarge
+    clone/extraction statistics numbers were not initialized, hence sometimes had invalid numbers.
+    issue 30 - overwrite statistics file
+    note there are issues when writing both clone and statistics into the same file
+    issue 33
+
+bitbox - compiled and linked. some tests are not linked, but there are some that can be tested
+libressl - fails on some decode. but some linking is done
+
+notes on SC
+    modified to have patching data in variables instead of numbers
+    need to remove setPreservesAll
+
+
+PUSH CHANGES
+
+***** 04.01.2018
+make caching with separate pass so that we can run it after transformation passes.
+do sc with variables in input indep functions and with constants in input dependent ones.
+sip issue #19 - skip loop and assert with variadic arguments
+
+
+
+
+********* 10.01.2018
+marking function input dependent - indirect call targets???
+input-dep ran after extraction marks extracted functions input independent. create an issue
+

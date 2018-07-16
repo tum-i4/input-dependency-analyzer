@@ -1,0 +1,29 @@
+DependencyAnalysisResult
+    it would be better if this interface was to report on input dependency of components only
+    Saying it should not contain setInitialValueDependencies function. Overall it should contain the first 6
+    functions only.
+
+
+
+DependencyAnaliser
+    1. move constructor arguments to be assigned by setters
+    2. change the name for getRefInfo
+
+
+make slides for array processing
+add more programs to benchmark
+libraries
+
+paper:
+    definitions for source, sinks and props
+    try specifying main as source for taint analizer
+    specify that talking about clang taint analizer
+
+    see if taint analizers in general should handle control flow deps
+
+composite type processing:
+    case of composite type containint composite type
+    a value dependent on an element of composite type
+    processInstrForOutputArgs: assigning to element of composite type arg will be considered as modifying that element
+
+

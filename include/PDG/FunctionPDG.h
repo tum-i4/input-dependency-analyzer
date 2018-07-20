@@ -19,7 +19,10 @@ public:
     using const_iterator = PDGNodes::const_iterator;
 
 public:
-    explicit FunctionPDG(llvm::Function* F);
+    explicit FunctionPDG(llvm::Function* F)
+        : m_function(F)
+    {
+    }
 
     ~FunctionPDG() = default;
     FunctionPDG(const FunctionPDG& ) = delete;
@@ -29,6 +32,16 @@ public:
 
 
 public:
+    llvm::Function* getFunction()
+    {
+        return m_function;
+    }
+
+    const llvm::Function* getFunction() const
+    {
+        return const_cast<FunctionPDG*>(this)->getFunction();
+    }
+
     bool hasFormalArgNode(llvm::Argument* arg) const
     {
         return m_formalArgNodes.find(arg) != m_formalArgNodes.end();
@@ -62,6 +75,15 @@ public:
     {
         return m_formalArgNodes.insert(std::make_pair(arg, argNode)).second;
     }
+    bool addFormalArgNode(llvm::Argument* arg)
+    {
+        if (hasFormalArgNode(arg)) {
+            return false;
+        }
+        m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMArgumentNode(arg))));
+        return true;
+    }
+
     bool addNode(llvm::Value* val, LLVMNodeTy node)
     {
         return m_functionNodes.insert(std::make_pair(val, node)).second;

@@ -18,6 +18,8 @@ public:
         ArgumentNode,
         GlobalVariableNode,
         ConstantExprNode,
+        ConstantNode,
+        BasicBlockNode,
         UnknownNode
     };
 
@@ -98,8 +100,47 @@ public:
         return NodeType::ConstantExprNode;
     }
 
-
 }; // class PDGConstantExprNode
+
+class PDGLLVMConstantNode : public PDGLLVMNode
+{
+public:
+    explicit PDGLLVMConstantNode(llvm::Constant* constant)
+        : PDGLLVMNode(constant)
+    {
+    }
+
+    NodeType getNodeType() const override
+    {
+        return NodeType::ConstantNode;
+    }
+
+}; // class PDGConstantNode
+
+class PDGLLVMBasicBlockNode : public PDGLLVMNode
+{
+public:
+    explicit PDGLLVMBasicBlockNode(llvm::BasicBlock* block)
+        : PDGLLVMNode(llvm::dyn_cast<llvm::Value>(block))
+    {
+    }
+
+    NodeType getNodeType() const override
+    {
+        return NodeType::BasicBlockNode;
+    }
+
+    virtual bool addInDataEdge(PDGEdgeType inEdge) override
+    {
+        assert(false);
+    }
+
+    virtual bool addOutDataEdge(PDGEdgeType outEdge) override
+    {
+        assert(false);
+    }
+}; // class PDGLLVMBasicBlockNode
+
 
 } // namespace pdg
 

@@ -97,6 +97,15 @@ public:
         return m_globalVariableNodes.insert(std::make_pair(variable, node)).second;
     }
 
+    bool addGlobalVariableNode(llvm::GlobalVariable* variable)
+    {
+        if (hasGlobalVariableNode(variable)) {
+            return false;
+        }
+        m_globalVariableNodes.insert(std::make_pair(variable, PDGGlobalNodeTy(new PDGLLVMGlobalVariableNode(variable))));
+        return true;
+    }
+
     bool addFunctionPDG(llvm::Function* F, FunctionPDGTy functionPDG)
     {
         return m_functionPDGs.insert(std::make_pair(F, functionPDG)).second;

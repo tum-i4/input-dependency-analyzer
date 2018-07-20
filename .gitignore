@@ -2,7 +2,8 @@ Analysis/.*.swp
 OH/.*.swp
 Transforms/.*.swp
 lib/.*.swp
-include/.*.swp
+lib/PDG/.*.swp
+include/PDG/.*.swp
 CutVertice/.*.swp
 build/
 tests/

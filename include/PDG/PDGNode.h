@@ -44,42 +44,42 @@ public:
         return m_outControlEdges;
     }
 
-    bool addInDataEdge(PDGEdgeType inEdge)
+    virtual bool addInDataEdge(PDGEdgeType inEdge)
     {
         return m_inDataEdges.insert(inEdge).second;
     }
 
-    bool addOutDataEdge(PDGEdgeType outEdge)
+    virtual bool addOutDataEdge(PDGEdgeType outEdge)
     {
         return m_outDataEdges.insert(outEdge).second;
     }
 
-    bool addInControlEdge(PDGEdgeType inEdge)
+    virtual bool addInControlEdge(PDGEdgeType inEdge)
     {
         return m_inControlEdges.insert(inEdge).second;
     }
 
-    bool addOutControlEdge(PDGEdgeType outEdge)
+    virtual bool addOutControlEdge(PDGEdgeType outEdge)
     {
         return m_outControlEdges.insert(outEdge).second;
     }
 
-    bool removeInDataEdge(PDGEdgeType inEdge)
+    virtual bool removeInDataEdge(PDGEdgeType inEdge)
     {
         m_inDataEdges.erase(inEdge);
     }
 
-    bool removeOutDataEdge(PDGEdgeType outEdge)
+    virtual bool removeOutDataEdge(PDGEdgeType outEdge)
     {
         m_outDataEdges.erase(outEdge);
     }
 
-    bool removeInControlEdge(PDGEdgeType inEdge)
+    virtual bool removeInControlEdge(PDGEdgeType inEdge)
     {
         m_inControlEdges.erase(inEdge);
     }
 
-    bool removeOutControlEdge(PDGEdgeType outEdge)
+    virtual bool removeOutControlEdge(PDGEdgeType outEdge)
     {
         m_outControlEdges.erase(outEdge);
     }

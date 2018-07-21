@@ -15,6 +15,20 @@ public:
     using iterator = PDGEdges::iterator;
     using const_iterator = PDGEdges::const_iterator;
 
+    enum NodeType : unsigned {
+        InstructionNode,
+        ArgumentNode,
+        GlobalVariableNode,
+        ConstantExprNode,
+        ConstantNode,
+        BasicBlockNode,
+        NullNode,
+        PhiSvfgNode,
+        MssaPhiSvfgNode,
+        LLVMMemoryPhiNode,
+        UnknownNode
+    };
+
 public:
     PDGNode() = default;
     virtual ~PDGNode() = default;
@@ -24,6 +38,8 @@ public:
     PDGNode& operator =(PDGNode&&) = delete;
 
 public:
+    virtual NodeType getNodeType() const = 0;
+
     const PDGEdges& getInDataEdges() const
     {
         return m_inDataEdges;

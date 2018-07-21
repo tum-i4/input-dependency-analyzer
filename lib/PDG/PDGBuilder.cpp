@@ -2,6 +2,10 @@
 
 #include "PDG/PDGEdge.h"
 
+#include "SVF/MSSA/SVFG.h"
+#include "SVF/MSSA/SVFGNode.h"
+
+#include "llvm/Analysis/MemorySSA.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -12,8 +16,10 @@
 
 namespace pdg {
 
-PDGBuilder::PDGBuilder(llvm::Module* M)
+PDGBuilder::PDGBuilder(llvm::Module* M, SVFG* svfg, llvm::MemorySSA& ssa)
     : m_module(M)
+    , m_svfg(svfg)
+    , m_memorySSA(ssa)
 {
 }
 
@@ -44,7 +50,7 @@ void PDGBuilder::buildFunctionPDG(llvm::Function* F)
     visitFormalArguments(F);
     for (auto& B : *F) {
         visitBlock(B);
-        visitInstructions(B);
+        visitBlockInstructions(B);
     }
 }
 
@@ -60,10 +66,10 @@ void PDGBuilder::visitFormalArguments(llvm::Function* F)
 void PDGBuilder::visitBlock(llvm::BasicBlock& B)
 {
     m_currentFPDG->addNode(llvm::dyn_cast<llvm::Value>(&B),
-            FunctionPDG::LLVMNodeTy(new PDGLLVMBasicBlockNode(&B)));
+            PDGNodeTy(new PDGLLVMBasicBlockNode(&B)));
 }
 
-void PDGBuilder::visitInstructions(llvm::BasicBlock& B)
+void PDGBuilder::visitBlockInstructions(llvm::BasicBlock& B)
 {
     for (auto& I : B) {
         visit(I);
@@ -74,14 +80,31 @@ void PDGBuilder::visitBranchInst(llvm::BranchInst& I)
 {
     // TODO: output this for debug mode only
     llvm::dbgs() << "Branch Inst: " << I << "\n";
+    auto sourceNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
+    m_currentFPDG->addNode(&I, sourceNode);
+    if (I.isUnconditional()) {
+        return;
+    }
+    for (unsigned i = 0; i < I.getNumSuccessors(); ++i) {
+        llvm::BasicBlock* succ = I.getSuccessor(i);
+        auto destNode = getNodeFor(succ);
+        addControlEdge(sourceNode, destNode);
+    }
 }
 
 void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
 {
     // TODO: output this for debug mode only
     llvm::dbgs() << "Load Inst: " << I << "\n";
-    // TODO: should connect to last definition
-    // try to take from SVFG if does not have take from llvm SSA
+    auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
+    if (auto sourceNode = processSVFGDef(I)) {
+        addDataEdge(sourceNode, destNode);
+        return;
+    }
+    if (auto sourceNode = processLLVMSSADef(I)) {
+        addDataEdge(sourceNode, destNode);
+        return;
+    }
 }
 
 void PDGBuilder::visitStoreInst(llvm::StoreInst& I)
@@ -93,7 +116,7 @@ void PDGBuilder::visitStoreInst(llvm::StoreInst& I)
     if (!sourceNode) {
         return;
     }
-    auto destNode = FunctionPDG::LLVMNodeTy(new PDGLLVMInstructionNode(&I));
+    auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
     addDataEdge(sourceNode, destNode);
     m_currentFPDG->addNode(&I, destNode);
 }
@@ -168,22 +191,72 @@ void PDGBuilder::visitInstruction(llvm::Instruction& I)
     }
 }
 
-void PDGBuilder::addDataEdge(FunctionPDG::LLVMNodeTy source, FunctionPDG::LLVMNodeTy dest)
+void PDGBuilder::addDataEdge(PDGNodeTy source, PDGNodeTy dest)
 {
-    PDGNode::PDGEdgeType outEdge = PDGNode::PDGEdgeType(new PDGEdge(source, dest));
-    PDGNode::PDGEdgeType inEdge = PDGNode::PDGEdgeType(new PDGEdge(dest, source));
-    source->addOutDataEdge(outEdge);
-    dest->addInDataEdge(inEdge);
+    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGEdge(source, dest));
+    source->addOutDataEdge(edge);
+    dest->addInDataEdge(edge);
 }
 
-FunctionPDG::LLVMNodeTy PDGBuilder::getNodeFor(llvm::Value* value)
+void PDGBuilder::addControlEdge(PDGNodeTy source, PDGNodeTy dest)
+{
+    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGEdge(source, dest));
+    source->addOutControlEdge(edge);
+    dest->addInControlEdge(edge);
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::processLLVMSSADef(llvm::Instruction& I)
+{
+    // connect I to its defs using llvm MemorySSA
+    llvm::MemoryAccess* memAccess = m_memorySSA.getMemoryAccess(&I);
+    if (!memAccess) {
+        return PDGNodeTy();
+    }
+    auto* memUse = llvm::dyn_cast<llvm::MemoryUse>(memAccess);
+    if (!memUse) {
+        return PDGNodeTy();
+    }
+    auto* memDefAccess = memUse->getDefiningAccess();
+    if (auto* memDef = llvm::dyn_cast<llvm::MemoryDef>(memDefAccess)) {
+        auto* memInst = memDef->getMemoryInst();
+        if (!memInst) {
+            return PDGNodeTy();
+        }
+        return getNodeFor(memInst);
+    } else if (auto* memPhi = llvm::dyn_cast<llvm::MemoryPhi>(memDefAccess)) {
+        return getNodeFor(memPhi);
+    }
+    assert(false);
+    return PDGNodeTy();
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::processSVFGDef(llvm::Instruction& I)
+{
+    auto* pag = m_svfg->getPAG();
+    if (!pag->hasValueNode(&I)) {
+        return PDGNodeTy();
+    }
+    auto nodeId = pag->getValueNode(&I);
+    auto* pagNode = pag->getPAGNode(nodeId);
+    if (!pagNode) {
+        return PDGNodeTy();
+    }
+    const SVFGNode* defNode = m_svfg->getDefSVFGNode(pagNode);
+    if (!defNode) {
+        return PDGNodeTy();
+    }
+    auto sourceNode = getNodeFor(const_cast<SVFGNode*>(defNode));
+    return sourceNode;
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::Value* value)
 {
     if (m_currentFPDG->hasNode(value)) {
         return m_currentFPDG->getNode(value);
     }
     if (auto* global = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
         if (!m_pdg->hasGlobalVariableNode(global)) {
-            m_pdg->getGlobalVariableNode(global);
+            m_pdg->addGlobalVariableNode(global);
         }
         return m_pdg->getGlobalVariableNode(global);
     }
@@ -193,15 +266,112 @@ FunctionPDG::LLVMNodeTy PDGBuilder::getNodeFor(llvm::Value* value)
     }
 
     if (auto* constant = llvm::dyn_cast<llvm::Constant>(value)) {
-        m_currentFPDG->addNode(value, FunctionPDG::LLVMNodeTy(new PDGLLVMConstantNode(constant)));
+        m_currentFPDG->addNode(value, PDGNodeTy(new PDGLLVMConstantNode(constant)));
     } else if (auto* instr = llvm::dyn_cast<llvm::Instruction>(value)) {
-        m_currentFPDG->addNode(value, FunctionPDG::LLVMNodeTy(new PDGLLVMInstructionNode(instr)));
+        m_currentFPDG->addNode(value, PDGNodeTy(new PDGLLVMInstructionNode(instr)));
     } else {
         // do not assert here for now to keep track of possible values to be handled here
         llvm::dbgs() << "Unhandled value " << *value << "\n";
-        return FunctionPDG::LLVMNodeTy();
+        return PDGNodeTy();
     }
     return m_currentFPDG->getNode(value);
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::BasicBlock* block)
+{
+    if (!m_currentFPDG->hasNode(block)) {
+        m_currentFPDG->addNode(block, PDGNodeTy(new PDGLLVMBasicBlockNode(block)));
+    }
+    return m_currentFPDG->getNode(block);
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::MemoryPhi* memPhi)
+{
+    auto memPhiNode = PDGNodeTy(new PDGLLVMemoryAccessNode(memPhi));
+    for (int i = 0; i < memPhi->getNumIncomingValues(); ++i) {
+        llvm::MemoryAccess* incomingVal = memPhi->getIncomingValue(i);
+        PDGNodeTy incomNode;
+        if (auto* def = llvm::dyn_cast<llvm::MemoryDef>(incomingVal)) {
+            incomNode = getNodeFor(def->getMemoryInst());
+        } else if (auto* phi = llvm::dyn_cast<llvm::MemoryPhi>(incomingVal)) {
+            incomNode = getNodeFor(phi);
+        }
+        if (incomNode) {
+            addDataEdge(incomNode, memPhiNode);
+        }
+    }
+    return memPhiNode;
+}
+
+PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(SVFGNode* svfgNode)
+{
+    if (auto* stmtNode = llvm::dyn_cast<StmtSVFGNode>(svfgNode)) {
+        llvm::Instruction* instr = const_cast<llvm::Instruction*>(stmtNode->getInst());
+        return getNodeFor(instr);
+    }
+    if (auto* actualParam = llvm::dyn_cast<ActualParmSVFGNode>(svfgNode)) {
+        // TODO:
+        assert(false);
+        return PDGNodeTy();
+    }
+    if (auto* actualRet = llvm::dyn_cast<ActualRetSVFGNode>(svfgNode)) {
+        // TODO:
+        assert(false);
+        return PDGNodeTy();
+    }
+    if (auto* formalParam = llvm::dyn_cast<FormalParmSVFGNode>(svfgNode)) {
+        // TODO:
+        assert(false);
+        return PDGNodeTy();
+    }
+    if (auto* formalRet = llvm::dyn_cast<FormalRetSVFGNode>(svfgNode)) {
+        // TODO:
+        assert(false);
+        return PDGNodeTy();
+    }
+    if (auto* null = llvm::dyn_cast<NullPtrSVFGNode>(svfgNode)) {
+        return PDGNodeTy(new PDGNullNode());
+    }
+    // TODO: think about children of PHISVFGNode. They may need to be processed separately.
+    if (auto* phi = llvm::dyn_cast<PHISVFGNode>(svfgNode)) {
+        auto phiNode = PDGNodeTy(new PDGPHISVFGNode(phi));
+        for (auto it = phi->opVerBegin(); it != phi->opVerEnd(); ++it) {
+            auto* pagNode = it->second;
+            if (!pagNode) {
+                continue;
+            }
+            if (!m_svfg->hasSVFGNode(pagNode->getId())) {
+                continue;
+            }
+            auto* sn = m_svfg->getSVFGNode(pagNode->getId());
+            auto sourceNode = getNodeFor(sn);
+            m_currentFPDG->addNode(sn, sourceNode);
+            addDataEdge(sourceNode, phiNode);
+        }
+        return phiNode;
+    }
+    if (auto* mssaPhi = llvm::dyn_cast<MSSAPHISVFGNode>(svfgNode)) {
+        auto mssaPhiNode = PDGNodeTy(new PDGMSSAPHISVFGNode(mssaPhi));
+        for (auto it = mssaPhi->opVerBegin(); it != mssaPhi->opVerEnd(); ++it) {
+            const MSSADEF* mdef = const_cast<MSSADEF*>(it->second->getDef());
+            if (const MemSSA::CALLCHI* callChi = llvm::dyn_cast<const MemSSA::CALLCHI>(mdef)) {
+                //TODO:
+                assert(false);
+            } else if (const MemSSA::ENTRYCHI* mssaEntryChi = llvm::dyn_cast<const MemSSA::ENTRYCHI>(mdef)) {
+                //TODO:
+                assert(false);
+            } else if (const MemSSA::STORECHI* mssaStoreChi = llvm::dyn_cast<const MemSSA::STORECHI>(mdef)) {
+                PDGNodeTy sourceNode = getNodeFor(const_cast<llvm::Instruction*>(mssaStoreChi->getStoreInst()->getInst()));
+                addDataEdge(sourceNode, mssaPhiNode);
+            } else if (const MemSSA::PHI* phiChi = llvm::dyn_cast<MemSSA::PHI>(mdef)) {
+                //TODO: recurse??
+                assert(false);
+            }
+        }
+        return mssaPhiNode;
+    }
+    assert(false);
+    return PDGNodeTy();
 }
 
 } // namespace pdg

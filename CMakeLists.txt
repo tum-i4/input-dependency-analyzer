@@ -1,13 +1,18 @@
 cmake_minimum_required(VERSION 3.1)
 
+set (SVF_INCLUDE_DIR "/usr/local/include/SVF")
+set (SVF_LIB_DIR "/usr/local/lib")
+
 find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_LIST_DIR})
+include_directories(${SVF_INCLUDE_DIR})
 
 link_directories(${LLVM_LIBRARY_DIRS})
 link_directories(${CMAKE_CURRENT_BINARY_DIR})
+link_directories(${SVF_LIB_DIR})
 
 find_package(PkgConfig REQUIRED)
 include_directories(${CMAKE_CURRENT_LIST_DIR}/json)

@@ -6,8 +6,12 @@
 
 #include "llvm/IR/InstVisitor.h"
 
+class SVFG;
+class SVFGNode;
+
 namespace llvm {
 
+class MemorySSA;
 class Module;
 class Function;
 class Value;
@@ -21,9 +25,10 @@ class PDGBuilder : public llvm::InstVisitor<PDGBuilder>
 public:
     using PDGType = std::shared_ptr<PDG>;
     using FunctionPDGTy = PDG::FunctionPDGTy;
+    using PDGNodeTy = FunctionPDG::PDGNodeTy;
 
 public:
-    PDGBuilder(llvm::Module* M);
+    PDGBuilder(llvm::Module* M, SVFG* svfg, llvm::MemorySSA& ssa);
 
     virtual ~PDGBuilder() = default;
     PDGBuilder(const PDGBuilder& ) = delete;
@@ -65,12 +70,20 @@ private:
     void visitGlobals();
     void visitFormalArguments(llvm::Function* F);
     void visitBlock(llvm::BasicBlock& B);
-    void visitInstructions(llvm::BasicBlock& B);
-    void addDataEdge(FunctionPDG::LLVMNodeTy source, FunctionPDG::LLVMNodeTy dest);
-    FunctionPDG::LLVMNodeTy getNodeFor(llvm::Value* value);
+    void visitBlockInstructions(llvm::BasicBlock& B);
+    void addDataEdge(PDGNodeTy source, PDGNodeTy dest);
+    void addControlEdge(PDGNodeTy source, PDGNodeTy dest);
+    PDGNodeTy processLLVMSSADef(llvm::Instruction& I);
+    PDGNodeTy processSVFGDef(llvm::Instruction& I);
+    PDGNodeTy getNodeFor(llvm::Value* value);
+    PDGNodeTy getNodeFor(llvm::BasicBlock* block);
+    PDGNodeTy getNodeFor(llvm::MemoryPhi* memPhi);
+    PDGNodeTy getNodeFor(SVFGNode* svfgNode);
 
 private:
     llvm::Module* m_module;
+    SVFG* m_svfg;
+    llvm::MemorySSA& m_memorySSA;
     PDGType m_pdg;
     FunctionPDGTy m_currentFPDG;
 }; // class PDGBuilder

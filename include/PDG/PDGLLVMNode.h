@@ -7,22 +7,13 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Analysis/MemorySSA.h"
 
 namespace pdg {
 
 class PDGLLVMNode : public PDGNode
 {
 public:
-    enum NodeType {
-        InstructionNode,
-        ArgumentNode,
-        GlobalVariableNode,
-        ConstantExprNode,
-        ConstantNode,
-        BasicBlockNode,
-        UnknownNode
-    };
-
     explicit PDGLLVMNode(llvm::Value* node_value)
         : m_value(node_value)
     {
@@ -35,7 +26,7 @@ public:
         return m_value;
     }
 
-    virtual NodeType getNodeType() const
+    virtual NodeType getNodeType() const override
     {
         return NodeType::UnknownNode;
     }
@@ -141,6 +132,46 @@ public:
     }
 }; // class PDGLLVMBasicBlockNode
 
+class PDGNullNode : public PDGLLVMNode
+{
+public:
+    PDGNullNode()
+        : PDGLLVMNode(nullptr)
+    {
+    }
+
+    NodeType getNodeType() const override
+    {
+        return NodeType::NullNode;
+    }
+
+    virtual bool addInDataEdge(PDGEdgeType inEdge) override
+    {
+        assert(false);
+    }
+
+    virtual bool addInControlEdge(PDGEdgeType inEdge) override
+    {
+        assert(false);
+    }
+
+}; // class PDGNullNode
+
+
+// TODO: For now use PDGLLVMNode as base class, as expecting to have for MemoryPhi only
+class PDGLLVMemoryAccessNode : public PDGLLVMNode
+{
+public:
+    explicit PDGLLVMemoryAccessNode(llvm::MemoryPhi* memPhi)
+        : PDGLLVMNode(memPhi)
+    {
+    }
+
+    virtual NodeType getNodeType() const override
+    {
+        return NodeType::LLVMMemoryPhiNode;
+    }
+}; // class PDGLLVMemoryAccessNode
 
 } // namespace pdg
 

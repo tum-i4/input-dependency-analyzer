@@ -1,16 +1,20 @@
 #pragma once
 
-#include <memory>
 #include "PDG.h"
 #include "FunctionPDG.h"
 
 #include "llvm/IR/InstVisitor.h"
 
+#include <memory>
+#include <unordered_set>
+
 class SVFG;
 class SVFGNode;
+class PointerAnalysis;
 
 namespace llvm {
 
+class CallSite;
 class MemorySSA;
 class Module;
 class Function;
@@ -26,9 +30,13 @@ public:
     using PDGType = std::shared_ptr<PDG>;
     using FunctionPDGTy = PDG::FunctionPDGTy;
     using PDGNodeTy = FunctionPDG::PDGNodeTy;
+    using FunctionSet = std::unordered_set<llvm::Function*>;
 
 public:
-    PDGBuilder(llvm::Module* M, SVFG* svfg, llvm::MemorySSA& ssa);
+    PDGBuilder(llvm::Module* M,
+               SVFG* svfg,
+               PointerAnalysis* pta,
+               llvm::MemorySSA& ssa);
 
     virtual ~PDGBuilder() = default;
     PDGBuilder(const PDGBuilder& ) = delete;
@@ -67,22 +75,30 @@ public:
 
 private:
     void buildFunctionPDG(llvm::Function* F);
+    FunctionPDGTy buildFunctionDefinition(llvm::Function* F);
     void visitGlobals();
-    void visitFormalArguments(llvm::Function* F);
+    void visitFormalArguments(FunctionPDGTy functionPDG, llvm::Function* F);
     void visitBlock(llvm::BasicBlock& B);
     void visitBlockInstructions(llvm::BasicBlock& B);
+    void visitCallSite(llvm::CallSite& callSite);
     void addDataEdge(PDGNodeTy source, PDGNodeTy dest);
     void addControlEdge(PDGNodeTy source, PDGNodeTy dest);
     PDGNodeTy processLLVMSSADef(llvm::Instruction& I);
     PDGNodeTy processSVFGDef(llvm::Instruction& I);
+    PDGNodeTy getInstructionNodeFor(llvm::Instruction* instr);
     PDGNodeTy getNodeFor(llvm::Value* value);
     PDGNodeTy getNodeFor(llvm::BasicBlock* block);
     PDGNodeTy getNodeFor(llvm::MemoryPhi* memPhi);
     PDGNodeTy getNodeFor(SVFGNode* svfgNode);
+    FunctionSet getCallees(llvm::CallSite& callSite) const;
+    void addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
+                                          unsigned argIdx,
+                                          const FunctionSet& callees);
 
 private:
     llvm::Module* m_module;
     SVFG* m_svfg;
+    PointerAnalysis* m_pta;
     llvm::MemorySSA& m_memorySSA;
     PDGType m_pdg;
     FunctionPDGTy m_currentFPDG;

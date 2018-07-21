@@ -2,12 +2,13 @@
 
 #include "PDGNode.h"
 
+#include "llvm/Analysis/MemorySSA.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
-#include "llvm/Analysis/MemorySSA.h"
 
 namespace pdg {
 
@@ -49,19 +50,38 @@ public:
     }
 }; // class PDGInstructionNode
 
-class PDGLLVMArgumentNode : public PDGLLVMNode
+class PDGLLVMFormalArgumentNode : public PDGLLVMNode
 {
 public:
-    explicit PDGLLVMArgumentNode(llvm::Argument* arg)
+    explicit PDGLLVMFormalArgumentNode(llvm::Argument* arg)
         : PDGLLVMNode(arg)
     {
     }
 
     NodeType getNodeType() const override
     {
-        return NodeType::ArgumentNode;
+        return NodeType::FormalArgumentNode;
     }
 }; // class PDGArgumentNode
+
+class PDGLLVMActualArgumentNode : public PDGLLVMNode
+{
+public:
+    explicit PDGLLVMActualArgumentNode(llvm::CallSite& callSite, llvm::Value* actualArg)
+        : PDGLLVMNode(actualArg)
+        , m_callSite(callSite)
+    {
+    }
+
+    NodeType getNodeType() const override
+    {
+        return NodeType::ActualArgumentNode;
+    }
+
+private:
+    llvm::CallSite m_callSite;
+}; // class PDGArgumentNode
+
 
 class PDGLLVMGlobalVariableNode : public PDGLLVMNode
 {

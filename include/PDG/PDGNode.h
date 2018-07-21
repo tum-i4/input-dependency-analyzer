@@ -17,7 +17,8 @@ public:
 
     enum NodeType : unsigned {
         InstructionNode,
-        ArgumentNode,
+        FormalArgumentNode,
+        ActualArgumentNode,
         GlobalVariableNode,
         ConstantExprNode,
         ConstantNode,

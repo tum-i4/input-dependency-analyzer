@@ -10,7 +10,7 @@ namespace pdg {
 class FunctionPDG
 {
 public:
-    using ArgNodeTy = std::shared_ptr<PDGLLVMArgumentNode>;
+    using ArgNodeTy = std::shared_ptr<PDGLLVMFormalArgumentNode>;
     using PDGNodeTy = std::shared_ptr<PDGNode>;
     using PDGLLVMArgumentNodes = std::unordered_map<llvm::Argument*, ArgNodeTy>;
     using PDGLLVMNodes = std::unordered_map<llvm::Value*, PDGNodeTy>;
@@ -23,6 +23,7 @@ public:
 public:
     explicit FunctionPDG(llvm::Function* F)
         : m_function(F)
+        , m_functionDefinitionBuilt(false)
     {
     }
 
@@ -37,6 +38,15 @@ public:
     llvm::Function* getFunction()
     {
         return m_function;
+    }
+
+    void setFunctionDefBuilt(bool built)
+    {
+        m_functionDefinitionBuilt = built;
+    }
+    bool isFunctionDefBuilt() const
+    {
+        return m_functionDefinitionBuilt;
     }
 
     const llvm::Function* getFunction() const
@@ -95,7 +105,7 @@ public:
         if (hasFormalArgNode(arg)) {
             return false;
         }
-        m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMArgumentNode(arg))));
+        m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMFormalArgumentNode(arg))));
         return true;
     }
 
@@ -145,6 +155,7 @@ public:
 
 private:
     llvm::Function* m_function;
+    bool m_functionDefinitionBuilt;
     PDGLLVMArgumentNodes m_formalArgNodes;
     // TODO: formal ins, formal outs? formal vaargs?
     PDGLLVMNodes m_functionNodes;

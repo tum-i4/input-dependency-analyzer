@@ -229,16 +229,16 @@ void PDGBuilder::visitCallSite(llvm::CallSite& callSite)
 
 void PDGBuilder::addDataEdge(PDGNodeTy source, PDGNodeTy dest)
 {
-    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGEdge(source, dest));
-    source->addOutDataEdge(edge);
-    dest->addInDataEdge(edge);
+    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGDataEdge(source, dest));
+    source->addOutEdge(edge);
+    dest->addInEdge(edge);
 }
 
 void PDGBuilder::addControlEdge(PDGNodeTy source, PDGNodeTy dest)
 {
-    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGEdge(source, dest));
-    source->addOutControlEdge(edge);
-    dest->addInControlEdge(edge);
+    PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGControlEdge(source, dest));
+    source->addOutEdge(edge);
+    dest->addInEdge(edge);
 }
 
 PDGBuilder::PDGNodeTy PDGBuilder::processLLVMSSADef(llvm::Instruction& I)

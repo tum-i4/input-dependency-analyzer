@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "PDGLLVMNode.h"
 #include "PDGSVFGNode.h"
@@ -15,10 +16,13 @@ public:
     using PDGLLVMArgumentNodes = std::unordered_map<llvm::Argument*, ArgNodeTy>;
     using PDGLLVMNodes = std::unordered_map<llvm::Value*, PDGNodeTy>;
     using PDGSVFGNodes = std::unordered_map<SVFGNode*, PDGNodeTy>;
+    using PDGNodes = std::vector<PDGNodeTy>;
     using arg_iterator = PDGLLVMArgumentNodes::iterator;
     using arg_const_iterator = PDGLLVMArgumentNodes::const_iterator;
-    using iterator = PDGLLVMNodes::iterator;
-    using const_iterator = PDGLLVMNodes::const_iterator;
+    using llvm_iterator = PDGLLVMNodes::iterator;
+    using const_llvm_iterator = PDGLLVMNodes::const_iterator;
+    using iterator = PDGNodes::iterator;
+    using const_iterator = PDGNodes::const_iterator;
 
 public:
     explicit FunctionPDG(llvm::Function* F)
@@ -60,7 +64,7 @@ public:
     }
     bool hasNode(llvm::Value* value) const
     {
-        return m_functionNodes.find(value) != m_functionNodes.end();
+        return m_functionLLVMNodes.find(value) != m_functionLLVMNodes.end();
     }
     bool hasNode(SVFGNode* svfgNode) const
     {
@@ -80,7 +84,7 @@ public:
     PDGNodeTy getNode(llvm::Value* val)
     {
         assert(hasNode(val));
-        return m_functionNodes.find(val)->second;
+        return m_functionLLVMNodes.find(val)->second;
     }
     const PDGNodeTy getNode(llvm::Value* val) const
     {
@@ -98,24 +102,38 @@ public:
 
     bool addFormalArgNode(llvm::Argument* arg, ArgNodeTy argNode)
     {
-        return m_formalArgNodes.insert(std::make_pair(arg, argNode)).second;
+        auto res = m_formalArgNodes.insert(std::make_pair(arg, argNode));
+        if (res.second) {
+            m_functionNodes.push_back(res.first->second);
+        }
+        return res.second;
     }
     bool addFormalArgNode(llvm::Argument* arg)
     {
         if (hasFormalArgNode(arg)) {
             return false;
         }
-        m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMFormalArgumentNode(arg))));
+        auto res = m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMFormalArgumentNode(arg))));
+        assert(res.second);
+        m_functionNodes.push_back(res.first->second);
         return true;
     }
 
     bool addNode(llvm::Value* val, PDGNodeTy node)
     {
-        return m_functionNodes.insert(std::make_pair(val, node)).second;
+        auto res = m_functionLLVMNodes.insert(std::make_pair(val, node));
+        if (res.second) {
+            m_functionNodes.push_back(res.first->second);
+        }
+        return res.second;
     }
     bool addNode(SVFGNode* node, PDGNodeTy svfgNode)
     {
-        return m_functionSVFGNodes.insert(std::make_pair(node, svfgNode)).second;
+        auto res = m_functionSVFGNodes.insert(std::make_pair(node, svfgNode));
+        if (res.second) {
+            m_functionNodes.push_back(res.first->second);
+        }
+        return res.second;
     }
 
 public:
@@ -136,6 +154,23 @@ public:
         return m_formalArgNodes.end();
     }
 
+    llvm_iterator llvmNodesBegin()
+    {
+        return m_functionLLVMNodes.begin();
+    }
+    llvm_iterator llvmNodesEnd()
+    {
+        return m_functionLLVMNodes.end();
+    }
+    const_llvm_iterator llvmNodesBegin() const
+    {
+        return m_functionLLVMNodes.begin();
+    }
+    const_llvm_iterator llvmNodesEnd() const
+    {
+        return m_functionLLVMNodes.end();
+    }
+
     iterator nodesBegin()
     {
         return m_functionNodes.begin();
@@ -153,13 +188,24 @@ public:
         return m_functionNodes.end();
     }
 
+    unsigned size() const
+    {
+        return m_functionNodes.size();
+    }
+
+    const std::string getGraphName() const
+    {
+        return m_function->getName();
+    }
+
 private:
     llvm::Function* m_function;
     bool m_functionDefinitionBuilt;
     PDGLLVMArgumentNodes m_formalArgNodes;
     // TODO: formal ins, formal outs? formal vaargs?
-    PDGLLVMNodes m_functionNodes;
+    PDGLLVMNodes m_functionLLVMNodes;
     PDGSVFGNodes m_functionSVFGNodes;
+    PDGNodes m_functionNodes;
 }; // class FunctionPDG
 
 } // namespace pdg

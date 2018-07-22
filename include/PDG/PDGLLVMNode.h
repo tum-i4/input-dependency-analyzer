@@ -141,12 +141,12 @@ public:
         return NodeType::BasicBlockNode;
     }
 
-    virtual bool addInDataEdge(PDGEdgeType inEdge) override
+    virtual bool addInEdge(PDGEdgeType inEdge) override
     {
         assert(false);
     }
 
-    virtual bool addOutDataEdge(PDGEdgeType outEdge) override
+    virtual bool addOutEdge(PDGEdgeType outEdge) override
     {
         assert(false);
     }
@@ -165,12 +165,7 @@ public:
         return NodeType::NullNode;
     }
 
-    virtual bool addInDataEdge(PDGEdgeType inEdge) override
-    {
-        assert(false);
-    }
-
-    virtual bool addInControlEdge(PDGEdgeType inEdge) override
+    virtual bool addInEdge(PDGEdgeType inEdge) override
     {
         assert(false);
     }

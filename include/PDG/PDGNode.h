@@ -41,152 +41,80 @@ public:
 public:
     virtual NodeType getNodeType() const = 0;
 
-    const PDGEdges& getInDataEdges() const
+    const PDGEdges& getInEdges() const
     {
-        return m_inDataEdges;
+        return m_inEdges;
     }
 
-    const PDGEdges& getOutDataEdges() const
+    const PDGEdges& getOutEdges() const
     {
-        return m_outDataEdges;
+        return m_outEdges;
     }
 
-    const PDGEdges& getInControlEdges() const
+    virtual bool addInEdge(PDGEdgeType inEdge)
     {
-        return m_inControlEdges;
+        return m_inEdges.insert(inEdge).second;
     }
 
-    const PDGEdges& getOutControlEdges() const
+    virtual bool addOutEdge(PDGEdgeType outEdge)
     {
-        return m_outControlEdges;
+        return m_outEdges.insert(outEdge).second;
     }
 
-    virtual bool addInDataEdge(PDGEdgeType inEdge)
+    virtual bool removeInEdge(PDGEdgeType inEdge)
     {
-        return m_inDataEdges.insert(inEdge).second;
+        m_inEdges.erase(inEdge);
     }
 
-    virtual bool addOutDataEdge(PDGEdgeType outEdge)
+    virtual bool removeOutEdge(PDGEdgeType outEdge)
     {
-        return m_outDataEdges.insert(outEdge).second;
-    }
-
-    virtual bool addInControlEdge(PDGEdgeType inEdge)
-    {
-        return m_inControlEdges.insert(inEdge).second;
-    }
-
-    virtual bool addOutControlEdge(PDGEdgeType outEdge)
-    {
-        return m_outControlEdges.insert(outEdge).second;
-    }
-
-    virtual bool removeInDataEdge(PDGEdgeType inEdge)
-    {
-        m_inDataEdges.erase(inEdge);
-    }
-
-    virtual bool removeOutDataEdge(PDGEdgeType outEdge)
-    {
-        m_outDataEdges.erase(outEdge);
-    }
-
-    virtual bool removeInControlEdge(PDGEdgeType inEdge)
-    {
-        m_inControlEdges.erase(inEdge);
-    }
-
-    virtual bool removeOutControlEdge(PDGEdgeType outEdge)
-    {
-        m_outControlEdges.erase(outEdge);
+        m_outEdges.erase(outEdge);
     }
 
 public:
-    iterator inDataEdgesBegin()
+    iterator inEdgesBegin()
     {
-        return m_inDataEdges.begin();
+        return m_inEdges.begin();
     }
 
-    iterator inDataEdgesEnd()
+    iterator inEdgesEnd()
     {
-        return m_inDataEdges.end();
+        return m_inEdges.end();
     }
 
-    iterator outDataEdgesBegin()
+    iterator outEdgesBegin()
     {
-        return m_outDataEdges.begin();
+        return m_outEdges.begin();
     }
 
-    iterator outDataEdgesEnd()
+    iterator outEdgesEnd()
     {
-        return m_outDataEdges.end();
+        return m_outEdges.end();
     }
 
-    iterator inControlEdgesBegin()
+    const_iterator inEdgesBegin() const
     {
-        return m_inControlEdges.begin();
+        return m_inEdges.begin();
     }
 
-    iterator inControlEdgesEnd()
+    const_iterator inEdgesEnd() const
     {
-        return m_inControlEdges.end();
+        return m_inEdges.end();
     }
 
-    iterator outControlEdgesBegin()
+    const_iterator outEdgesBegin() const
     {
-        return m_outControlEdges.begin();
+        return m_outEdges.begin();
     }
 
-    iterator outControlEdgesEnd()
+    const_iterator outEdgesEnd() const
     {
-        return m_outControlEdges.end();
-    }
-
-    const_iterator inDataEdgesBegin() const
-    {
-        return m_inDataEdges.begin();
-    }
-
-    const_iterator inDataEdgesEnd() const
-    {
-        return m_inDataEdges.end();
-    }
-
-    const_iterator outDataEdgesBegin() const
-    {
-        return m_outDataEdges.begin();
-    }
-
-    const_iterator outDataEdgesEnd() const
-    {
-        return m_outDataEdges.end();
-    }
-
-    const_iterator inControlEdgesBegin() const
-    {
-        return m_inControlEdges.begin();
-    }
-
-    const_iterator inControlEdgesEnd() const
-    {
-        return m_inControlEdges.end();
-    }
-
-    const_iterator outControlEdgesBegin() const
-    {
-        return m_outControlEdges.begin();
-    }
-
-    const_iterator outControlEdgesEnd() const
-    {
-        return m_outControlEdges.end();
+        return m_outEdges.end();
     }
 
 private:
-    PDGEdges m_inDataEdges;
-    PDGEdges m_outDataEdges;
-    PDGEdges m_inControlEdges;
-    PDGEdges m_outControlEdges;
+    PDGEdges m_inEdges;
+    PDGEdges m_outEdges;
 }; // class PDGNode
 
 } // namespace pdg

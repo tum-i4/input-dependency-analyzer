@@ -16,7 +16,7 @@ public:
     using PDGLLVMArgumentNodes = std::unordered_map<llvm::Argument*, ArgNodeTy>;
     using PDGLLVMNodes = std::unordered_map<llvm::Value*, PDGNodeTy>;
     using PDGSVFGNodes = std::unordered_map<SVFGNode*, PDGNodeTy>;
-    using PDGNodes = std::vector<PDGNodeTy>;
+    using PDGNodes = std::vector<PDGNode*>;
     using arg_iterator = PDGLLVMArgumentNodes::iterator;
     using arg_const_iterator = PDGLLVMArgumentNodes::const_iterator;
     using llvm_iterator = PDGLLVMNodes::iterator;
@@ -104,7 +104,7 @@ public:
     {
         auto res = m_formalArgNodes.insert(std::make_pair(arg, argNode));
         if (res.second) {
-            m_functionNodes.push_back(res.first->second);
+            m_functionNodes.push_back(res.first->second.get());
         }
         return res.second;
     }
@@ -115,7 +115,7 @@ public:
         }
         auto res = m_formalArgNodes.insert(std::make_pair(arg, ArgNodeTy(new PDGLLVMFormalArgumentNode(arg))));
         assert(res.second);
-        m_functionNodes.push_back(res.first->second);
+        m_functionNodes.push_back(res.first->second.get());
         return true;
     }
 
@@ -123,7 +123,7 @@ public:
     {
         auto res = m_functionLLVMNodes.insert(std::make_pair(val, node));
         if (res.second) {
-            m_functionNodes.push_back(res.first->second);
+            m_functionNodes.push_back(res.first->second.get());
         }
         return res.second;
     }
@@ -131,7 +131,7 @@ public:
     {
         auto res = m_functionSVFGNodes.insert(std::make_pair(node, svfgNode));
         if (res.second) {
-            m_functionNodes.push_back(res.first->second);
+            m_functionNodes.push_back(res.first->second.get());
         }
         return res.second;
     }

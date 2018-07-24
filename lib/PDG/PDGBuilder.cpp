@@ -19,11 +19,11 @@ namespace pdg {
 PDGBuilder::PDGBuilder(llvm::Module* M,
                        SVFG* svfg,
                        PointerAnalysis* pta,
-                       llvm::MemorySSA& ssa)
+                       const FunctionMemSSAGetter& ssaGetter)
     : m_module(M)
     , m_svfg(svfg)
     , m_pta(pta)
-    , m_memorySSA(ssa)
+    , m_memSSAGetter(ssaGetter)
 {
 }
 
@@ -33,6 +33,7 @@ void PDGBuilder::build()
     visitGlobals();
 
     for (auto& F : *m_module) {
+        m_memorySSA = m_memSSAGetter(&F);
         buildFunctionPDG(&F);
         m_currentFPDG.reset();
     }
@@ -244,7 +245,7 @@ void PDGBuilder::addControlEdge(PDGNodeTy source, PDGNodeTy dest)
 PDGBuilder::PDGNodeTy PDGBuilder::processLLVMSSADef(llvm::Instruction& I)
 {
     // connect I to its defs using llvm MemorySSA
-    llvm::MemoryAccess* memAccess = m_memorySSA.getMemoryAccess(&I);
+    llvm::MemoryAccess* memAccess = m_memorySSA->getMemoryAccess(&I);
     if (!memAccess) {
         return PDGNodeTy();
     }
@@ -275,6 +276,9 @@ PDGBuilder::PDGNodeTy PDGBuilder::processSVFGDef(llvm::Instruction& I)
     auto nodeId = pag->getValueNode(&I);
     auto* pagNode = pag->getPAGNode(nodeId);
     if (!pagNode) {
+        return PDGNodeTy();
+    }
+    if (!m_svfg->hasSVFGNode(pagNode->getId())) {
         return PDGNodeTy();
     }
     const SVFGNode* defNode = m_svfg->getDefSVFGNode(pagNode);

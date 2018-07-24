@@ -9,6 +9,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 
 namespace pdg {
 
@@ -32,6 +33,18 @@ public:
         return NodeType::UnknownNode;
     }
 
+public:
+    static bool isLLVMNodeType(NodeType nodeType)
+    {
+        return nodeType == NodeType::UnknownNode
+            || (nodeType >= NodeType::InstructionNode && nodeType <= NodeType::NullNode);
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return isLLVMNodeType(node->getNodeType());
+    }
+
 private:
     llvm::Value* m_value;
 }; // class PDGLLVMNode
@@ -48,6 +61,18 @@ public:
     {
         return NodeType::InstructionNode;
     }
+
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::InstructionNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
+
 }; // class PDGInstructionNode
 
 class PDGLLVMFormalArgumentNode : public PDGLLVMNode
@@ -62,6 +87,18 @@ public:
     {
         return NodeType::FormalArgumentNode;
     }
+
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::FormalArgumentNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
+
 }; // class PDGArgumentNode
 
 class PDGLLVMActualArgumentNode : public PDGLLVMNode
@@ -76,6 +113,17 @@ public:
     NodeType getNodeType() const override
     {
         return NodeType::ActualArgumentNode;
+    }
+
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::ActualArgumentNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
 
 private:
@@ -96,6 +144,16 @@ public:
         return NodeType::GlobalVariableNode;
     }
 
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::GlobalVariableNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
 }; // class PDGGlobalVariableNodeNode
 
 class PDGLLVMConstantExprNode : public PDGLLVMNode
@@ -111,6 +169,16 @@ public:
         return NodeType::ConstantExprNode;
     }
 
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::ConstantExprNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
 }; // class PDGConstantExprNode
 
 class PDGLLVMConstantNode : public PDGLLVMNode
@@ -126,6 +194,21 @@ public:
         return NodeType::ConstantNode;
     }
 
+    virtual bool addInEdge(PDGEdgeType inEdge) override
+    {
+        assert(false);
+    }
+
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::ConstantNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
 }; // class PDGConstantNode
 
 class PDGLLVMBasicBlockNode : public PDGLLVMNode
@@ -141,14 +224,20 @@ public:
         return NodeType::BasicBlockNode;
     }
 
-    virtual bool addInEdge(PDGEdgeType inEdge) override
+    virtual bool addOutEdge(PDGEdgeType outEdge) override
     {
         assert(false);
     }
 
-    virtual bool addOutEdge(PDGEdgeType outEdge) override
+public:
+    static bool classof(const PDGLLVMNode* node)
     {
-        assert(false);
+        return node->getNodeType() == NodeType::BasicBlockNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
 }; // class PDGLLVMBasicBlockNode
 
@@ -170,6 +259,16 @@ public:
         assert(false);
     }
 
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::NullNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
+    }
 }; // class PDGNullNode
 
 
@@ -185,6 +284,17 @@ public:
     virtual NodeType getNodeType() const override
     {
         return NodeType::LLVMMemoryPhiNode;
+    }
+
+public:
+    static bool classof(const PDGLLVMNode* node)
+    {
+        return node->getNodeType() == NodeType::LLVMMemoryPhiNode;
+    }
+
+    static bool classof(const PDGNode* node)
+    {
+        return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
 }; // class PDGLLVMemoryAccessNode
 

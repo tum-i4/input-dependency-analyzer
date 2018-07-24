@@ -1,5 +1,6 @@
 add_library(PDG MODULE
         PDG/PDGBuilder.cpp
+        Debug/PDGPrinter.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

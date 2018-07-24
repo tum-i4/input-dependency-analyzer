@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <unordered_set>
+#include <functional>
 
 class SVFG;
 class SVFGNode;
@@ -31,12 +32,13 @@ public:
     using FunctionPDGTy = PDG::FunctionPDGTy;
     using PDGNodeTy = FunctionPDG::PDGNodeTy;
     using FunctionSet = std::unordered_set<llvm::Function*>;
+    using FunctionMemSSAGetter = std::function<llvm::MemorySSA* (llvm::Function*)>;
 
 public:
     PDGBuilder(llvm::Module* M,
                SVFG* svfg,
                PointerAnalysis* pta,
-               llvm::MemorySSA& ssa);
+               const FunctionMemSSAGetter& ssaGetter);
 
     virtual ~PDGBuilder() = default;
     PDGBuilder(const PDGBuilder& ) = delete;
@@ -99,7 +101,8 @@ private:
     llvm::Module* m_module;
     SVFG* m_svfg;
     PointerAnalysis* m_pta;
-    llvm::MemorySSA& m_memorySSA;
+    FunctionMemSSAGetter m_memSSAGetter;
+    llvm::MemorySSA* m_memorySSA;
     PDGType m_pdg;
     FunctionPDGTy m_currentFPDG;
 }; // class PDGBuilder

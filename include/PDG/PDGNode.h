@@ -24,9 +24,9 @@ public:
         ConstantNode,
         BasicBlockNode,
         NullNode,
+        LLVMMemoryPhiNode,
         PhiSvfgNode,
         MssaPhiSvfgNode,
-        LLVMMemoryPhiNode,
         UnknownNode
     };
 

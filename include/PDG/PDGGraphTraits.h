@@ -1,10 +1,13 @@
 #pragma once
 
+#include "PDG/PDGEdge.h"
 #include "PDG/PDGNode.h"
+#include "PDG/PDGLLVMNode.h"
 #include "PDG/FunctionPDG.h"
 
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/Support/DOTGraphTraits.h"	// for dot graph traits
+#include "llvm/ADT/STLExtras.h"			// for mapped_iter
 
 using namespace pdg;
 
@@ -13,22 +16,27 @@ namespace llvm {
 /*!
  * GraphTraits for nodes
  */
-template<> struct GraphTraits<PDGNode>
+template<> struct GraphTraits<PDGNode*>
 {
-    typedef PDGEdge::PDGNodeTy NodeType;
+    typedef PDGNode NodeType;
+    typedef PDGNode* NodeRef;
     typedef PDGNode::PDGEdgeType EdgeType;
 
-    typedef PDGNode::PDGEdges::iterator ChildIteratorType;
+    typedef std::pointer_to_unary_function<EdgeType, NodeRef> DerefEdge;
+    typedef mapped_iterator<PDGNode::iterator, DerefEdge> ChildIteratorType;
 
-    static NodeType* getEntryNode(NodeType* pdgN) {
+    static NodeRef getEntryNode(NodeType* pdgN) {
         return pdgN;
     }
 
-    static inline ChildIteratorType child_begin(const NodeType* N) {
-        return N->outEdgesBegin();
+    static inline ChildIteratorType child_begin(NodeType* N) {
+        return map_iterator(N->outEdgesBegin(), DerefEdge(edgeDereference));
     }
-    static inline ChildIteratorType child_end(const NodeType* N) {
-        return N->outEdgesEnd();
+    static inline ChildIteratorType child_end(NodeType* N) {
+        return map_iterator(N->outEdgesEnd(), DerefEdge(edgeDereference));
+    }
+    static NodeRef edgeDereference(EdgeType edge) {
+        return edge->getDestination().get();
     }
 };
 
@@ -36,36 +44,39 @@ template<> struct GraphTraits<PDGNode>
  * Inverse GraphTraits for node which is used for inverse traversal.
  */
 template<>
-struct GraphTraits<Inverse<PDGNode> >
+struct GraphTraits<Inverse<PDGNode*> >
 {
-    typedef PDGEdge::PDGNodeTy NodeType;
+    typedef PDGNode NodeType;
+    typedef PDGNode* NodeRef;
     typedef PDGNode::PDGEdgeType EdgeType;
 
-    typedef PDGNode::PDGEdges::iterator ChildIteratorType;
+    typedef std::pointer_to_unary_function<EdgeType, NodeRef> DerefEdge;
+    typedef mapped_iterator<PDGNode::iterator, DerefEdge> ChildIteratorType;
 
-    static inline NodeType* getEntryNode(Inverse<NodeType* > G) {
+    static inline NodeRef getEntryNode(Inverse<NodeType* > G) {
         return G.Graph;
     }
 
-    static inline ChildIteratorType child_begin(const NodeType* N) {
-        return N.inEdgesBegin();
+    static inline ChildIteratorType child_begin(NodeType* N) {
+        return map_iterator(N->inEdgesBegin(), DerefEdge(edgeDereference));
     }
-    static inline ChildIteratorType child_end(const NodeType* N) {
-        return N.inEdgesEnd();
+    static inline ChildIteratorType child_end(NodeType* N) {
+        return map_iterator(N->inEdgesEnd(), DerefEdge(edgeDereference));
+    }
+    static NodeRef edgeDereference(EdgeType edge) {
+        return edge->getSource().get();
     }
 };
 
 /*!
  * GraphTraints
  */
-//template<class NodeTy,class EdgeTy> struct GraphTraits<GenericGraph<NodeTy,EdgeTy>* > : public GraphTraits<GenericNode<NodeTy,EdgeTy>*  > {
-template<> struct GraphTraits<FunctionPDG> {
-    typedef GenericGraph<NodeTy,EdgeTy> GenericGraphTy;
-    typedef FunctionPDG::PDGNodeTy NodeType;
+template<> struct GraphTraits<FunctionPDG*> : public GraphTraits<PDGNode*> {
 
-    static NodeType* getEntryNode(FunctionPDG* pdg) {
-        return NULL; // return null here, maybe later we could create a dummy node
+    static NodeRef getEntryNode(FunctionPDG* pdg) {
+        return nullptr; // return null here, maybe later we could create a dummy node
     }
+
     typedef FunctionPDG::iterator nodes_iterator;
 
     static nodes_iterator nodes_begin(FunctionPDG *G) {
@@ -83,9 +94,15 @@ template<> struct GraphTraits<FunctionPDG> {
 /*!
  * Write value flow graph into dot file for debugging
  */
+// TODO: move to cpp file
 template<>
 struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
 {
+    typedef GraphTraits<FunctionPDG*>::NodeType NodeType;
+    typedef GraphTraits<FunctionPDG*>::NodeRef NodeRef;
+    typedef GraphTraits<FunctionPDG*>::EdgeType EdgeType;
+    typedef GraphTraits<FunctionPDG*>::ChildIteratorType ChildIteratorType;
+
     DOTGraphTraits(bool isSimple = false)
         : DefaultDOTGraphTraits(isSimple)
     {
@@ -96,24 +113,55 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
         return graph->getGraphName();
     }
 
-    static std::string getNodeLabel(FunctionPDG::PDGNodeTy node, FunctionPDG* graph)
+    static std::string getNodeLabel(NodeRef node, FunctionPDG* graph)
     {
-        return "nodeLabel";
+        std::string str;
+        raw_string_ostream rawstr(str);
+        if (pdg::PDGLLVMBasicBlockNode* bbNode = llvm::dyn_cast<pdg::PDGLLVMBasicBlockNode>(node)) {
+            auto* nodeValue = llvm::dyn_cast<llvm::BasicBlock>(bbNode->getNodeValue());
+            assert(nodeValue);
+            rawstr << nodeValue->getName();
+        } else if (pdg::PDGNullNode* nullNode = llvm::dyn_cast<pdg::PDGNullNode>(node)) {
+            rawstr << "Null";
+        } else if (pdg::PDGLLVMNode* llvmNode = llvm::dyn_cast<pdg::PDGLLVMNode>(node)) {
+            rawstr << *llvmNode->getNodeValue();
+        } else if (pdg::PDGSVFGNode* svfgNode = llvm::dyn_cast<pdg::PDGSVFGNode>(node)) {
+            // TODO: change with more meaningful data such as real underlying value.
+            // Check SVFG DOTGraphTraits as an example
+            rawstr << svfgNode->getSVFGNode()->getId();
+        } else {
+            rawstr << "N/A";
+        }
+        return rawstr.str();
     }
 
-    static std::string getNodeAttributes(FunctionPDG::PDGNodeTy node, FunctionPDG* graph)
+    static std::string getNodeAttributes(NodeRef node, FunctionPDG* graph)
     {
-        return "nodeAttributes";
+        if (llvm::isa<PDGLLVMBasicBlockNode>(node)) {
+            return "color=black,style=dotted";
+        } else if (llvm::isa<PDGLLVMNode>(node)) {
+            return "color=black";
+        } else if (llvm::isa<PDGSVFGNode>(node)) {
+            return "color=black,style=dashed";
+        }
+        assert(false);
+        return "";
     }
 
-    static std::string getEdgeAttributes(FunctionPDG::PDGNodeTy node, PDGNode::iterator edge_iter, FunctionPDG* graph)
+    static std::string getEdgeAttributes(NodeRef node, ChildIteratorType edge_iter, FunctionPDG* graph)
     {
-        return "edgeAttributes";
-    }
-
-    static std::string getEdgeSourceLabel(FunctionPDG::PDGNodeTy node, PDGNode::iterator edge_iter)
-    {
-        return "edgeSourceLabel";
+        EdgeType edge = *(edge_iter.getCurrent());
+        if (edge->isDataEdge()) {
+            if (llvm::isa<pdg::PDGLLVMFormalArgumentNode>(edge->getDestination().get())) {
+                return "color=green";
+            } else {
+                return "color=black";
+            }
+        } else if (edge->isControlEdge()) {
+            return "color=blue";
+        }
+        assert(false);
+        return "";
     }
 };
 

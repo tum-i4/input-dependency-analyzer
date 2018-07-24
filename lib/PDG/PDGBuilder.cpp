@@ -107,6 +107,7 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
     // TODO: output this for debug mode only
     llvm::dbgs() << "Load Inst: " << I << "\n";
     auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
+    m_currentFPDG->addNode(&I, destNode);
     if (auto sourceNode = processSVFGDef(I)) {
         addDataEdge(sourceNode, destNode);
         return;

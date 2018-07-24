@@ -41,7 +41,10 @@ public:
         pdg::PDGBuilder::FunctionMemSSAGetter memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
             return &this->getAnalysis<llvm::MemorySSAWrapperPass>(*F).getMSSA();
         };
-        AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(SVFModule(M));
+        SVFModule svfM(M);
+        AndersenWaveDiff* ander = new AndersenWaveDiff();
+        ander->disablePrintStat();
+        ander->analyze(svfM);
         SVFGBuilder memSSA(true);
         SVFG *svfg = memSSA.buildSVFG((BVDataPTAImpl*)ander);
 

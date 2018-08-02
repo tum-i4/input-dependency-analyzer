@@ -2,7 +2,6 @@
 
 #include "PDGNode.h"
 
-#include "llvm/Analysis/MemorySSA.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
@@ -16,50 +15,65 @@ namespace pdg {
 class PDGLLVMNode : public PDGNode
 {
 public:
-    explicit PDGLLVMNode(llvm::Value* node_value)
+    enum NodeType : unsigned {
+        InstructionNode = 0,
+        FormalArgumentNode,
+        ActualArgumentNode,
+        GlobalVariableNode,
+        ConstantExprNode,
+        ConstantNode,
+        BasicBlockNode,
+        NullNode,
+        PhiNode,
+        UnknownNode
+    };
+
+public:
+    explicit PDGLLVMNode(llvm::Value* node_value, NodeType type = UnknownNode)
         : m_value(node_value)
+        , m_type(type)
     {
     }
 
     virtual ~PDGLLVMNode() = default;
 
+public:
+    virtual unsigned getNodeType() const override
+    {
+        return m_type;
+    }
+
+    virtual std::string getNodeAsString() const override;
+
+public:
     llvm::Value* getNodeValue() const
     {
         return m_value;
-    }
-
-    virtual NodeType getNodeType() const override
-    {
-        return NodeType::UnknownNode;
     }
 
 public:
     static bool isLLVMNodeType(NodeType nodeType)
     {
         return nodeType == NodeType::UnknownNode
-            || (nodeType >= NodeType::InstructionNode && nodeType <= NodeType::NullNode);
+            || (nodeType >= NodeType::InstructionNode && nodeType <= NodeType::PhiNode);
     }
 
     static bool classof(const PDGNode* node)
     {
-        return isLLVMNodeType(node->getNodeType());
+        return isLLVMNodeType((NodeType) node->getNodeType());
     }
 
 private:
     llvm::Value* m_value;
+    NodeType m_type;
 }; // class PDGLLVMNode
 
 class PDGLLVMInstructionNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMInstructionNode(llvm::Instruction* instr)
-        : PDGLLVMNode(instr)
+        : PDGLLVMNode(instr, NodeType::InstructionNode)
     {
-    }
-
-    NodeType getNodeType() const override
-    {
-        return NodeType::InstructionNode;
     }
 
 public:
@@ -79,13 +93,15 @@ class PDGLLVMFormalArgumentNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMFormalArgumentNode(llvm::Argument* arg)
-        : PDGLLVMNode(arg)
+        : PDGLLVMNode(arg, NodeType::FormalArgumentNode)
+        , m_function(arg->getParent())
     {
     }
 
-    NodeType getNodeType() const override
+public:
+    llvm::Function* getFunction() const
     {
-        return NodeType::FormalArgumentNode;
+        return m_function;
     }
 
 public:
@@ -99,20 +115,23 @@ public:
         return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
 
+private:
+    llvm::Function* m_function;
 }; // class PDGArgumentNode
 
 class PDGLLVMActualArgumentNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMActualArgumentNode(llvm::CallSite& callSite, llvm::Value* actualArg)
-        : PDGLLVMNode(actualArg)
+        : PDGLLVMNode(actualArg, NodeType::ActualArgumentNode)
         , m_callSite(callSite)
     {
     }
 
-    NodeType getNodeType() const override
+public:
+    const llvm::CallSite& getCallSite() const
     {
-        return NodeType::ActualArgumentNode;
+        return m_callSite;
     }
 
 public:
@@ -135,13 +154,8 @@ class PDGLLVMGlobalVariableNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMGlobalVariableNode(llvm::GlobalVariable* var)
-        : PDGLLVMNode(var)
+        : PDGLLVMNode(var, NodeType::GlobalVariableNode)
     {
-    }
-
-    NodeType getNodeType() const override
-    {
-        return NodeType::GlobalVariableNode;
     }
 
 public:
@@ -160,13 +174,8 @@ class PDGLLVMConstantExprNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMConstantExprNode(llvm::ConstantExpr* expr)
-        : PDGLLVMNode(expr)
+        : PDGLLVMNode(expr, NodeType::ConstantExprNode)
     {
-    }
-
-    NodeType getNodeType() const override
-    {
-        return NodeType::ConstantExprNode;
     }
 
 public:
@@ -185,13 +194,8 @@ class PDGLLVMConstantNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMConstantNode(llvm::Constant* constant)
-        : PDGLLVMNode(constant)
+        : PDGLLVMNode(constant, NodeType::ConstantNode)
     {
-    }
-
-    NodeType getNodeType() const override
-    {
-        return NodeType::ConstantNode;
     }
 
     virtual bool addInEdge(PDGEdgeType inEdge) override
@@ -215,18 +219,25 @@ class PDGLLVMBasicBlockNode : public PDGLLVMNode
 {
 public:
     explicit PDGLLVMBasicBlockNode(llvm::BasicBlock* block)
-        : PDGLLVMNode(llvm::dyn_cast<llvm::Value>(block))
+        : PDGLLVMNode(llvm::dyn_cast<llvm::Value>(block), NodeType::BasicBlockNode)
+        , m_block(block)
     {
     }
 
-    NodeType getNodeType() const override
+public:
+    virtual std::string getNodeAsString() const override
     {
-        return NodeType::BasicBlockNode;
+        return m_block->getName();
     }
 
     virtual bool addOutEdge(PDGEdgeType outEdge) override
     {
         assert(false);
+    }
+
+    llvm::BasicBlock* getBlock() const
+    {
+        return m_block;
     }
 
 public:
@@ -239,24 +250,28 @@ public:
     {
         return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
+
+private:
+    llvm::BasicBlock* m_block;
 }; // class PDGLLVMBasicBlockNode
 
 class PDGNullNode : public PDGLLVMNode
 {
 public:
     PDGNullNode()
-        : PDGLLVMNode(nullptr)
+        : PDGLLVMNode(nullptr, NodeType::NullNode)
     {
     }
 
-    NodeType getNodeType() const override
-    {
-        return NodeType::NullNode;
-    }
-
+public:
     virtual bool addInEdge(PDGEdgeType inEdge) override
     {
         assert(false);
+    }
+
+    virtual std::string getNodeAsString() const override
+    {
+        return "Null";
     }
 
 public:
@@ -272,31 +287,52 @@ public:
 }; // class PDGNullNode
 
 
-// TODO: For now use PDGLLVMNode as base class, as expecting to have for MemoryPhi only
-class PDGLLVMemoryAccessNode : public PDGLLVMNode
+class PDGPhiNode : public PDGLLVMNode
 {
 public:
-    explicit PDGLLVMemoryAccessNode(llvm::MemoryPhi* memPhi)
-        : PDGLLVMNode(memPhi)
+    using Values = std::vector<llvm::Value*>;
+    using Blocks = std::vector<llvm::BasicBlock*>;
+
+public:
+    PDGPhiNode(const Values& values, const Blocks& blocks)
+        : PDGLLVMNode(nullptr, NodeType::PhiNode)
     {
     }
 
-    virtual NodeType getNodeType() const override
+public:
+    virtual std::string getNodeAsString() const override;
+
+public:
+    unsigned getNumValues() const
     {
-        return NodeType::LLVMMemoryPhiNode;
+        return m_values.size();
+    }
+
+    llvm::Value* getValue(unsigned i) const
+    {
+        return m_values[i];
+    }
+
+    llvm::BasicBlock* getBlock(unsigned i) const
+    {
+        return m_blocks[i];
     }
 
 public:
     static bool classof(const PDGLLVMNode* node)
     {
-        return node->getNodeType() == NodeType::LLVMMemoryPhiNode;
+        return node->getNodeType() == NodeType::PhiNode;
     }
 
     static bool classof(const PDGNode* node)
     {
         return llvm::isa<PDGLLVMNode>(node) && classof(llvm::cast<PDGLLVMNode>(node));
     }
-}; // class PDGLLVMemoryAccessNode
+
+private:
+    Values m_values;
+    Blocks m_blocks;
+}; // class PDGPhiNode
 
 } // namespace pdg
 

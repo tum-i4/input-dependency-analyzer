@@ -15,21 +15,6 @@ public:
     using iterator = PDGEdges::iterator;
     using const_iterator = PDGEdges::const_iterator;
 
-    enum NodeType : unsigned {
-        InstructionNode,
-        FormalArgumentNode,
-        ActualArgumentNode,
-        GlobalVariableNode,
-        ConstantExprNode,
-        ConstantNode,
-        BasicBlockNode,
-        NullNode,
-        LLVMMemoryPhiNode,
-        PhiSvfgNode,
-        MssaPhiSvfgNode,
-        UnknownNode
-    };
-
 public:
     PDGNode() = default;
     virtual ~PDGNode() = default;
@@ -38,9 +23,12 @@ public:
     PDGNode& operator =(const PDGNode&) = delete;
     PDGNode& operator =(PDGNode&&) = delete;
 
+/// Virtual interface
 public:
-    virtual NodeType getNodeType() const = 0;
+    virtual unsigned getNodeType() const = 0;
+    virtual std::string getNodeAsString() const = 0;
 
+public:
     const PDGEdges& getInEdges() const
     {
         return m_inEdges;

@@ -270,6 +270,7 @@ PDGBuilder::PDGNodeTy PDGBuilder::processLLVMSSADef(llvm::Instruction& I)
 
 PDGBuilder::PDGNodeTy PDGBuilder::processSVFGDef(llvm::Instruction& I)
 {
+    /*
     auto* pag = m_svfg->getPAG();
     if (!pag->hasValueNode(&I)) {
         return PDGNodeTy();
@@ -288,6 +289,8 @@ PDGBuilder::PDGNodeTy PDGBuilder::processSVFGDef(llvm::Instruction& I)
     }
     auto sourceNode = getNodeFor(const_cast<SVFGNode*>(defNode));
     return sourceNode;
+    */
+    return PDGNodeTy();
 }
 
 PDGBuilder::PDGNodeTy PDGBuilder::getInstructionNodeFor(llvm::Instruction* instr)
@@ -335,9 +338,14 @@ PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::BasicBlock* block)
     return m_currentFPDG->getNode(block);
 }
 
+// TODO: create phinode, don't flatten it
 PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::MemoryPhi* memPhi)
 {
-    auto memPhiNode = PDGNodeTy(new PDGLLVMemoryAccessNode(memPhi));
+    /*
+    if (!m_currentFPDG->hasNode(memPhi)) {
+        m_currentFPDG->addNode(memPhi, PDGNodeTy(new PDGLLVMemoryAccessNode(memPhi)));
+    }
+    auto memPhiNode = m_currentFPDG->getNode(memPhi);
     for (int i = 0; i < memPhi->getNumIncomingValues(); ++i) {
         llvm::MemoryAccess* incomingVal = memPhi->getIncomingValue(i);
         PDGNodeTy incomNode;
@@ -350,11 +358,13 @@ PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::MemoryPhi* memPhi)
             addDataEdge(incomNode, memPhiNode);
         }
     }
-    return memPhiNode;
+    */
+    return PDGNodeTy();
 }
 
 PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(SVFGNode* svfgNode)
 {
+    /*
     if (auto* stmtNode = llvm::dyn_cast<StmtSVFGNode>(svfgNode)) {
         llvm::Instruction* instr = const_cast<llvm::Instruction*>(stmtNode->getInst());
         return getInstructionNodeFor(instr);
@@ -421,6 +431,7 @@ PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(SVFGNode* svfgNode)
         return mssaPhiNode;
     }
     assert(false);
+    */
     return PDGNodeTy();
 }
 

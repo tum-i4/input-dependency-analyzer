@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "PDGLLVMNode.h"
-#include "PDGSVFGNode.h"
 
 namespace pdg {
 class FunctionPDG
@@ -15,7 +14,6 @@ public:
     using PDGNodeTy = std::shared_ptr<PDGNode>;
     using PDGLLVMArgumentNodes = std::unordered_map<llvm::Argument*, ArgNodeTy>;
     using PDGLLVMNodes = std::unordered_map<llvm::Value*, PDGNodeTy>;
-    using PDGSVFGNodes = std::unordered_map<SVFGNode*, PDGNodeTy>;
     using PDGNodes = std::vector<PDGNode*>;
     using arg_iterator = PDGLLVMArgumentNodes::iterator;
     using arg_const_iterator = PDGLLVMArgumentNodes::const_iterator;
@@ -66,10 +64,6 @@ public:
     {
         return m_functionLLVMNodes.find(value) != m_functionLLVMNodes.end();
     }
-    bool hasNode(SVFGNode* svfgNode) const
-    {
-        return m_functionSVFGNodes.find(svfgNode) != m_functionSVFGNodes.end();
-    }
 
     ArgNodeTy getFormalArgNode(llvm::Argument* arg)
     {
@@ -89,15 +83,6 @@ public:
     const PDGNodeTy getNode(llvm::Value* val) const
     {
         return const_cast<FunctionPDG*>(this)->getNode(val);
-    }
-    PDGNodeTy getNode(SVFGNode* node)
-    {
-        assert(hasNode(node));
-        return m_functionSVFGNodes.find(node)->second;
-    }
-    const PDGNodeTy getNode(SVFGNode* node) const
-    {
-        return const_cast<FunctionPDG*>(this)->getNode(node);
     }
 
     bool addFormalArgNode(llvm::Argument* arg, ArgNodeTy argNode)
@@ -122,14 +107,6 @@ public:
     bool addNode(llvm::Value* val, PDGNodeTy node)
     {
         auto res = m_functionLLVMNodes.insert(std::make_pair(val, node));
-        if (res.second) {
-            m_functionNodes.push_back(res.first->second.get());
-        }
-        return res.second;
-    }
-    bool addNode(SVFGNode* node, PDGNodeTy svfgNode)
-    {
-        auto res = m_functionSVFGNodes.insert(std::make_pair(node, svfgNode));
         if (res.second) {
             m_functionNodes.push_back(res.first->second.get());
         }
@@ -204,7 +181,6 @@ private:
     PDGLLVMArgumentNodes m_formalArgNodes;
     // TODO: formal ins, formal outs? formal vaargs?
     PDGLLVMNodes m_functionLLVMNodes;
-    PDGSVFGNodes m_functionSVFGNodes;
     PDGNodes m_functionNodes;
 }; // class FunctionPDG
 

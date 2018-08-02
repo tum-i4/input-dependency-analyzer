@@ -20,6 +20,7 @@ class MemorySSA;
 class Module;
 class Function;
 class Value;
+class MemoryPhi;
 
 }
 

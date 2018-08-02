@@ -115,24 +115,7 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
 
     static std::string getNodeLabel(NodeRef node, FunctionPDG* graph)
     {
-        std::string str;
-        raw_string_ostream rawstr(str);
-        if (pdg::PDGLLVMBasicBlockNode* bbNode = llvm::dyn_cast<pdg::PDGLLVMBasicBlockNode>(node)) {
-            auto* nodeValue = llvm::dyn_cast<llvm::BasicBlock>(bbNode->getNodeValue());
-            assert(nodeValue);
-            rawstr << nodeValue->getName();
-        } else if (pdg::PDGNullNode* nullNode = llvm::dyn_cast<pdg::PDGNullNode>(node)) {
-            rawstr << "Null";
-        } else if (pdg::PDGLLVMNode* llvmNode = llvm::dyn_cast<pdg::PDGLLVMNode>(node)) {
-            rawstr << *llvmNode->getNodeValue();
-        } else if (pdg::PDGSVFGNode* svfgNode = llvm::dyn_cast<pdg::PDGSVFGNode>(node)) {
-            // TODO: change with more meaningful data such as real underlying value.
-            // Check SVFG DOTGraphTraits as an example
-            rawstr << svfgNode->getSVFGNode()->getId();
-        } else {
-            rawstr << "N/A";
-        }
-        return rawstr.str();
+        return node->getNodeAsString();
     }
 
     static std::string getNodeAttributes(NodeRef node, FunctionPDG* graph)
@@ -141,8 +124,6 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
             return "color=black,style=dotted";
         } else if (llvm::isa<PDGLLVMNode>(node)) {
             return "color=black";
-        } else if (llvm::isa<PDGSVFGNode>(node)) {
-            return "color=black,style=dashed";
         }
         assert(false);
         return "";

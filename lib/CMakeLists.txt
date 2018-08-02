@@ -1,5 +1,6 @@
 add_library(PDG MODULE
         PDG/PDGBuilder.cpp
+        analysis/IndirectCallSitesAnalysis.cpp
         Debug/PDGPrinter.cpp
 )
 

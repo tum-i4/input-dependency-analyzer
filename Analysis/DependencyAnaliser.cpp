@@ -1183,7 +1183,7 @@ void DependencyAnaliser::updateLibFunctionCallOutArgDependencies(llvm::Function*
 ValueDepInfo DependencyAnaliser::getArgumentActualDependencies(const ArgumentSet& dependencies,
                                                                const ArgumentDependenciesMap& argDepInfo)
 {
-    ValueDepInfo info(DepInfo(DepInfo::INPUT_INDEP));
+    ValueDepInfo info{DepInfo(DepInfo::INPUT_INDEP)};
     for (const auto& arg : dependencies) {
         auto pos = argDepInfo.find(arg);
         if (pos == argDepInfo.end()) {

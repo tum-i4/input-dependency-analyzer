@@ -23,7 +23,6 @@ public:
     virtual ~DefUseResults() {}
 
     virtual PDGNodeTy getDefSite(llvm::Value* value) = 0;
-    virtual PDGNodes getDefSites(llvm::Value* value) = 0;
 }; // class DefUseResults
 
 } // namespace pdg

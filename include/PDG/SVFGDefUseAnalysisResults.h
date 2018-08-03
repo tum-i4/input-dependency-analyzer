@@ -18,7 +18,6 @@ public:
 
 public:
     virtual PDGNodeTy getDefSite(llvm::Value* value) override;
-    virtual PDGNodes getDefSites(llvm::Value* value) override;
 
 private:
     SVFG* m_svfg;

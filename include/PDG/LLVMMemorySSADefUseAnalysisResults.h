@@ -4,6 +4,9 @@
 
 namespace llvm {
 class MemorySSA;
+class MemoryPhi;
+class Value;
+class BasicBlock;
 }
 
 namespace pdg {
@@ -21,8 +24,11 @@ public:
 
 public:
     virtual PDGNodeTy getDefSite(llvm::Value* value) override;
-    virtual PDGNodes getDefSites(llvm::Value* value) override;
 
+private:
+    void getPhiValueAndBlocks(llvm::MemoryPhi* memPhi,
+                              std::vector<llvm::Value*>& values,
+                              std::vector<llvm::BasicBlock*>& blocks);
 private:
     llvm::MemorySSA* m_memorySSA;
 }; // class LLVMMemorySSADefUseAnalysisResults

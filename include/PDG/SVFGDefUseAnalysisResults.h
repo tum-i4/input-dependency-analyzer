@@ -3,6 +3,7 @@
 #include "PDG/DefUseResults.h"
 
 class SVFG;
+class SVFGNode;
 
 namespace pdg {
 
@@ -18,6 +19,9 @@ public:
 
 public:
     virtual PDGNodeTy getDefSite(llvm::Value* value) override;
+
+private:
+    PDGNodeTy getNode(const SVFGNode* svfgNode);
 
 private:
     SVFG* m_svfg;

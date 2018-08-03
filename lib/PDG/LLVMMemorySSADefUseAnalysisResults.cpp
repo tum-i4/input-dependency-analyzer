@@ -19,7 +19,7 @@ LLVMMemorySSADefUseAnalysisResults::LLVMMemorySSADefUseAnalysisResults(
 }
 
 // TODO: need to first check if node exists
-LLVMMemorySSADefUseAnalysisResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSite(llvm::Value* value)
+DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSite(llvm::Value* value)
 {
     llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(value);
     if (!instr) {

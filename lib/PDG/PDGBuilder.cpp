@@ -109,7 +109,11 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
     PDGNodeTy sourceNode;
     auto* sourceInst = m_ptDefUse->getDefSite(&I);
     if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
-        sourceNode = m_ptDefUse->getDefSiteNode(&I);
+        if (sourceNode = m_ptDefUse->getDefSiteNode(&I)) {
+            if (sourceInst) {
+                m_currentFPDG->addNode(sourceInst, sourceNode);
+            }
+        }
     } else {
         sourceNode = m_currentFPDG->getNode(sourceInst);
     }
@@ -119,7 +123,11 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
     }
     sourceInst = m_scalarDefUse->getDefSite(&I);
     if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
-        sourceNode = m_scalarDefUse->getDefSiteNode(&I);
+        if (sourceNode = m_scalarDefUse->getDefSiteNode(&I)) {
+            if (sourceInst) {
+                m_currentFPDG->addNode(sourceInst, sourceNode);
+            }
+        }
     } else {
         sourceNode = m_currentFPDG->getNode(sourceInst);
     }

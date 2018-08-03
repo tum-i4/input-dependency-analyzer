@@ -89,29 +89,62 @@ SVFGDefUseAnalysisResults::SVFGDefUseAnalysisResults(SVFG* svfg)
 {
 }
 
-DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getDefSite(llvm::Value* value)
+llvm::Value* SVFGDefUseAnalysisResults::getDefSite(llvm::Value* value)
 {
-    llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(value);
-    if (!instr) {
-        return PDGNodeTy();
+    const SVFGNode* defNode = getDefNode(value);
+    if (!defNode) {
+        return nullptr;
     }
-    auto* pag = m_svfg->getPAG();
-    if (!pag->hasValueNode(instr)) {
-        return PDGNodeTy();
+    if (auto* stmtNode = llvm::dyn_cast<StmtSVFGNode>(defNode)) {
+        return const_cast<llvm::Instruction*>(stmtNode->getInst());
     }
-    auto nodeId = pag->getValueNode(instr);
-    auto* pagNode = pag->getPAGNode(nodeId);
-    if (!pagNode) {
-        return PDGNodeTy();
+    if (auto* actualParam = llvm::dyn_cast<ActualParmSVFGNode>(defNode)) {
+        // TODO: to be implemented
+        assert(false);
     }
-    if (!m_svfg->hasSVFGNode(pagNode->getId())) {
-        return PDGNodeTy();
+    if (auto* actualRet = llvm::dyn_cast<ActualRetSVFGNode>(defNode)) {
+        // TODO: to be implemented
+        assert(false);
     }
-    const SVFGNode* defNode = m_svfg->getDefSVFGNode(pagNode);
+    if (auto* formalParam = llvm::dyn_cast<FormalParmSVFGNode>(defNode)) {
+        // TODO: to be implemented
+        assert(false);
+    }
+    if (auto* formalRet = llvm::dyn_cast<FormalRetSVFGNode>(defNode)) {
+        // TODO: to be implemented
+        assert(false);
+    }
+    return nullptr;
+}
+
+DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getDefSiteNode(llvm::Value* value)
+{
+    const SVFGNode* defNode = getDefNode(value);
     if (!defNode) {
         return PDGNodeTy();
     }
     return getNode(defNode);
+}
+
+SVFGNode* SVFGDefUseAnalysisResults::getDefNode(llvm::Value* value)
+{
+    llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(value);
+    if (!instr) {
+        return nullptr;
+    }
+    auto* pag = m_svfg->getPAG();
+    if (!pag->hasValueNode(instr)) {
+        return nullptr;
+    }
+    auto nodeId = pag->getValueNode(instr);
+    auto* pagNode = pag->getPAGNode(nodeId);
+    if (!pagNode) {
+        return nullptr;
+    }
+    if (!m_svfg->hasSVFGNode(pagNode->getId())) {
+        return nullptr;
+    }
+    return const_cast<SVFGNode*>(m_svfg->getDefSVFGNode(pagNode));
 }
 
 DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getNode(const SVFGNode* svfgNode)

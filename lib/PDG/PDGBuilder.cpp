@@ -1,9 +1,8 @@
 #include "PDG/PDGBuilder.h"
 
 #include "PDG/PDGEdge.h"
-
-#include "SVF/MSSA/SVFG.h"
-#include "SVF/MSSA/SVFGNode.h"
+#include "PDG/DefUseResults.h"
+#include "analysis/IndirectCallSiteResults.h"
 
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/IR/Module.h"
@@ -17,13 +16,13 @@
 namespace pdg {
 
 PDGBuilder::PDGBuilder(llvm::Module* M,
-                       SVFG* svfg,
-                       PointerAnalysis* pta,
-                       const FunctionMemSSAGetter& ssaGetter)
+                       DefUseResultsTy pointerDefUse,
+                       DefUseResultsTy scalarDefUse,
+                       IndCSResultsTy indCSResults)
     : m_module(M)
-    , m_svfg(svfg)
-    , m_pta(pta)
-    , m_memSSAGetter(ssaGetter)
+    , m_ptDefUse(pointerDefUse)
+    , m_scalarDefUse(scalarDefUse)
+    , m_indCSResults(indCSResults)
 {
 }
 
@@ -33,7 +32,6 @@ void PDGBuilder::build()
     visitGlobals();
 
     for (auto& F : *m_module) {
-        m_memorySSA = m_memSSAGetter(&F);
         buildFunctionPDG(&F);
         m_currentFPDG.reset();
     }
@@ -108,11 +106,24 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
     llvm::dbgs() << "Load Inst: " << I << "\n";
     auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
     m_currentFPDG->addNode(&I, destNode);
-    if (auto sourceNode = processSVFGDef(I)) {
+    PDGNodeTy sourceNode;
+    auto* sourceInst = m_ptDefUse->getDefSite(&I);
+    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
+        sourceNode = m_ptDefUse->getDefSiteNode(&I);
+    } else {
+        sourceNode = m_currentFPDG->getNode(sourceInst);
+    }
+    if (sourceNode) {
         addDataEdge(sourceNode, destNode);
         return;
     }
-    if (auto sourceNode = processLLVMSSADef(I)) {
+    sourceInst = m_scalarDefUse->getDefSite(&I);
+    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
+        sourceNode = m_scalarDefUse->getDefSiteNode(&I);
+    } else {
+        sourceNode = m_currentFPDG->getNode(sourceInst);
+    }
+    if (sourceNode) {
         addDataEdge(sourceNode, destNode);
         return;
     }
@@ -217,7 +228,14 @@ void PDGBuilder::visitInstruction(llvm::Instruction& I)
 void PDGBuilder::visitCallSite(llvm::CallSite& callSite)
 {
     auto destNode = getInstructionNodeFor(callSite.getInstruction());
-    const auto& callees = getCallees(callSite);
+    FunctionSet callees;
+    if (!m_indCSResults->hasIndCSCallees(callSite)) {
+        if (auto* calledF = callSite.getCalledFunction()) {
+            callees.insert(calledF);
+        }
+    } else {
+        callees = m_indCSResults->getIndCSCallees(callSite);
+    }
     for (unsigned i = 0; i < callSite.getNumArgOperands(); ++i) {
         if (auto* val = llvm::dyn_cast<llvm::Value>(callSite.getArgOperand(i))) {
             auto sourceNode = getNodeFor(val);
@@ -241,56 +259,6 @@ void PDGBuilder::addControlEdge(PDGNodeTy source, PDGNodeTy dest)
     PDGNode::PDGEdgeType edge = PDGNode::PDGEdgeType(new PDGControlEdge(source, dest));
     source->addOutEdge(edge);
     dest->addInEdge(edge);
-}
-
-PDGBuilder::PDGNodeTy PDGBuilder::processLLVMSSADef(llvm::Instruction& I)
-{
-    // connect I to its defs using llvm MemorySSA
-    llvm::MemoryAccess* memAccess = m_memorySSA->getMemoryAccess(&I);
-    if (!memAccess) {
-        return PDGNodeTy();
-    }
-    auto* memUse = llvm::dyn_cast<llvm::MemoryUse>(memAccess);
-    if (!memUse) {
-        return PDGNodeTy();
-    }
-    auto* memDefAccess = memUse->getDefiningAccess();
-    if (auto* memDef = llvm::dyn_cast<llvm::MemoryDef>(memDefAccess)) {
-        auto* memInst = memDef->getMemoryInst();
-        if (!memInst) {
-            return PDGNodeTy();
-        }
-        return getInstructionNodeFor(memInst);
-    } else if (auto* memPhi = llvm::dyn_cast<llvm::MemoryPhi>(memDefAccess)) {
-        return getNodeFor(memPhi);
-    }
-    assert(false);
-    return PDGNodeTy();
-}
-
-PDGBuilder::PDGNodeTy PDGBuilder::processSVFGDef(llvm::Instruction& I)
-{
-    /*
-    auto* pag = m_svfg->getPAG();
-    if (!pag->hasValueNode(&I)) {
-        return PDGNodeTy();
-    }
-    auto nodeId = pag->getValueNode(&I);
-    auto* pagNode = pag->getPAGNode(nodeId);
-    if (!pagNode) {
-        return PDGNodeTy();
-    }
-    if (!m_svfg->hasSVFGNode(pagNode->getId())) {
-        return PDGNodeTy();
-    }
-    const SVFGNode* defNode = m_svfg->getDefSVFGNode(pagNode);
-    if (!defNode) {
-        return PDGNodeTy();
-    }
-    auto sourceNode = getNodeFor(const_cast<SVFGNode*>(defNode));
-    return sourceNode;
-    */
-    return PDGNodeTy();
 }
 
 PDGBuilder::PDGNodeTy PDGBuilder::getInstructionNodeFor(llvm::Instruction* instr)
@@ -336,119 +304,6 @@ PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::BasicBlock* block)
         m_currentFPDG->addNode(block, PDGNodeTy(new PDGLLVMBasicBlockNode(block)));
     }
     return m_currentFPDG->getNode(block);
-}
-
-// TODO: create phinode, don't flatten it
-PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::MemoryPhi* memPhi)
-{
-    /*
-    if (!m_currentFPDG->hasNode(memPhi)) {
-        m_currentFPDG->addNode(memPhi, PDGNodeTy(new PDGLLVMemoryAccessNode(memPhi)));
-    }
-    auto memPhiNode = m_currentFPDG->getNode(memPhi);
-    for (int i = 0; i < memPhi->getNumIncomingValues(); ++i) {
-        llvm::MemoryAccess* incomingVal = memPhi->getIncomingValue(i);
-        PDGNodeTy incomNode;
-        if (auto* def = llvm::dyn_cast<llvm::MemoryDef>(incomingVal)) {
-            incomNode = getInstructionNodeFor(def->getMemoryInst());
-        } else if (auto* phi = llvm::dyn_cast<llvm::MemoryPhi>(incomingVal)) {
-            incomNode = getNodeFor(phi);
-        }
-        if (incomNode) {
-            addDataEdge(incomNode, memPhiNode);
-        }
-    }
-    */
-    return PDGNodeTy();
-}
-
-PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(SVFGNode* svfgNode)
-{
-    /*
-    if (auto* stmtNode = llvm::dyn_cast<StmtSVFGNode>(svfgNode)) {
-        llvm::Instruction* instr = const_cast<llvm::Instruction*>(stmtNode->getInst());
-        return getInstructionNodeFor(instr);
-    }
-    if (auto* actualParam = llvm::dyn_cast<ActualParmSVFGNode>(svfgNode)) {
-        // TODO:
-        assert(false);
-        return PDGNodeTy();
-    }
-    if (auto* actualRet = llvm::dyn_cast<ActualRetSVFGNode>(svfgNode)) {
-        // TODO:
-        assert(false);
-        return PDGNodeTy();
-    }
-    if (auto* formalParam = llvm::dyn_cast<FormalParmSVFGNode>(svfgNode)) {
-        // TODO:
-        assert(false);
-        return PDGNodeTy();
-    }
-    if (auto* formalRet = llvm::dyn_cast<FormalRetSVFGNode>(svfgNode)) {
-        // TODO:
-        assert(false);
-        return PDGNodeTy();
-    }
-    if (auto* null = llvm::dyn_cast<NullPtrSVFGNode>(svfgNode)) {
-        return PDGNodeTy(new PDGNullNode());
-    }
-    // TODO: think about children of PHISVFGNode. They may need to be processed separately.
-    if (auto* phi = llvm::dyn_cast<PHISVFGNode>(svfgNode)) {
-        auto phiNode = PDGNodeTy(new PDGPHISVFGNode(phi));
-        for (auto it = phi->opVerBegin(); it != phi->opVerEnd(); ++it) {
-            auto* pagNode = it->second;
-            if (!pagNode) {
-                continue;
-            }
-            if (!m_svfg->hasSVFGNode(pagNode->getId())) {
-                continue;
-            }
-            auto* sn = m_svfg->getSVFGNode(pagNode->getId());
-            auto sourceNode = getNodeFor(sn);
-            m_currentFPDG->addNode(sn, sourceNode);
-            addDataEdge(sourceNode, phiNode);
-        }
-        return phiNode;
-    }
-    if (auto* mssaPhi = llvm::dyn_cast<MSSAPHISVFGNode>(svfgNode)) {
-        auto mssaPhiNode = PDGNodeTy(new PDGMSSAPHISVFGNode(mssaPhi));
-        for (auto it = mssaPhi->opVerBegin(); it != mssaPhi->opVerEnd(); ++it) {
-            const MSSADEF* mdef = const_cast<MSSADEF*>(it->second->getDef());
-            if (const MemSSA::CALLCHI* callChi = llvm::dyn_cast<const MemSSA::CALLCHI>(mdef)) {
-                //TODO:
-                assert(false);
-            } else if (const MemSSA::ENTRYCHI* mssaEntryChi = llvm::dyn_cast<const MemSSA::ENTRYCHI>(mdef)) {
-                //TODO:
-                assert(false);
-            } else if (const MemSSA::STORECHI* mssaStoreChi = llvm::dyn_cast<const MemSSA::STORECHI>(mdef)) {
-                PDGNodeTy sourceNode = getInstructionNodeFor(const_cast<llvm::Instruction*>(mssaStoreChi->getStoreInst()->getInst()));
-                addDataEdge(sourceNode, mssaPhiNode);
-            } else if (const MemSSA::PHI* phiChi = llvm::dyn_cast<MemSSA::PHI>(mdef)) {
-                //TODO: recurse??
-                assert(false);
-            }
-        }
-        return mssaPhiNode;
-    }
-    assert(false);
-    */
-    return PDGNodeTy();
-}
-
-PDGBuilder::FunctionSet PDGBuilder::getCallees(llvm::CallSite& callSite) const
-{
-    if (!callSite.isIndirectCall()) {
-        return FunctionSet{callSite.getCalledFunction()};
-    }
-    FunctionSet callees;
-    auto* ptaCallGraph = m_pta->getPTACallGraph();
-    if (ptaCallGraph->hasIndCSCallees(callSite)) {
-        const auto& ptaCallees = ptaCallGraph->getIndCSCallees(callSite);
-        for (auto& F : ptaCallees) {
-            callees.insert(const_cast<llvm::Function*>(F));
-        }
-    }
-    return callees;
 }
 
 void PDGBuilder::addActualArgumentNodeConnections(PDGNodeTy actualArgNode,

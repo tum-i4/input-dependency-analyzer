@@ -9,10 +9,6 @@
 #include <unordered_set>
 #include <functional>
 
-class SVFG;
-class SVFGNode;
-class PointerAnalysis;
-
 namespace llvm {
 
 class CallSite;
@@ -20,26 +16,33 @@ class MemorySSA;
 class Module;
 class Function;
 class Value;
-class MemoryPhi;
 
 }
 
+namespace input_dependency {
+
+class IndirectCallSiteResults;
+}
+
 namespace pdg {
+
+class DefUseResults;
 
 class PDGBuilder : public llvm::InstVisitor<PDGBuilder>
 {
 public:
     using PDGType = std::shared_ptr<PDG>;
     using FunctionPDGTy = PDG::FunctionPDGTy;
+    using DefUseResultsTy = std::shared_ptr<DefUseResults>;
+    using IndCSResultsTy = std::shared_ptr<input_dependency::IndirectCallSiteResults>;
     using PDGNodeTy = FunctionPDG::PDGNodeTy;
     using FunctionSet = std::unordered_set<llvm::Function*>;
-    using FunctionMemSSAGetter = std::function<llvm::MemorySSA* (llvm::Function*)>;
 
 public:
     PDGBuilder(llvm::Module* M,
-               SVFG* svfg,
-               PointerAnalysis* pta,
-               const FunctionMemSSAGetter& ssaGetter);
+               DefUseResultsTy pointerDefUse,
+               DefUseResultsTy scalarDefUse,
+               IndCSResultsTy indCSResults);
 
     virtual ~PDGBuilder() = default;
     PDGBuilder(const PDGBuilder& ) = delete;
@@ -86,24 +89,18 @@ private:
     void visitCallSite(llvm::CallSite& callSite);
     void addDataEdge(PDGNodeTy source, PDGNodeTy dest);
     void addControlEdge(PDGNodeTy source, PDGNodeTy dest);
-    PDGNodeTy processLLVMSSADef(llvm::Instruction& I);
-    PDGNodeTy processSVFGDef(llvm::Instruction& I);
     PDGNodeTy getInstructionNodeFor(llvm::Instruction* instr);
     PDGNodeTy getNodeFor(llvm::Value* value);
     PDGNodeTy getNodeFor(llvm::BasicBlock* block);
-    PDGNodeTy getNodeFor(llvm::MemoryPhi* memPhi);
-    PDGNodeTy getNodeFor(SVFGNode* svfgNode);
-    FunctionSet getCallees(llvm::CallSite& callSite) const;
     void addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
                                           unsigned argIdx,
                                           const FunctionSet& callees);
 
 private:
     llvm::Module* m_module;
-    SVFG* m_svfg;
-    PointerAnalysis* m_pta;
-    FunctionMemSSAGetter m_memSSAGetter;
-    llvm::MemorySSA* m_memorySSA;
+    DefUseResultsTy m_ptDefUse;
+    DefUseResultsTy m_scalarDefUse;
+    IndCSResultsTy m_indCSResults;
     PDGType m_pdg;
     FunctionPDGTy m_currentFPDG;
 }; // class PDGBuilder

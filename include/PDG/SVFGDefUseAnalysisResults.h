@@ -18,12 +18,15 @@ public:
     SVFGDefUseAnalysisResults& operator =(SVFGDefUseAnalysisResults&& ) = delete;
 
 public:
-    virtual PDGNodeTy getDefSite(llvm::Value* value) override;
+    virtual llvm::Value* getDefSite(llvm::Value* value) override;
+    virtual PDGNodeTy getDefSiteNode(llvm::Value* value) override;
 
 private:
+    SVFGNode* getDefNode(llvm::Value* value);
     PDGNodeTy getNode(const SVFGNode* svfgNode);
 
 private:
+    // TODO: add caching
     SVFG* m_svfg;
 }; // class SVFGDefUseAnalysisResults
 

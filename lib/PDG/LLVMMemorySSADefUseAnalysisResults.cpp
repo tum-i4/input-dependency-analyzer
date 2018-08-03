@@ -13,27 +13,29 @@
 namespace pdg {
 
 LLVMMemorySSADefUseAnalysisResults::LLVMMemorySSADefUseAnalysisResults(
-                        llvm::MemorySSA* memSSA)
-    : m_memorySSA(memSSA)
+                        const MemorySSAGetter& mssaGetter)
+    : m_memorySSAGetter(mssaGetter)
 {
 }
 
-// TODO: need to first check if node exists
-DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSite(llvm::Value* value)
+llvm::Value* LLVMMemorySSADefUseAnalysisResults::getDefSite(llvm::Value* value)
 {
-    llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(value);
-    if (!instr) {
+    auto* memDefAccess = getMemoryDefAccess(value);
+    if (!memDefAccess) {
+        return nullptr;
+    }
+    if (auto* memDef = llvm::dyn_cast<llvm::MemoryDef>(memDefAccess)) {
+        return memDef->getMemoryInst();
+    }
+    return nullptr;
+}
+
+DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSiteNode(llvm::Value* value)
+{
+    auto* memDefAccess = getMemoryDefAccess(value);
+    if (!memDefAccess) {
         return PDGNodeTy();
     }
-    llvm::MemoryAccess* memAccess = m_memorySSA->getMemoryAccess(instr);
-    if (!instr) {
-        return PDGNodeTy();
-    }
-    auto* memUse = llvm::dyn_cast<llvm::MemoryUse>(memAccess);
-    if (!memUse) {
-        return PDGNodeTy();
-    }
-    auto* memDefAccess = memUse->getDefiningAccess();
     if (auto* memDef = llvm::dyn_cast<llvm::MemoryDef>(memDefAccess)) {
         auto* memInst = memDef->getMemoryInst();
         if (!memInst) {
@@ -48,6 +50,24 @@ DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSite(llvm::Va
     }
     assert(false);
     return PDGNodeTy();
+}
+
+llvm::MemoryAccess* LLVMMemorySSADefUseAnalysisResults::getMemoryDefAccess(llvm::Value* value)
+{
+    llvm::Instruction* instr = llvm::dyn_cast<llvm::Instruction>(value);
+    if (!instr) {
+        return nullptr;
+    }
+    auto* memorySSA = m_memorySSAGetter(instr->getParent()->getParent());
+    llvm::MemoryAccess* memAccess = memorySSA->getMemoryAccess(instr);
+    if (!instr) {
+        return nullptr;
+    }
+    auto* memUse = llvm::dyn_cast<llvm::MemoryUse>(memAccess);
+    if (!memUse) {
+        return nullptr;
+    }
+    return memUse->getDefiningAccess();
 }
 
 void LLVMMemorySSADefUseAnalysisResults::getPhiValueAndBlocks(llvm::MemoryPhi* memPhi,

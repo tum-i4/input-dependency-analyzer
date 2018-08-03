@@ -38,6 +38,7 @@ public:
 
     bool runOnModule(llvm::Module& M) override
     {
+        /*
         pdg::PDGBuilder::FunctionMemSSAGetter memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
             return &this->getAnalysis<llvm::MemorySSAWrapperPass>(*F).getMSSA();
         };
@@ -73,7 +74,7 @@ public:
             }
             llvm::errs() << "\n";
         }
-
+*/
         return false;
     }
 

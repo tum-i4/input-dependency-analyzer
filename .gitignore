@@ -5,6 +5,8 @@ lib/.*.swp
 lib/PDG/.*.swp
 lib/Debug/.*.swp
 include/PDG/.*.swp
+include/analysis/.*.swp
+lib/analysis/.*.swp
 CutVertice/.*.swp
 build/
 tests/

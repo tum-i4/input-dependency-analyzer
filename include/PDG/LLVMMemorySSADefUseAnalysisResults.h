@@ -11,7 +11,7 @@ namespace pdg {
 class LLVMMemorySSADefUseAnalysisResults : public DefUseResults
 {
 public:
-    LLVMMemorySSADefUseAnalysisResults(llvm::MemorySSA* memSSA, /*IndirectCallSiteAnalysisResult */);
+    explicit LLVMMemorySSADefUseAnalysisResults(llvm::MemorySSA* memSSA);
     
     LLVMMemorySSADefUseAnalysisResults(const LLVMMemorySSADefUseAnalysisResults& ) = delete;
     LLVMMemorySSADefUseAnalysisResults(LLVMMemorySSADefUseAnalysisResults&& ) = delete;
@@ -22,12 +22,9 @@ public:
 public:
     virtual PDGNodeTy getDefSite(llvm::Value* value) override;
     virtual PDGNodes getDefSites(llvm::Value* value) override;
-    virtual bool hasIndCSCallees(const llvm::CallSite& callSite) const override;
-    virtual FunctionSet getIndCSCallees(const llvm::CallSite& callSite) override;
 
 private:
     llvm::MemorySSA* m_memorySSA;
-    // IndirectCallSiteAnalysisResult m_indCSInfo;
 }; // class LLVMMemorySSADefUseAnalysisResults
 
 } // namespace pdg

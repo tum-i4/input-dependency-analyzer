@@ -34,12 +34,18 @@ bool isIndirectCall(CallInstTy* inst)
 class IndirectCallSitesAnalysis::IndirectsImpl
 {
 public:
-    IndirectsImpl(IndirectCallSitesAnalysisResult& results);
+    using IndCSAnalysisResTy = IndirectCallSitesAnalysis::IndCSAnalysisResTy;
+    IndirectsImpl(IndCSAnalysisResTy results);
     void runOnModule(llvm::Module& M);
 
 private:
-    IndirectCallSitesAnalysisResult&  m_results;
+    IndCSAnalysisResTy  m_results;
 };
+
+IndirectCallSitesAnalysis::IndirectsImpl::IndirectsImpl(IndCSAnalysisResTy results)
+    : m_results(results)
+{
+}
 
 void IndirectCallSitesAnalysis::IndirectsImpl::runOnModule(llvm::Module& M)
 {
@@ -48,7 +54,7 @@ void IndirectCallSitesAnalysis::IndirectsImpl::runOnModule(llvm::Module& M)
             continue;
         }
         auto type = F.getFunctionType();
-        m_results.addIndirectCallTarget(type, &F);
+        m_results->addIndirectCallTarget(type, &F);
     }
 }
 
@@ -89,8 +95,9 @@ private:
     using VTableSlotCallSitesMap = std::unordered_map<VTableSlot, VirtualCallSites, VTableSlotHasher, VTableSlotEqual>;
 
 public:
-    using FunctionSet = IndirectCallSitesAnalysisResult::FunctionSet;
-    VirtualsImpl(IndirectCallSitesAnalysisResult& results);
+    using FunctionSet = IndirectCallSiteAnalysisResult::FunctionSet;
+    using IndCSAnalysisResTy = IndirectCallSitesAnalysis::IndCSAnalysisResTy;
+    VirtualsImpl(IndCSAnalysisResTy results);
 
 public:
     void runOnModule(llvm::Module& M);
@@ -108,10 +115,10 @@ private:
 private:
    llvm::Module* m_module; 
    VTableSlotCallSitesMap m_callSlots;
-   IndirectCallSitesAnalysisResult& m_results;
+   IndCSAnalysisResTy m_results;
 };
 
-IndirectCallSitesAnalysis::VirtualsImpl::VirtualsImpl(IndirectCallSitesAnalysisResult& results)
+IndirectCallSitesAnalysis::VirtualsImpl::VirtualsImpl(IndCSAnalysisResTy results)
     : m_results(results)
 {
 }
@@ -263,42 +270,42 @@ void IndirectCallSitesAnalysis::VirtualsImpl::updateResults(const std::vector<Vi
             candidates.insert(slot.Fn);
         }
         llvm::FunctionType* functionType = cs.CS.getFunctionType();
-        m_results.addIndirectCallTargets(functionType, std::move(candidates));
+        m_results->addIndirectCallTargets(functionType, std::move(candidates));
     }
 }
 
-void IndirectCallSitesAnalysisResult::addIndirectCallTarget(llvm::FunctionType* type, llvm::Function* target)
+void IndirectCallSiteAnalysisResult::addIndirectCallTarget(llvm::FunctionType* type, llvm::Function* target)
 {
     m_indirectCallTargets[type].insert(target);
 }
 
-void IndirectCallSitesAnalysisResult::addIndirectCallTargets(llvm::FunctionType* type, const FunctionSet& targets)
+void IndirectCallSiteAnalysisResult::addIndirectCallTargets(llvm::FunctionType* type, const FunctionSet& targets)
 {
     m_indirectCallTargets[type].insert(targets.begin(), targets.end());
 }
 
-bool IndirectCallSitesAnalysisResult::hasIndirectTargets(llvm::FunctionType* func_ty) const
+bool IndirectCallSiteAnalysisResult::hasIndirectTargets(llvm::FunctionType* func_ty) const
 {
     return m_indirectCallTargets.find(func_ty) != m_indirectCallTargets.end();
 }
 
-const IndirectCallSitesAnalysisResult::FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(llvm::FunctionType* func_ty) const
+const IndirectCallSiteAnalysisResult::FunctionSet& IndirectCallSiteAnalysisResult::getIndirectTargets(llvm::FunctionType* func_ty) const
 {
     auto pos = m_indirectCallTargets.find(func_ty);
     return pos->second;
 }
 
-bool IndirectCallSitesAnalysisResult::hasIndirectTargets(const llvm::CallSite& callSite) const
+bool IndirectCallSiteAnalysisResult::hasIndCSCallees(const llvm::CallSite& callSite) const
 {
     return hasIndirectTargets(callSite.getFunctionType());
 }
 
-const IndirectCallSitesAnalysisResult::FunctionSet& IndirectCallSitesAnalysisResult::getIndirectTargets(const llvm::CallSite& callSite) const
+IndirectCallSiteAnalysisResult::FunctionSet IndirectCallSiteAnalysisResult::getIndCSCallees(const llvm::CallSite& callSite)
 {
     return getIndirectTargets(callSite.getFunctionType());
 }
 
-void IndirectCallSitesAnalysisResult::dump()
+void IndirectCallSiteAnalysisResult::dump()
 {
     for (const auto& item : m_indirectCallTargets) {
         llvm::dbgs() << "Indirect call: " << *item.first << " candidates\n";
@@ -322,16 +329,6 @@ bool IndirectCallSitesAnalysis::runOnModule(llvm::Module& M)
     m_vimpl->runOnModule(M);
     m_iimpl->runOnModule(M);
     return false;
-}
-
-IndirectCallSitesAnalysisResult& IndirectCallSitesAnalysis::getIndirectsAnalysisResult()
-{
-    return m_results;
-}
-
-const IndirectCallSitesAnalysisResult& IndirectCallSitesAnalysis::getIndirectsAnalysisResult() const
-{
-    return m_results;
 }
 
 static llvm::RegisterPass<IndirectCallSitesAnalysis> X("indirect-calls","runs indirect and virtual calls analysis");

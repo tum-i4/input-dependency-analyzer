@@ -1,6 +1,7 @@
 #pragma once
 
 #include "llvm/Pass.h"
+#include "analysis/IndirectCallSiteResults.h"
 
 #include <memory>
 #include <unordered_set>
@@ -14,27 +15,32 @@ class CallSite;
 
 namespace input_dependency {
 
-class IndirectCallSitesAnalysisResult
+class IndirectCallSiteAnalysisResult : public IndirectCallSiteResults
 {
 public:
-    using FunctionSet = std::unordered_set<llvm::Function*>;
+    using FunctionSet = IndirectCallSiteResults::FunctionSet;
+
+public:
     void addIndirectCallTarget(llvm::FunctionType* type, llvm::Function* target);
     void addIndirectCallTargets(llvm::FunctionType* type, const FunctionSet& targets);
 
     bool hasIndirectTargets(llvm::FunctionType* func_ty) const;
     const FunctionSet& getIndirectTargets(llvm::FunctionType* func_ty) const;
-    bool hasIndirectTargets(const llvm::CallSite& callSite) const;
-    const FunctionSet& getIndirectTargets(const llvm::CallSite& callSite) const;
+
+    virtual bool hasIndCSCallees(const llvm::CallSite& callSite) const override;
+    virtual FunctionSet getIndCSCallees(const llvm::CallSite& callSite) override;
 
 public:
     void dump();
 
 private:
     std::unordered_map<llvm::FunctionType*, FunctionSet> m_indirectCallTargets;
-}; // class IndirectCallSitesAnalysisResult
+}; // class IndirectCallSiteAnalysisResult
 
 class IndirectCallSitesAnalysis : public llvm::ModulePass
 {
+public:
+    using IndCSAnalysisResTy = std::shared_ptr<IndirectCallSiteAnalysisResult>;
 public:
     static char ID;
 
@@ -44,8 +50,10 @@ public:
     bool runOnModule(llvm::Module& M) override;
 
 public:
-    IndirectCallSitesAnalysisResult& getIndirectsAnalysisResult();
-    const IndirectCallSitesAnalysisResult& getIndirectsAnalysisResult() const;
+    IndCSAnalysisResTy getIndirectsAnalysisResult()
+    {
+        return m_results;
+    }
 
 private:
     class VirtualsImpl;
@@ -54,7 +62,7 @@ private:
     class IndirectsImpl;
     std::unique_ptr<IndirectsImpl> m_iimpl;
 
-    IndirectCallSitesAnalysisResult m_results;
+    IndCSAnalysisResTy m_results;
 }; // class VirtualCallSitesAnalysis
 
 }

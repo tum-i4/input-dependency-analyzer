@@ -2,6 +2,8 @@
 
 #include "PDG/DefUseResults.h"
 
+#include <unordered_map>
+
 class SVFG;
 class SVFGNode;
 
@@ -26,8 +28,8 @@ private:
     PDGNodeTy getNode(const SVFGNode* svfgNode);
 
 private:
-    // TODO: add caching
     SVFG* m_svfg;
+    std::unordered_map<unsigned, PDGNodeTy> m_phiNodes;
 }; // class SVFGDefUseAnalysisResults
 
 } // namespace pdg

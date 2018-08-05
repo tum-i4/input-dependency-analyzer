@@ -3,6 +3,7 @@
 #include "PDG/DefUseResults.h"
 
 #include <functional>
+#include <unordered_map>
 
 namespace llvm {
 class MemorySSA;
@@ -41,6 +42,7 @@ private:
 private:
     const MemorySSAGetter& m_memorySSAGetter;
     llvm::MemorySSA* m_memorySSA;
+    std::unordered_map<unsigned, PDGNodeTy> m_phiNodes;
 }; // class LLVMMemorySSADefUseAnalysisResults
 
 } // namespace pdg

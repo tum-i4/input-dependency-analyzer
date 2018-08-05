@@ -43,10 +43,16 @@ DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSiteNode(llvm
         }
         return PDGNodeTy(new PDGLLVMInstructionNode(memInst));
     } else if (auto* memPhi = llvm::dyn_cast<llvm::MemoryPhi>(memDefAccess)) {
+        auto pos = m_phiNodes.find(memPhi->getID());
+        if (pos != m_phiNodes.end()) {
+            return pos->second;
+        }
         std::vector<llvm::Value*> values;
         std::vector<llvm::BasicBlock*> blocks;
         getPhiValueAndBlocks(memPhi, values, blocks);
-        return PDGNodeTy(new PDGPhiNode(values, blocks));
+        PDGNodeTy phiNode = PDGNodeTy(new PDGPhiNode(values, blocks));
+        m_phiNodes.insert(std::make_pair(memPhi->getID(), phiNode));
+        return phiNode;
     }
     assert(false);
     return PDGNodeTy();

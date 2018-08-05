@@ -10,8 +10,11 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include "PDG/SVFGDefUseAnalysisResults.h"
+#include "PDG/LLVMMemorySSADefUseAnalysisResults.h"
 #include "PDG/PDGBuilder.h"
 #include "PDG/PDGGraphTraits.h"
+#include "analysis/SVFGIndirectCallSiteResults.h"
 
 #include "SVF/MSSA/SVFG.h"
 #include "SVF/MSSA/SVFGBuilder.h"
@@ -38,8 +41,7 @@ public:
 
     bool runOnModule(llvm::Module& M) override
     {
-        /*
-        pdg::PDGBuilder::FunctionMemSSAGetter memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
+        auto memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
             return &this->getAnalysis<llvm::MemorySSAWrapperPass>(*F).getMSSA();
         };
         SVFModule svfM(M);
@@ -49,11 +51,17 @@ public:
         SVFGBuilder memSSA(true);
         SVFG *svfg = memSSA.buildSVFG((BVDataPTAImpl*)ander);
 
-        pdg::PDGBuilder pdgBuilder(&M, svfg, ander, memSSAGetter);
+        using DefUseResultsTy = PDGBuilder::DefUseResultsTy;
+        using IndCSResultsTy = PDGBuilder::IndCSResultsTy;
+        DefUseResultsTy pointerDefUse = DefUseResultsTy(new SVFGDefUseAnalysisResults(svfg));
+        DefUseResultsTy scalarDefUse = DefUseResultsTy(new LLVMMemorySSADefUseAnalysisResults(memSSAGetter));
+        IndCSResultsTy indCSRes = IndCSResultsTy(new
+                input_dependency::SVFGIndirectCallSiteResults(ander->getPTACallGraph()));
+
+        pdg::PDGBuilder pdgBuilder(&M, pointerDefUse, scalarDefUse, indCSRes);
         pdgBuilder.build();
 
         auto pdg = pdgBuilder.getPDG();
-
         for (auto& F : M) {
             if (!pdg->hasFunctionPDG(&F)) {
                 llvm::dbgs() << "Function does not have pdg " << F.getName() << "\n";
@@ -74,7 +82,6 @@ public:
             }
             llvm::errs() << "\n";
         }
-*/
         return false;
     }
 

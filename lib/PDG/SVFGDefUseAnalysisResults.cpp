@@ -168,12 +168,21 @@ DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getNode(const SVFGNode* svfg
     if (auto* null = llvm::dyn_cast<NullPtrSVFGNode>(svfgNode)) {
         return PDGNodeTy(new PDGNullNode());
     }
+    auto pos = m_phiNodes.find(svfgNode->getId());
+    if (pos != m_phiNodes.end()) {
+        return pos->second;
+    }
+
     // TODO: think about children of PHISVFGNode. They may need to be processed separately.
     if (auto* phi = llvm::dyn_cast<PHISVFGNode>(svfgNode)) {
-        return getNode(phi);
+        auto phiNode = getNode(phi);
+        m_phiNodes.insert(std::make_pair(svfgNode->getId(), phiNode));
+        return phiNode;
     }
     if (auto* mssaPhi = llvm::dyn_cast<MSSAPHISVFGNode>(svfgNode)) {
-        return getNode(mssaPhi);
+        auto phiNode = getNode(mssaPhi);
+        m_phiNodes.insert(std::make_pair(svfgNode->getId(), phiNode));
+        return phiNode;
     }
     assert(false);
     return PDGNodeTy();

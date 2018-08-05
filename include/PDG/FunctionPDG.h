@@ -113,6 +113,11 @@ public:
         return res.second;
     }
 
+    bool addNode(PDGNodeTy node)
+    {
+        m_functionNodes.push_back(node.get());
+    }
+
 public:
     arg_iterator formalArgBegin()
     {

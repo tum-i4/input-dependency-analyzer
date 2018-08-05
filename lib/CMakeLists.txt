@@ -1,5 +1,6 @@
 add_library(PDG MODULE
         PDG/PDGBuilder.cpp
+        PDG/PDGLLVMNode.cpp
         PDG/LLVMMemorySSADefUseAnalysisResults.cpp
         PDG/SVFGDefUseAnalysisResults.cpp
         analysis/IndirectCallSitesAnalysis.cpp

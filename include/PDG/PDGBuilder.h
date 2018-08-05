@@ -95,6 +95,7 @@ private:
     void addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
                                           unsigned argIdx,
                                           const FunctionSet& callees);
+    void addPhiNodeConnections(PDGNodeTy node);
 
 private:
     llvm::Module* m_module;

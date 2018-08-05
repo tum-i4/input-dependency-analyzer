@@ -296,6 +296,8 @@ public:
 public:
     PDGPhiNode(const Values& values, const Blocks& blocks)
         : PDGLLVMNode(nullptr, NodeType::PhiNode)
+        , m_values(values)
+        , m_blocks(blocks)
     {
     }
 

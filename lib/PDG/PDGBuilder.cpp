@@ -97,6 +97,13 @@ void PDGBuilder::visitBranchInst(llvm::BranchInst& I)
 {
     // TODO: output this for debug mode only
     llvm::dbgs() << "Branch Inst: " << I << "\n";
+    if (I.isConditional()) {
+        llvm::Value* cond = I.getCondition();
+        if (auto sourceNode = getNodeFor(cond)) {
+            auto destNode = getInstructionNodeFor(&I);
+            addDataEdge(sourceNode, destNode);
+        }
+    }
     visitTerminatorInst(I);
 }
 
@@ -104,6 +111,9 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
 {
     // TODO: output this for debug mode only
     llvm::dbgs() << "Load Inst: " << I << "\n";
+    if (I.getParent()->getParent()->getName() == "test") {
+        llvm::dbgs() << "Stop\n";
+    }
     auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
     m_currentFPDG->addNode(&I, destNode);
     PDGNodeTy sourceNode;
@@ -112,6 +122,8 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
         if (sourceNode = m_ptDefUse->getDefSiteNode(&I)) {
             if (sourceInst) {
                 m_currentFPDG->addNode(sourceInst, sourceNode);
+            } else {
+                addPhiNodeConnections(sourceNode);
             }
         }
     } else {
@@ -126,6 +138,8 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
         if (sourceNode = m_scalarDefUse->getDefSiteNode(&I)) {
             if (sourceInst) {
                 m_currentFPDG->addNode(sourceInst, sourceNode);
+            } else {
+                addPhiNodeConnections(sourceNode);
             }
         }
     } else {
@@ -327,6 +341,20 @@ void PDGBuilder::addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
         llvm::Argument* formalArg = &*(F->arg_begin() + argIdx);
         auto formalArgNode = calleePDG->getFormalArgNode(formalArg);
         addDataEdge(actualArgNode, formalArgNode);
+    }
+}
+
+void PDGBuilder::addPhiNodeConnections(PDGNodeTy node)
+{
+    PDGPhiNode* phiNode = llvm::dyn_cast<PDGPhiNode>(node.get());
+    if (!phiNode) {
+        return;
+    }
+    m_currentFPDG->addNode(node);
+    for (unsigned i = 0; i < phiNode->getNumValues(); ++i) {
+        llvm::Value* value = phiNode->getValue(i);
+        auto destNode = getNodeFor(value);
+        addDataEdge(destNode, node);
     }
 }
 

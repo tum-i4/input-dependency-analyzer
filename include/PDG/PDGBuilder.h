@@ -86,6 +86,7 @@ private:
     void visitFormalArguments(FunctionPDGTy functionPDG, llvm::Function* F);
     void visitBlock(llvm::BasicBlock& B);
     void visitBlockInstructions(llvm::BasicBlock& B);
+    void addControlEdgesForBlock(llvm::BasicBlock& B);
     void visitCallSite(llvm::CallSite& callSite);
     void addDataEdge(PDGNodeTy source, PDGNodeTy dest);
     void addControlEdge(PDGNodeTy source, PDGNodeTy dest);

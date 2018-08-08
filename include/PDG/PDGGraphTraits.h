@@ -121,7 +121,7 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
     static std::string getNodeAttributes(NodeRef node, FunctionPDG* graph)
     {
         if (llvm::isa<PDGLLVMBasicBlockNode>(node)) {
-            return "color=black,style=dotted";
+            return "color=black,shape=oval";
         } else if (llvm::isa<PDGLLVMNode>(node)) {
             return "color=black";
         }

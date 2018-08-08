@@ -91,6 +91,26 @@ void PDGBuilder::visitBlockInstructions(llvm::BasicBlock& B)
     for (auto& I : B) {
         visit(I);
     }
+    addControlEdgesForBlock(B);
+}
+
+void PDGBuilder::addControlEdgesForBlock(llvm::BasicBlock& B)
+{
+    if (!m_currentFPDG->hasNode(&B)) {
+        return;
+    }
+    auto blockNode = m_currentFPDG->getNode(&B);
+    // Don't add control edges if block is not conreol dependent on something
+    if (blockNode->getInEdges().empty()) {
+        return;
+    }
+    for (auto& I : B) {
+        if (!m_currentFPDG->hasNode(&I)) {
+            continue;
+        }
+        auto destNode = m_currentFPDG->getNode(&I);
+        addControlEdge(blockNode, destNode);
+    }
 }
 
 void PDGBuilder::visitBranchInst(llvm::BranchInst& I)

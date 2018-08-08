@@ -230,11 +230,6 @@ public:
         return m_block->getName();
     }
 
-    virtual bool addOutEdge(PDGEdgeType outEdge) override
-    {
-        assert(false);
-    }
-
     llvm::BasicBlock* getBlock() const
     {
         return m_block;

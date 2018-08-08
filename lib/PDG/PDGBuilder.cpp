@@ -281,8 +281,10 @@ void PDGBuilder::visitCallSite(llvm::CallSite& callSite)
     for (unsigned i = 0; i < callSite.getNumArgOperands(); ++i) {
         if (auto* val = llvm::dyn_cast<llvm::Value>(callSite.getArgOperand(i))) {
             auto sourceNode = getNodeFor(val);
-            addDataEdge(sourceNode, destNode);
             auto actualArgNode = PDGNodeTy(new PDGLLVMActualArgumentNode(callSite, val));
+            addDataEdge(sourceNode, actualArgNode);
+            addDataEdge(actualArgNode, destNode);
+            m_currentFPDG->addNode(actualArgNode);
             // connect actual args with formal args
             addActualArgumentNodeConnections(actualArgNode, i, callees);
         }

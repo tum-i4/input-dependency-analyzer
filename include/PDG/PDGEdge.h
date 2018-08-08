@@ -69,6 +69,11 @@ public:
     {
         return false;
     }
+public:
+    static bool classof(const PDGEdge* node)
+    {
+        return node->isDataEdge();
+    }
 
 }; // class PDGDataEdge
 
@@ -89,6 +94,13 @@ public:
     {
         return true;
     }
+
+public:
+    static bool classof(const PDGEdge* node)
+    {
+        return node->isControlEdge();
+    }
+
 
 }; // class PDGControlEdge
 

@@ -122,6 +122,8 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
     {
         if (llvm::isa<PDGLLVMBasicBlockNode>(node)) {
             return "color=black,shape=oval";
+        } else if (llvm::isa<PDGLLVMActualArgumentNode>(node)) {
+            return "color=black,style=dotted";
         } else if (llvm::isa<PDGLLVMNode>(node)) {
             return "color=black";
         }
@@ -132,13 +134,13 @@ struct DOTGraphTraits<FunctionPDG*> : public DefaultDOTGraphTraits
     static std::string getEdgeAttributes(NodeRef node, ChildIteratorType edge_iter, FunctionPDG* graph)
     {
         EdgeType edge = *(edge_iter.getCurrent());
-        if (edge->isDataEdge()) {
+        if (llvm::isa<PDGDataEdge>(edge.get())) {
             if (llvm::isa<pdg::PDGLLVMFormalArgumentNode>(edge->getDestination().get())) {
                 return "color=green";
             } else {
                 return "color=black";
             }
-        } else if (edge->isControlEdge()) {
+        } else if (llvm::isa<PDGControlEdge>(edge.get())) {
             return "color=blue";
         }
         assert(false);

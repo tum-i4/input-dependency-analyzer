@@ -32,6 +32,9 @@ void PDGBuilder::build()
     visitGlobals();
 
     for (auto& F : *m_module) {
+        if (F.isDeclaration()) {
+            buildFunctionDefinition(&F);
+        }
         buildFunctionPDG(&F);
         m_currentFPDG.reset();
     }
@@ -131,44 +134,9 @@ void PDGBuilder::visitLoadInst(llvm::LoadInst& I)
 {
     // TODO: output this for debug mode only
     llvm::dbgs() << "Load Inst: " << I << "\n";
-    if (I.getParent()->getParent()->getName() == "test") {
-        llvm::dbgs() << "Stop\n";
-    }
     auto destNode = PDGNodeTy(new PDGLLVMInstructionNode(&I));
     m_currentFPDG->addNode(&I, destNode);
-    PDGNodeTy sourceNode;
-    auto* sourceInst = m_ptDefUse->getDefSite(&I);
-    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
-        if (sourceNode = m_ptDefUse->getDefSiteNode(&I)) {
-            if (sourceInst) {
-                m_currentFPDG->addNode(sourceInst, sourceNode);
-            } else {
-                addPhiNodeConnections(sourceNode);
-            }
-        }
-    } else {
-        sourceNode = m_currentFPDG->getNode(sourceInst);
-    }
-    if (sourceNode) {
-        addDataEdge(sourceNode, destNode);
-        return;
-    }
-    sourceInst = m_scalarDefUse->getDefSite(&I);
-    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
-        if (sourceNode = m_scalarDefUse->getDefSiteNode(&I)) {
-            if (sourceInst) {
-                m_currentFPDG->addNode(sourceInst, sourceNode);
-            } else {
-                addPhiNodeConnections(sourceNode);
-            }
-        }
-    } else {
-        sourceNode = m_currentFPDG->getNode(sourceInst);
-    }
-    if (sourceNode) {
-        addDataEdge(sourceNode, destNode);
-        return;
-    }
+    connectToDefSite(&I, destNode);
 }
 
 void PDGBuilder::visitStoreInst(llvm::StoreInst& I)
@@ -281,6 +249,10 @@ void PDGBuilder::visitCallSite(llvm::CallSite& callSite)
     for (unsigned i = 0; i < callSite.getNumArgOperands(); ++i) {
         if (auto* val = llvm::dyn_cast<llvm::Value>(callSite.getArgOperand(i))) {
             auto sourceNode = getNodeFor(val);
+            if (val->getType()->isPointerTy()) {
+                llvm::dbgs() << *val << "\n";
+                connectToDefSite(val, sourceNode);
+            }
             auto actualArgNode = PDGNodeTy(new PDGLLVMActualArgumentNode(callSite, val));
             addDataEdge(sourceNode, actualArgNode);
             addDataEdge(actualArgNode, destNode);
@@ -348,6 +320,42 @@ PDGBuilder::PDGNodeTy PDGBuilder::getNodeFor(llvm::BasicBlock* block)
         m_currentFPDG->addNode(block, PDGNodeTy(new PDGLLVMBasicBlockNode(block)));
     }
     return m_currentFPDG->getNode(block);
+}
+
+void PDGBuilder::connectToDefSite(llvm::Value* value, PDGNodeTy valueNode)
+{
+    PDGNodeTy sourceNode;
+    auto* sourceInst = m_ptDefUse->getDefSite(value);
+    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
+        if (sourceNode = m_ptDefUse->getDefSiteNode(value)) {
+            if (sourceInst) {
+                m_currentFPDG->addNode(sourceInst, sourceNode);
+            } else {
+                addPhiNodeConnections(sourceNode);
+            }
+        }
+    } else {
+        sourceNode = m_currentFPDG->getNode(sourceInst);
+    }
+    if (sourceNode) {
+        addDataEdge(sourceNode, valueNode);
+        return;
+    }
+    sourceInst = m_scalarDefUse->getDefSite(value);
+    if (!sourceInst || !m_currentFPDG->hasNode(sourceInst)) {
+        if (sourceNode = m_scalarDefUse->getDefSiteNode(value)) {
+            if (sourceInst) {
+                m_currentFPDG->addNode(sourceInst, sourceNode);
+            } else {
+                addPhiNodeConnections(sourceNode);
+            }
+        }
+    } else {
+        sourceNode = m_currentFPDG->getNode(sourceInst);
+    }
+    if (sourceNode) {
+        addDataEdge(sourceNode, valueNode);
+    }
 }
 
 void PDGBuilder::addActualArgumentNodeConnections(PDGNodeTy actualArgNode,

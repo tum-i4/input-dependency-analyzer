@@ -66,7 +66,7 @@ llvm::MemoryAccess* LLVMMemorySSADefUseAnalysisResults::getMemoryDefAccess(llvm:
     }
     auto* memorySSA = m_memorySSAGetter(instr->getParent()->getParent());
     llvm::MemoryAccess* memAccess = memorySSA->getMemoryAccess(instr);
-    if (!instr) {
+    if (!memAccess) {
         return nullptr;
     }
     auto* memUse = llvm::dyn_cast<llvm::MemoryUse>(memAccess);

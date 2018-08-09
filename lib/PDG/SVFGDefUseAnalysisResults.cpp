@@ -9,6 +9,24 @@ namespace pdg {
 
 namespace {
 
+bool hasIncomingEdges(PAGNode* pagNode)
+{
+    //Addr, Copy, Store, Load, Call, Ret, NormalGep, VariantGep, ThreadFork, ThreadJoin
+    if (pagNode->hasIncomingEdges(PAGEdge::Addr)
+        || pagNode->hasIncomingEdges(PAGEdge::Copy)
+        || pagNode->hasIncomingEdges(PAGEdge::Store)
+        || pagNode->hasIncomingEdges(PAGEdge::Load)
+        || pagNode->hasIncomingEdges(PAGEdge::Call)
+        || pagNode->hasIncomingEdges(PAGEdge::Ret)
+        || pagNode->hasIncomingEdges(PAGEdge::NormalGep)
+        || pagNode->hasIncomingEdges(PAGEdge::VariantGep)
+        || pagNode->hasIncomingEdges(PAGEdge::ThreadFork)
+        || pagNode->hasIncomingEdges(PAGEdge::ThreadJoin)) {
+        return true;
+    }
+    return false;
+}
+
 void getPhiValueAndBlocks(MSSADEF* mdef,
                           std::vector<llvm::Value*>& values,
                           std::vector<llvm::BasicBlock*>& blocks)
@@ -139,6 +157,9 @@ SVFGNode* SVFGDefUseAnalysisResults::getDefNode(llvm::Value* value)
     auto nodeId = pag->getValueNode(instr);
     auto* pagNode = pag->getPAGNode(nodeId);
     if (!pagNode) {
+        return nullptr;
+    }
+    if (!hasIncomingEdges(pagNode)) {
         return nullptr;
     }
     if (!m_svfg->hasSVFGNode(pagNode->getId())) {

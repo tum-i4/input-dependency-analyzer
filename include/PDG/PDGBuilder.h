@@ -93,7 +93,7 @@ private:
     PDGNodeTy getInstructionNodeFor(llvm::Instruction* instr);
     PDGNodeTy getNodeFor(llvm::Value* value);
     PDGNodeTy getNodeFor(llvm::BasicBlock* block);
-    PDGNodeTy getActualArgNode(llvm::Value* value, llvm::CallSite& callSite);
+    void connectToDefSite(llvm::Value* value, PDGNodeTy valueNode);
     void addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
                                           unsigned argIdx,
                                           const FunctionSet& callees);

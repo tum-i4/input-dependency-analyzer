@@ -1,5 +1,8 @@
 #include "llvm/Pass.h"
 
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -35,7 +38,9 @@ public:
 
     void getAnalysisUsage(llvm::AnalysisUsage& AU) const override
     {
-        AU.addRequired<llvm::MemorySSAWrapperPass>();
+        AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
+        llvm::getAAResultsAnalysisUsage(AU);
+        AU.addRequiredTransitive<llvm::MemorySSAWrapperPass>();
         AU.setPreservesAll();
     }
 
@@ -44,6 +49,26 @@ public:
         auto memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
             return &this->getAnalysis<llvm::MemorySSAWrapperPass>(*F).getMSSA();
         };
+        llvm::Optional<llvm::BasicAAResult> BAR;
+        llvm::Optional<llvm::AAResults> AAR;
+        auto AARGetter = [&](llvm::Function* F) -> llvm::AAResults* {
+            BAR.emplace(llvm::createLegacyPMBasicAAResult(*this, *F));
+            AAR.emplace(llvm::createLegacyPMAAResults(*this, *F, *BAR));
+            return &*AAR;
+        };
+        std::unordered_map<llvm::Function*, llvm::AAResults*> functionAAResults;
+        for (auto& F : M) {
+            if (!F.isDeclaration()) {
+                functionAAResults.insert(std::make_pair(&F, AARGetter(&F)));
+            }
+        }
+
+        // Passing AARGetter to LLVMMemorySSADefUseAnalysisResults causes segmentation fault when requesting AAR
+        // use following functional as a workaround before the problem with AARGetter is found
+        auto aliasAnalysisResGetter = [&functionAAResults] (llvm::Function* F) {
+            return functionAAResults[F];
+        };
+
         SVFModule svfM(M);
         AndersenWaveDiff* ander = new AndersenWaveDiff();
         ander->disablePrintStat();
@@ -54,7 +79,8 @@ public:
         using DefUseResultsTy = PDGBuilder::DefUseResultsTy;
         using IndCSResultsTy = PDGBuilder::IndCSResultsTy;
         DefUseResultsTy pointerDefUse = DefUseResultsTy(new SVFGDefUseAnalysisResults(svfg));
-        DefUseResultsTy scalarDefUse = DefUseResultsTy(new LLVMMemorySSADefUseAnalysisResults(memSSAGetter));
+        DefUseResultsTy scalarDefUse = DefUseResultsTy(
+                new LLVMMemorySSADefUseAnalysisResults(memSSAGetter, aliasAnalysisResGetter));
         IndCSResultsTy indCSRes = IndCSResultsTy(new
                 input_dependency::SVFGIndirectCallSiteResults(ander->getPTACallGraph()));
 

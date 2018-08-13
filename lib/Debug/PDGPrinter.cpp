@@ -4,6 +4,8 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/MemorySSA.h"
+#include "llvm/Analysis/PostDominators.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/PassRegistry.h"
@@ -15,6 +17,7 @@
 
 #include "PDG/SVFGDefUseAnalysisResults.h"
 #include "PDG/LLVMMemorySSADefUseAnalysisResults.h"
+#include "PDG/LLVMDominanceTree.h"
 #include "PDG/PDGBuilder.h"
 #include "PDG/PDGGraphTraits.h"
 #include "analysis/SVFGIndirectCallSiteResults.h"
@@ -41,6 +44,8 @@ public:
         AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
         llvm::getAAResultsAnalysisUsage(AU);
         AU.addRequiredTransitive<llvm::MemorySSAWrapperPass>();
+        AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
+        AU.addRequired<llvm::DominatorTreeWrapperPass>();
         AU.setPreservesAll();
     }
 
@@ -63,6 +68,13 @@ public:
             }
         }
 
+        auto domTreeGetter = [&] (llvm::Function* F) {
+            return &this->getAnalysis<llvm::DominatorTreeWrapperPass>(*F).getDomTree();
+        };
+        auto postdomTreeGetter = [&] (llvm::Function* F) {
+            return &this->getAnalysis<llvm::PostDominatorTreeWrapperPass>(*F).getPostDomTree();
+        };
+
         // Passing AARGetter to LLVMMemorySSADefUseAnalysisResults causes segmentation fault when requesting AAR
         // use following functional as a workaround before the problem with AARGetter is found
         auto aliasAnalysisResGetter = [&functionAAResults] (llvm::Function* F) {
@@ -78,13 +90,20 @@ public:
 
         using DefUseResultsTy = PDGBuilder::DefUseResultsTy;
         using IndCSResultsTy = PDGBuilder::IndCSResultsTy;
+        using DominanceResultsTy = PDGBuilder::DominanceResultsTy;
         DefUseResultsTy pointerDefUse = DefUseResultsTy(new SVFGDefUseAnalysisResults(svfg));
         DefUseResultsTy scalarDefUse = DefUseResultsTy(
                 new LLVMMemorySSADefUseAnalysisResults(memSSAGetter, aliasAnalysisResGetter));
         IndCSResultsTy indCSRes = IndCSResultsTy(new
                 input_dependency::SVFGIndirectCallSiteResults(ander->getPTACallGraph()));
+        DominanceResultsTy domResults = DominanceResultsTy(new LLVMDominanceTree(domTreeGetter,
+                                                                                 postdomTreeGetter));
 
-        pdg::PDGBuilder pdgBuilder(&M, pointerDefUse, scalarDefUse, indCSRes);
+        pdg::PDGBuilder pdgBuilder(&M);
+        pdgBuilder.setPointerDesUseResults(pointerDefUse);
+        pdgBuilder.setScalarDesUseResults(scalarDefUse);
+        pdgBuilder.setIndirectCallSitesResults(indCSRes);
+        pdgBuilder.setDominanceResults(domResults);
         pdgBuilder.build();
 
         auto pdg = pdgBuilder.getPDG();

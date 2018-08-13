@@ -2,6 +2,7 @@
 
 #include "PDG/PDGEdge.h"
 #include "PDG/DefUseResults.h"
+#include "PDG/DominanceResults.h"
 #include "analysis/IndirectCallSiteResults.h"
 
 #include "llvm/Analysis/MemorySSA.h"
@@ -15,15 +16,29 @@
 
 namespace pdg {
 
-PDGBuilder::PDGBuilder(llvm::Module* M,
-                       DefUseResultsTy pointerDefUse,
-                       DefUseResultsTy scalarDefUse,
-                       IndCSResultsTy indCSResults)
+PDGBuilder::PDGBuilder(llvm::Module* M)
     : m_module(M)
-    , m_ptDefUse(pointerDefUse)
-    , m_scalarDefUse(scalarDefUse)
-    , m_indCSResults(indCSResults)
 {
+}
+
+void PDGBuilder::setPointerDesUseResults(DefUseResultsTy pointerDefUse)
+{
+    m_ptDefUse = pointerDefUse;
+}
+
+void PDGBuilder::setScalarDesUseResults(DefUseResultsTy scalarDefUse)
+{
+    m_scalarDefUse = scalarDefUse;
+}
+
+void PDGBuilder::setIndirectCallSitesResults(IndCSResultsTy indCSResults)
+{
+    m_indCSResults = indCSResults;
+}
+
+void PDGBuilder::setDominanceResults(DominanceResultsTy domResults)
+{
+    m_domResults = domResults;
 }
 
 void PDGBuilder::build()
@@ -221,8 +236,10 @@ void PDGBuilder::visitTerminatorInst(llvm::TerminatorInst& I)
     auto sourceNode = getInstructionNodeFor(&I);
     for (unsigned i = 0; i < I.getNumSuccessors(); ++i) {
         auto* block = I.getSuccessor(i);
-        auto destNode = getNodeFor(block);
-        addControlEdge(sourceNode, destNode);
+        if (!m_domResults->posdominates(block, I.getParent())) {
+            auto destNode = getNodeFor(block);
+            addControlEdge(sourceNode, destNode);
+        }
     }
 }
 

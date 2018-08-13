@@ -27,6 +27,7 @@ class IndirectCallSiteResults;
 namespace pdg {
 
 class DefUseResults;
+class DominanceResults;
 
 class PDGBuilder : public llvm::InstVisitor<PDGBuilder>
 {
@@ -35,14 +36,12 @@ public:
     using FunctionPDGTy = PDG::FunctionPDGTy;
     using DefUseResultsTy = std::shared_ptr<DefUseResults>;
     using IndCSResultsTy = std::shared_ptr<input_dependency::IndirectCallSiteResults>;
+    using DominanceResultsTy = std::shared_ptr<DominanceResults>;
     using PDGNodeTy = FunctionPDG::PDGNodeTy;
     using FunctionSet = std::unordered_set<llvm::Function*>;
 
 public:
-    PDGBuilder(llvm::Module* M,
-               DefUseResultsTy pointerDefUse,
-               DefUseResultsTy scalarDefUse,
-               IndCSResultsTy indCSResults);
+    explicit PDGBuilder(llvm::Module* M);
 
     virtual ~PDGBuilder() = default;
     PDGBuilder(const PDGBuilder& ) = delete;
@@ -53,6 +52,11 @@ public:
     void build();
 
 public:
+    void setPointerDesUseResults(DefUseResultsTy pointerDefUse);
+    void setScalarDesUseResults(DefUseResultsTy scalarDefUse);
+    void setIndirectCallSitesResults(IndCSResultsTy indCSResults);
+    void setDominanceResults(DominanceResultsTy domResults);
+
     PDGType getPDG()
     {
         return std::move(m_pdg);
@@ -104,6 +108,7 @@ private:
     DefUseResultsTy m_ptDefUse;
     DefUseResultsTy m_scalarDefUse;
     IndCSResultsTy m_indCSResults;
+    DominanceResultsTy m_domResults;
     PDGType m_pdg;
     FunctionPDGTy m_currentFPDG;
 }; // class PDGBuilder

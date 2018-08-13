@@ -34,7 +34,6 @@ public:
     LLVMMemorySSADefUseAnalysisResults& operator =(const LLVMMemorySSADefUseAnalysisResults& ) = delete;
     LLVMMemorySSADefUseAnalysisResults& operator =(LLVMMemorySSADefUseAnalysisResults&& ) = delete;
 
-
 public:
     virtual llvm::Value* getDefSite(llvm::Value* value) override;
     virtual PDGNodeTy getDefSiteNode(llvm::Value* value) override;

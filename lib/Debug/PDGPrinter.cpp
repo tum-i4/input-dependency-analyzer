@@ -108,6 +108,9 @@ public:
 
         auto pdg = pdgBuilder.getPDG();
         for (auto& F : M) {
+            if (F.isDeclaration()) {
+                continue;
+            }
             if (!pdg->hasFunctionPDG(&F)) {
                 llvm::dbgs() << "Function does not have pdg " << F.getName() << "\n";
                 continue;

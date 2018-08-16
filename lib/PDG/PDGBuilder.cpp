@@ -385,8 +385,11 @@ void PDGBuilder::addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
         if (!m_pdg->hasFunctionPDG(F)) {
             buildFunctionDefinition(F);
         }
-        FunctionPDGTy calleePDG = m_pdg->getFunctionPDG(F);
         // TODO: consider varargs
+        if (F->getFunctionType()->getNumParams() < argIdx) {
+            continue;
+        }
+        FunctionPDGTy calleePDG = m_pdg->getFunctionPDG(F);
         llvm::Argument* formalArg = &*(F->arg_begin() + argIdx);
         if (!formalArg) {
             continue;

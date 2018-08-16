@@ -3,7 +3,7 @@
 #include "PDG/DefUseResults.h"
 
 #include <functional>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace llvm {
@@ -53,7 +53,8 @@ private:
     PHI getDefSites(llvm::Value* value,
                     llvm::MemoryAccess* access,
                     llvm::MemorySSA* memorySSA,
-                    llvm::AAResults* aa);
+                    llvm::AAResults* aa,
+                    std::unordered_set<llvm::MemoryAccess*>& processedAccesses);
 
 private:
     const MemorySSAGetter& m_memorySSAGetter;

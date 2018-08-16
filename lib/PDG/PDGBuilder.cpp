@@ -220,12 +220,14 @@ void PDGBuilder::visitMemIntrinsic(llvm::MemIntrinsic &I)
 void PDGBuilder::visitCallInst(llvm::CallInst& I)
 {
     // TODO: think about external calls
+    llvm::dbgs() << "Call Inst: " << I << "\n";
     llvm::CallSite callSite(&I);
     visitCallSite(callSite);
 }
 
 void PDGBuilder::visitInvokeInst(llvm::InvokeInst& I)
 {
+    llvm::dbgs() << "Invoke Inst: " << I << "\n";
     llvm::CallSite callSite(&I);
     visitCallSite(callSite);
     visitTerminatorInst(I);
@@ -386,6 +388,12 @@ void PDGBuilder::addActualArgumentNodeConnections(PDGNodeTy actualArgNode,
         FunctionPDGTy calleePDG = m_pdg->getFunctionPDG(F);
         // TODO: consider varargs
         llvm::Argument* formalArg = &*(F->arg_begin() + argIdx);
+        if (!formalArg) {
+            continue;
+        }
+        if (!calleePDG->hasFormalArgNode(formalArg)) {
+            calleePDG->addFormalArgNode(formalArg);
+        }
         auto formalArgNode = calleePDG->getFormalArgNode(formalArg);
         addDataEdge(actualArgNode, formalArgNode);
     }

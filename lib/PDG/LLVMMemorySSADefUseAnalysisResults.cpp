@@ -61,7 +61,8 @@ DefUseResults::PDGNodeTy LLVMMemorySSADefUseAnalysisResults::getDefSiteNode(llvm
         }
         return PDGNodeTy(new PDGLLVMInstructionNode(memInst));
     } else if (auto* memPhi = llvm::dyn_cast<llvm::MemoryPhi>(memDefAccess)) {
-        const auto& defSites = getDefSites(value, memPhi, memorySSA, aa);
+        std::unordered_set<llvm::MemoryAccess*> processedAccesses;
+        const auto& defSites = getDefSites(value, memPhi, memorySSA, aa, processedAccesses);
         PDGNodeTy phiNode = PDGNodeTy(new PDGPhiNode(defSites.values, defSites.blocks));
         return phiNode;
     }
@@ -87,9 +88,13 @@ LLVMMemorySSADefUseAnalysisResults::PHI
 LLVMMemorySSADefUseAnalysisResults::getDefSites(llvm::Value* value,
                                                 llvm::MemoryAccess* access,
                                                 llvm::MemorySSA* memorySSA,
-                                                llvm::AAResults* aa)
+                                                llvm::AAResults* aa,
+                                                std::unordered_set<llvm::MemoryAccess*>& processedAccesses)
 {
     PHI phi;
+    if (!processedAccesses.insert(access).second) {
+        return phi;
+    }
     if (!access || !value) {
         return phi;
     }
@@ -101,8 +106,8 @@ LLVMMemorySSADefUseAnalysisResults::getDefSites(llvm::Value* value,
         llvm::ModRefInfo modRef;
         if (auto* load = llvm::dyn_cast<llvm::LoadInst>(value)) {
             modRef = aa->getModRefInfo(def->getMemoryInst(),
-                                      load->getPointerOperand(),
-                                      DL.getTypeStoreSize(load->getType()));
+                                       load->getPointerOperand(),
+                                        DL.getTypeStoreSize(load->getType()));
         } else if (value->getType()->isSized()) {
             modRef = aa->getModRefInfo(def->getMemoryInst(), value,
                                        DL.getTypeStoreSize(value->getType()));
@@ -114,11 +119,11 @@ LLVMMemorySSADefUseAnalysisResults::getDefSites(llvm::Value* value,
             phi.blocks.push_back(def->getBlock());
             return phi;
         }
-        return getDefSites(value, def->getDefiningAccess(), memorySSA, aa);
+        return getDefSites(value, def->getDefiningAccess(), memorySSA, aa, processedAccesses);
     }
     if (auto* memphi = llvm::dyn_cast<llvm::MemoryPhi>(access)) {
         for (auto def_it = memphi->defs_begin(); def_it != memphi->defs_end(); ++def_it) {
-            auto accesses = getDefSites(value, *def_it, memorySSA, aa);
+            auto accesses = getDefSites(value, *def_it, memorySSA, aa, processedAccesses);
             if (!accesses.empty()) {
                 phi.values.insert(phi.values.end(), accesses.values.begin(), accesses.values.end());
                 phi.blocks.insert(phi.blocks.end(), accesses.blocks.begin(), accesses.blocks.end());

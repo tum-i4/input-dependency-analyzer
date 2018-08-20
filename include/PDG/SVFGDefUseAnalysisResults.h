@@ -3,6 +3,7 @@
 #include "PDG/DefUseResults.h"
 
 #include <unordered_map>
+#include <unordered_set>
 
 class SVFG;
 class SVFGNode;
@@ -24,8 +25,11 @@ public:
     virtual PDGNodeTy getDefSiteNode(llvm::Value* value) override;
 
 private:
-    SVFGNode* getDefNode(llvm::Value* value);
-    PDGNodeTy getNode(const SVFGNode* svfgNode);
+    SVFGNode* getSVFGNode(llvm::Value* value);
+    std::unordered_set<SVFGNode*> getSVFGDefNodes(SVFGNode* svfgNode);
+    llvm::Value* getSVFGNodeValue(SVFGNode* svfgNode);
+    PDGNodeTy getNode(const std::unordered_set<SVFGNode*>& svfgNodes);
+    PDGNodeTy getNode(SVFGNode* svfgNode);
 
 private:
     SVFG* m_svfg;

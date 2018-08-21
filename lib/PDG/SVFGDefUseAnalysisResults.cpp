@@ -197,25 +197,38 @@ SVFGDefUseAnalysisResults::SVFGDefUseAnalysisResults(SVFG* svfg)
 
 llvm::Value* SVFGDefUseAnalysisResults::getDefSite(llvm::Value* value)
 {
+    auto pos = m_valueDefSites.find(value);
+    if (pos != m_valueDefSites.end()) {
+        return pos->second;
+    }
+    llvm::Value* defSite = nullptr;
     SVFGNode* svfgNode = getSVFGNode(value);
-    if (!svfgNode) {
-        return nullptr;
+    if (svfgNode) {
+        const auto& defNodes = getSVFGDefNodes(svfgNode);
+        if (defNodes.size() != 1) {
+            defSite = nullptr;
+        } else {
+            defSite = getSVFGNodeValue(*defNodes.begin());
+        }
     }
-    const auto& defNodes = getSVFGDefNodes(svfgNode);
-    if (defNodes.size() != 1) {
-        return nullptr;
-    }
-    return getSVFGNodeValue(*defNodes.begin());
+    m_valueDefSites.insert(std::make_pair(value, defSite));
+    return defSite;
 }
 
 DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getDefSiteNode(llvm::Value* value)
 {
-    SVFGNode* svfgNode = getSVFGNode(value);
-    if (!svfgNode) {
-        return PDGNodeTy();
+    auto pos = m_valueDefNodes.find(value);
+    if (pos != m_valueDefNodes.end()) {
+        return pos->second;
     }
-    const auto& defNodes = getSVFGDefNodes(svfgNode);
-    return getNode(defNodes);
+    PDGNodeTy node;
+    SVFGNode* svfgNode = getSVFGNode(value);
+    if (svfgNode) {
+        const auto& defNodes = getSVFGDefNodes(svfgNode);
+        node = getNode(defNodes);
+    }
+    m_valueDefNodes.insert(std::make_pair(value, node));
+    return node;
 }
 
 SVFGNode* SVFGDefUseAnalysisResults::getSVFGNode(llvm::Value* value)
@@ -236,9 +249,6 @@ SVFGNode* SVFGDefUseAnalysisResults::getSVFGNode(llvm::Value* value)
     if (!hasIncomingEdges(pagNode)) {
         return nullptr;
     }
-    if (!m_svfg->hasSVFGNode(pagNode->getId())) {
-        return nullptr;
-    }
     return const_cast<SVFGNode*>(m_svfg->getDefSVFGNode(pagNode));
 }
 
@@ -250,11 +260,15 @@ std::unordered_set<SVFGNode*> SVFGDefUseAnalysisResults::getSVFGDefNodes(SVFGNod
         if (srcNode->getNodeKind() == SVFGNode::Copy
             || srcNode->getNodeKind() == SVFGNode::Store
             || srcNode->getNodeKind() == SVFGNode::MPhi
-            || srcNode->getNodeKind() == SVFGNode::TPhi) {
+            || srcNode->getNodeKind() == SVFGNode::MIntraPhi
+            || srcNode->getNodeKind() == SVFGNode::MInterPhi
+            || srcNode->getNodeKind() == SVFGNode::TPhi
+            || srcNode->getNodeKind() == SVFGNode::TIntraPhi
+            || srcNode->getNodeKind() == SVFGNode::TInterPhi) {
             defNodes.insert(srcNode);
             // TODO: what other node kinds can be added here?
         } else {
-            printNodeType(srcNode);
+            //printNodeType(srcNode);
         }
     }
     return defNodes;
@@ -270,16 +284,21 @@ llvm::Value* SVFGDefUseAnalysisResults::getSVFGNodeValue(SVFGNode* svfgNode)
 
 DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getNode(const std::unordered_set<SVFGNode*>& svfgNodes)
 {
+    PDGNodeTy node;
     if (svfgNodes.size() == 1) {
-        return getNode(*svfgNodes.begin());
+        node = getNode(*svfgNodes.begin());
+    }
+    if (node) {
+        return node;
     }
     std::vector<llvm::Value*> values;
     std::vector<llvm::BasicBlock*> blocks;
     for (const auto& svfgNode : svfgNodes) {
         getValuesAndBlocks(svfgNode, values, blocks);
+        node.reset(new PDGPhiNode(values, blocks));
     }
     
-    return PDGNodeTy();
+    return node;
 }
 
 DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getNode(SVFGNode* svfgNode)
@@ -289,41 +308,6 @@ DefUseResults::PDGNodeTy SVFGDefUseAnalysisResults::getNode(SVFGNode* svfgNode)
         return PDGNodeTy(new PDGLLVMInstructionNode(instr));
     }
     return PDGNodeTy();
-    /*
-    if (auto* actualParam = llvm::dyn_cast<ActualParmSVFGNode>(svfgNode)) {
-        return getNode(actualParam);
-    }
-    if (auto* actualRet = llvm::dyn_cast<ActualRetSVFGNode>(svfgNode)) {
-        return getNode(actualRet);
-    }
-    if (auto* formalParam = llvm::dyn_cast<FormalParmSVFGNode>(svfgNode)) {
-        return getNode(formalParam);
-    }
-    if (auto* formalRet = llvm::dyn_cast<FormalRetSVFGNode>(svfgNode)) {
-        return getNode(formalRet);
-    }
-    if (auto* null = llvm::dyn_cast<NullPtrSVFGNode>(svfgNode)) {
-        return PDGNodeTy(new PDGNullNode());
-    }
-    auto pos = m_phiNodes.find(svfgNode->getId());
-    if (pos != m_phiNodes.end()) {
-        return pos->second;
-    }
-
-    // TODO: think about children of PHISVFGNode. They may need to be processed separately.
-    if (auto* phi = llvm::dyn_cast<PHISVFGNode>(svfgNode)) {
-        auto phiNode = getNode(phi);
-        m_phiNodes.insert(std::make_pair(svfgNode->getId(), phiNode));
-        return phiNode;
-    }
-    if (auto* mssaPhi = llvm::dyn_cast<MSSAPHISVFGNode>(svfgNode)) {
-        auto phiNode = getNode(mssaPhi);
-        m_phiNodes.insert(std::make_pair(svfgNode->getId(), phiNode));
-        return phiNode;
-    }
-    assert(false);
-    return PDGNodeTy();
-    */
 }
 
 } // namespace pdg

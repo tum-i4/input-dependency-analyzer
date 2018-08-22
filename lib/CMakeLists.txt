@@ -7,6 +7,7 @@ add_library(PDG MODULE
         analysis/IndirectCallSitesAnalysis.cpp
         analysis/SVFGIndirectCallSiteResults.cpp
         Debug/PDGPrinter.cpp
+        Debug/SVFGTraversal.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

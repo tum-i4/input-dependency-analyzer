@@ -33,6 +33,25 @@ bool hasIncomingEdges(PAGNode* pagNode)
     return false;
 }
 
+bool hasOutgoingEdges(PAGNode* pagNode)
+{
+    //Addr, Copy, Store, Load, Call, Ret, NormalGep, VariantGep, ThreadFork, ThreadJoin
+    if (pagNode->hasOutgoingEdges(PAGEdge::Addr)
+        || pagNode->hasOutgoingEdges(PAGEdge::Copy)
+        || pagNode->hasOutgoingEdges(PAGEdge::Store)
+        || pagNode->hasOutgoingEdges(PAGEdge::Load)
+        || pagNode->hasOutgoingEdges(PAGEdge::Call)
+        || pagNode->hasOutgoingEdges(PAGEdge::Ret)
+        || pagNode->hasOutgoingEdges(PAGEdge::NormalGep)
+        || pagNode->hasOutgoingEdges(PAGEdge::VariantGep)
+        || pagNode->hasOutgoingEdges(PAGEdge::ThreadFork)
+        || pagNode->hasOutgoingEdges(PAGEdge::ThreadJoin)) {
+        return true;
+    }
+    return false;
+}
+
+
 class SVFGTraversal : public llvm::ModulePass
 {
 public:
@@ -61,9 +80,20 @@ public:
                 for (const auto& out : svfg->getFormalOUTSVFGNodes(&F)) {
                     llvm::dbgs() << out << "\n";
                     if (svfg->hasSVFGNode(out)) {
-                        llvm::dbgs() << "formal out " << *svfg->getSVFGNode(out) << "\n";
+                        llvm::dbgs() << "svfg formal out " << *svfg->getSVFGNode(out) << "\n";
                     } else if (pag->hasGNode(out)) {
-                        llvm::dbgs() << "formal out " << *pag->getPAGNode(out) << "\n";
+                        llvm::dbgs() << "pag formal out " << *pag->getPAGNode(out) << "\n";
+                    }
+                }
+            }
+            if (svfg->hasFormalINSVFGNodes(&F)) {
+                llvm::dbgs() << "has formal in nodes\n";
+                for (const auto& in : svfg->getFormalINSVFGNodes(&F)) {
+                    llvm::dbgs() << in << "\n";
+                    if (svfg->hasSVFGNode(in)) {
+                        llvm::dbgs() << "svfg formal in " << *svfg->getSVFGNode(in) << "\n";
+                    } else if (pag->hasGNode(in)) {
+                        llvm::dbgs() << "pag formal in " << *pag->getPAGNode(in) << "\n";
                     }
                 }
             }
@@ -93,8 +123,8 @@ public:
         auto nodeId = pag->getValueNode(I);
         auto* pagNode = pag->getPAGNode(nodeId);
         llvm::dbgs() << "   PAG Node " << *pagNode << "\n";
-        if (!hasIncomingEdges(pagNode)) {
-            llvm::dbgs() << "   No incoming edges\n";
+        if (!hasIncomingEdges(pagNode) && !hasOutgoingEdges(pagNode)) {
+            llvm::dbgs() << "   No incoming or outgoing edges\n";
             return;
         }
         processPAGNode(pagNode, svfg);
@@ -105,6 +135,25 @@ public:
                 const auto& actualOutNodes = svfg->getActualOUTSVFGNodes(callSite);
                 for (const auto& actualOut : actualOutNodes) {
                     llvm::dbgs() << actualOut << "\n";
+                    if (svfg->hasSVFGNode(actualOut)) {
+                        llvm::dbgs() << "svfg formal out " << *svfg->getSVFGNode(actualOut) << "\n";
+                    } else if (pag->hasGNode(actualOut)) {
+                        llvm::dbgs() << "pag formal out " << *pag->getPAGNode(actualOut) << "\n";
+                    }
+
+                }
+            }
+            if (svfg->hasActualINSVFGNodes(callSite)) {
+                llvm::dbgs() << "   Has actual in svfg nodes\n";
+                const auto& actualInNodes = svfg->getActualINSVFGNodes(callSite);
+                for (const auto& actualIn : actualInNodes) {
+                    llvm::dbgs() << actualIn << "\n";
+                    if (svfg->hasSVFGNode(actualIn)) {
+                        llvm::dbgs() << "svfg formal in " << *svfg->getSVFGNode(actualIn) << "\n";
+                    } else if (pag->hasGNode(actualIn)) {
+                        llvm::dbgs() << "pag formal in " << *pag->getPAGNode(actualIn) << "\n";
+                    }
+
                 }
             }
         }
@@ -155,28 +204,39 @@ public:
 
     void printEdges(const SVFGNode* svfgNode, SVFG* svfg)
     {
+        llvm::dbgs() << "INCOMING EDGES\n";
         for (auto inedge_it = svfgNode->InEdgeBegin(); inedge_it != svfgNode->InEdgeEnd(); ++inedge_it) {
-            llvm::dbgs() << "   Edge type ";
-            auto edgeKind = (*inedge_it)->getEdgeKind();
-            if (edgeKind == SVFGEdge::IntraDirect) {
-                llvm::dbgs() << "IntraDirect\n";
-            } else if (edgeKind == SVFGEdge::IntraIndirect) {
-                llvm::dbgs() << "IntraIndirect\n";
-            } else if (edgeKind == SVFGEdge::DirCall) {
-                llvm::dbgs() << "DirCall\n";
-            } else if (edgeKind == SVFGEdge::DirRet) {
-                llvm::dbgs() << "DirRet\n";
-            } else if (edgeKind == SVFGEdge::IndCall) {
-                llvm::dbgs() << "IndCall\n";
-            } else if (edgeKind == SVFGEdge::IndRet) {
-                llvm::dbgs() << "IndRet\n";
-            } else if (edgeKind == SVFGEdge::TheadMHPIndirect) {
-                llvm::dbgs() << "TheadMHPIndirect\n";
-            }
-            auto* srcNode = (*inedge_it)->getSrcNode();
-            llvm::dbgs() << "       Edge node\n";
-            processSVFGNode(const_cast<SVFGNode*>(srcNode), svfg);
+            printEdge(*inedge_it, svfg);
         }
+        llvm::dbgs() << "OUT EDGES\n";
+        for (auto edge_it = svfgNode->OutEdgeBegin(); edge_it != svfgNode->OutEdgeEnd(); ++edge_it) {
+            printEdge(*edge_it, svfg);
+        }
+    }
+
+    void printEdge(SVFGEdge* edge, SVFG* svfg)
+    {
+        llvm::dbgs() << "   Edge type ";
+        auto edgeKind = edge->getEdgeKind();
+        if (edgeKind == SVFGEdge::IntraDirect) {
+            llvm::dbgs() << "IntraDirect\n";
+        } else if (edgeKind == SVFGEdge::IntraIndirect) {
+            llvm::dbgs() << "IntraIndirect\n";
+        } else if (edgeKind == SVFGEdge::DirCall) {
+            llvm::dbgs() << "DirCall\n";
+        } else if (edgeKind == SVFGEdge::DirRet) {
+            llvm::dbgs() << "DirRet\n";
+        } else if (edgeKind == SVFGEdge::IndCall) {
+            llvm::dbgs() << "IndCall\n";
+        } else if (edgeKind == SVFGEdge::IndRet) {
+            llvm::dbgs() << "IndRet\n";
+        } else if (edgeKind == SVFGEdge::TheadMHPIndirect) {
+            llvm::dbgs() << "TheadMHPIndirect\n";
+        }
+        auto* srcNode = edge->getSrcNode();
+        llvm::dbgs() << "       Edge node\n";
+        processSVFGNode(const_cast<SVFGNode*>(srcNode), svfg);
+
     }
 
     void processStmtNode(StmtSVFGNode* stmtNode, SVFG* svfg)

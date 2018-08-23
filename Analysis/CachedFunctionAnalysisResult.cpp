@@ -68,13 +68,13 @@ void CachedFunctionAnalysisResult::parse_block_input_dep_metadata(llvm::BasicBlo
 
 void CachedFunctionAnalysisResult::parse_block_instructions_input_dep_metadata(llvm::BasicBlock& B)
 {
-    if (m_inputDepBlocks.find(&B) != m_inputDepBlocks.end()) {
-        add_all_instructions_to(B, m_inputDepInstructions);
-    } else if (m_unreachableBlocks.find(&B) != m_unreachableBlocks.end()) {
+    if (m_unreachableBlocks.find(&B) != m_unreachableBlocks.end()) {
         add_all_instructions_to(B, m_unreachableInstructions);
+        return;
     }
+    bool is_block_input_dep = (m_inputDepBlocks.find(&B) != m_inputDepBlocks.end());
     for (auto& I : B) {
-        parse_instruction_input_dep_metadata(I);
+        parse_instruction_input_dep_metadata(I, is_block_input_dep);
     }
 }
 
@@ -85,21 +85,23 @@ void CachedFunctionAnalysisResult::add_all_instructions_to(llvm::BasicBlock& B, 
     }
 }
 
-void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::Instruction& I)
+void CachedFunctionAnalysisResult::parse_instruction_input_dep_metadata(llvm::Instruction& I, bool is_block_input_dep)
 {
-    if (I.getMetadata(metadata_strings::input_indep_instr)) {
+    if (is_block_input_dep) {
+        m_inputDepInstructions.insert(&I);
+    }
+    if (I.getMetadata(metadata_strings::input_dep_instr)) {
+        m_inputDepInstructions.insert(&I);
+    }
+    if (I.getMetadata(metadata_strings::control_dep_instr)) {
+        m_controlDepInstructions.insert(&I);
+    }
+    if (I.getMetadata(metadata_strings::data_dep_instr)) {
+        m_dataDepInstructions.insert(&I);
+    } else if (I.getMetadata(metadata_strings::input_indep_instr)) {
         m_inputIndepInstructions.insert(&I);
     } else if (I.getMetadata(metadata_strings::unknown)) {
         m_unknownInstructions.insert(&I);
-    } else if (I.getMetadata(metadata_strings::input_dep_instr)) {
-        m_inputDepInstructions.insert(&I);
-        if (I.getMetadata(metadata_strings::control_dep_instr)) {
-            m_controlDepInstructions.insert(&I);
-        }
-        if (I.getMetadata(metadata_strings::data_dep_instr)) {
-            m_dataDepInstructions.insert(&I);
-        }
-
     }
     if (I.getMetadata(metadata_strings::global_dep_instr)) {
         m_globalDepInstructions.insert(&I);

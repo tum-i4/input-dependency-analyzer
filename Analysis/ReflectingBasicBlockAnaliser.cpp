@@ -554,7 +554,7 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionArguments(llvm::Value*
     for (const auto& fargs : valPos->second) {
         auto callInst = fargs.first;
         FunctionSet targets;
-        auto calledF = callInst->getCalledFunction();
+        auto calledF = getCalledFunction(callInst);
         if (calledF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
@@ -594,7 +594,7 @@ void ReflectingBasicBlockAnaliser::reflectOnCalledFunctionReferencedGlobals(llvm
     for (const auto& fargs : valPos->second) {
         auto callInst = fargs.first;
         FunctionSet targets;
-        auto calledF = callInst->getCalledFunction();
+        auto calledF = getCalledFunction(callInst);
         if (calledF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(callInst)) {
                 targets = m_virtualCallsInfo.getVirtualCallCandidates(callInst);
@@ -636,7 +636,7 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionArguments(llvm::Value
 
     for (const auto& fargs : valPos->second) {
         auto invokeInst = fargs.first;
-        auto invokedF = invokeInst->getCalledFunction();
+        auto invokedF = getCalledFunction(invokeInst);
         FunctionSet targets;
         if (invokedF == nullptr) {
             if (m_virtualCallsInfo.hasVirtualCallCandidates(invokeInst)) {
@@ -670,20 +670,33 @@ void ReflectingBasicBlockAnaliser::reflectOnInvokedFunctionReferencedGlobals(llv
     if (valPos == m_valueDependentInvokeGlobals.end()) {
         return;
     }
-
     for (const auto& fargs : valPos->second) {
         auto invokeInst = fargs.first;
-        auto F = invokeInst->getCalledFunction();
-        auto Fpos = m_functionCallInfo.find(F);
-        if (Fpos == m_functionCallInfo.end()) {
-            return;
+        FunctionSet targets;
+        auto invokedF = getCalledFunction(invokeInst);
+        if (invokedF == nullptr) {
+            if (m_virtualCallsInfo.hasVirtualCallCandidates(invokeInst)) {
+                targets = m_virtualCallsInfo.getVirtualCallCandidates(invokeInst);
+            } else if (m_indirectCallsInfo.hasIndirectTargets(invokeInst)) {
+                targets = m_indirectCallsInfo.getIndirectTargets(invokeInst);
+            } else {
+                continue;
+            }
+        } else {
+            targets.insert(invokedF);
         }
-        assert(Fpos != m_functionCallInfo.end());
-        auto& invokeDeps = Fpos->second.getGlobalsDependenciesForInvoke(invokeInst);
-        for (auto& arg : fargs.second) {
-            auto argPos = invokeDeps.find(arg);
-            assert(argPos != invokeDeps.end());
-            reflectOnDepInfo(value, argPos->second, depInfo);
+        for (auto& F : targets) {
+            auto Fpos = m_functionCallInfo.find(F);
+            if (Fpos == m_functionCallInfo.end()) {
+                return;
+            }
+            assert(Fpos != m_functionCallInfo.end());
+            auto& invokeDeps = Fpos->second.getGlobalsDependenciesForInvoke(invokeInst);
+            for (auto& arg : fargs.second) {
+                auto argPos = invokeDeps.find(arg);
+                assert(argPos != invokeDeps.end());
+                reflectOnDepInfo(value, argPos->second, depInfo);
+            }
         }
     }
     m_valueDependentInvokeGlobals.erase(valPos);

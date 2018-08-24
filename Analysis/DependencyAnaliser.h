@@ -86,6 +86,8 @@ protected:
     virtual void markCallbackFunctionsForValue(llvm::Value* value) = 0;
     virtual void removeCallbackFunctionsForValue(llvm::Value* value) = 0;
 
+    template <typename CallTy>
+    llvm::Function* getCalledFunction(CallTy* callInst);
     virtual ValueDepInfo getArgumentValueDependecnies(llvm::Value* argVal);
     virtual void updateFunctionCallSiteInfo(llvm::CallInst* callInst, llvm::Function* F);
     virtual void updateFunctionInvokeSiteInfo(llvm::InvokeInst* invokeInst, llvm::Function* F);

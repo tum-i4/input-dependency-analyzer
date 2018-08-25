@@ -37,3 +37,45 @@ target_link_libraries(Transforms PRIVATE input-dependency::InputDependency)
 if (APPLE)
     set_target_properties(Transforms PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif (APPLE)
+
+
+
+##
+## INSTALL
+## install header files, generate and install cmake config files for find_package()
+##
+include(GNUInstallDirs)
+set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/input-dependency)
+
+install(
+        TARGETS Transforms
+        EXPORT input-dependencyTransformsTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT Transforms
+)
+
+install(
+        DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT Transforms
+)
+
+install(
+        EXPORT input-dependencyTransformsTargets
+        NAMESPACE input-dependency::
+        DESTINATION ${INSTALL_CONFIGDIR}
+        COMPONENT Transforms
+)
+
+
+##
+## Export
+##
+export(
+        EXPORT input-dependencyTransformsTargets
+        NAMESPACE input-dependency::
+        FILE ${CMAKE_CURRENT_BINARY_DIR}/input-dependencyTransformsTargets.cmake
+)
+
+export(PACKAGE input-dependency-transforms)

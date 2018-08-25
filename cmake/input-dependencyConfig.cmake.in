@@ -1,0 +1,26 @@
+cmake_policy(PUSH)
+cmake_policy(SET CMP0057 NEW)
+get_filename_component(input-dependency_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+include(CMakeFindDependencyMacro)
+
+list(APPEND CMAKE_MODULE_PATH ${input-dependency_CMAKE_DIR})
+
+find_dependency(nlohmann_json REQUIRED)
+find_dependency(LLVM 6.0 REQUIRED CONFIG)
+
+list(REMOVE_AT CMAKE_MODULE_PATH -1)
+
+set(_supported_components InputDependency Transforms)
+
+foreach(_comp ${input-dependency_FIND_COMPONENTS})
+    if (NOT _comp IN_LIST _supported_components)
+        message(STATUS "component not found is: ${_comp}")
+        message(STATUS "supported components are: ${_supported_components}")
+        set(input-dependency_FOUND False)
+        set(input-dependency_NOT_FOUND_MESSAGE "Unsupported component: ${_comp}")
+    endif()
+    include("${CMAKE_CURRENT_LIST_DIR}/input-dependency${_comp}Targets.cmake")
+endforeach()
+
+set(input-dependency_LIBRARIES input-dependency::InputDependency input-dependency::Transforms)
+cmake_policy(POP)

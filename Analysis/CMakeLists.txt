@@ -122,3 +122,44 @@ target_link_libraries(InputDependency PRIVATE nlohmann_json::nlohmann_json)
 if (APPLE)
     set_target_properties(InputDependency PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif (APPLE)
+
+
+
+##
+## INSTALL
+## install header files, generate and install cmake config files for find_package()
+##
+include(GNUInstallDirs)
+set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/input-dependency)
+
+install(
+        TARGETS InputDependency
+        EXPORT input-dependencyInputDependencyTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT InputDependency
+)
+
+install(
+        DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT InputDependency
+)
+
+install(
+        EXPORT input-dependencyInputDependencyTargets
+        NAMESPACE input-dependency::
+        DESTINATION ${INSTALL_CONFIGDIR}
+        COMPONENT InputDependency
+)
+
+##
+## Export
+##
+export(
+        EXPORT input-dependencyInputDependencyTargets
+        NAMESPACE input-dependency::
+        FILE ${CMAKE_CURRENT_BINARY_DIR}/input-dependencyInputDependencyTargets.cmake
+)
+
+export(PACKAGE input-dependency-analysis)

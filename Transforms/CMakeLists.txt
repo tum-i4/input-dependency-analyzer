@@ -1,33 +1,39 @@
-add_library(Transforms MODULE
-   FunctionClonePass.cpp 
-   FunctionClone.cpp
-   FunctionExtraction.cpp
-   FunctionSnippet.cpp
-   Utils.cpp
-#   InputDepTest.cpp
-)
+cmake_minimum_required(VERSION 3.12)
 
-install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency
-        FILES_MATCHING PATTERN "*.h")
-install(TARGETS Transforms LIBRARY DESTINATION /usr/local/lib)
+project(input-dependency-transforms VERSION 0.1 LANGUAGES CXX)
 
-link_directories(analysis)
+add_library(Transforms SHARED
+        include/input-dependency/Transforms/FunctionClone.h
+        include/input-dependency/Transforms/FunctionClonePass.h
+        include/input-dependency/Transforms/FunctionExtraction.h
+        include/input-dependency/Transforms/FunctionSnippet.h
+        include/input-dependency/Transforms/Utils.h
 
-# Use C++11 to compile our pass (i.e., supply -std=c++11).
+        src/FunctionClonePass.cpp
+        src/FunctionClone.cpp
+        src/FunctionExtraction.cpp
+        src/FunctionSnippet.cpp
+        src/Utils.cpp)
+
+add_library(input-dependency::Transforms ALIAS Transforms)
+
+find_package(LLVM 6.0 REQUIRED CONFIG)
+
+target_include_directories(Transforms
+        PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${LLVM_INCLUDE_DIRS})
+
+
 target_compile_features(Transforms PRIVATE cxx_range_for cxx_auto_type)
-target_link_libraries(Transforms "${LIBRARY_OUTPUT_PATH}/libInputDependency.so")
-
-# LLVM is (typically) built with no C++ RTTI. We need to match that;
-# otherwise, we'll get linker errors about missing RTTI data.
-set_target_properties(Transforms PROPERTIES
-    COMPILE_FLAGS "-fno-rtti -g"
-)
+target_compile_options(Transforms PRIVATE -fno-rtti)
+target_link_libraries(Transforms PRIVATE input-dependency::InputDependency)
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
-if(APPLE)
-    set_target_properties(Transforms PROPERTIES
-            LINK_FLAGS "-undefined dynamic_lookup"
-            )
-endif(APPLE)
-
+if (APPLE)
+    set_target_properties(Transforms PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+endif (APPLE)

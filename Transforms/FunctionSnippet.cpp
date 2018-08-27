@@ -582,6 +582,16 @@ llvm::FunctionType* create_function_type(llvm::LLVMContext& Ctx,
         arg_values[i] = val;
         ++i;
         auto type = get_value_type(val);
+        if (type->isStructTy()) {
+            return nullptr;
+        } else if (auto* ptrType = llvm::dyn_cast<llvm::PointerType>(type)) {
+            if (ptrType->getElementType()->isStructTy()) {
+                return nullptr;
+            }
+            if (ptrType->getElementType()->isPointerTy()) {
+                return nullptr;
+            }
+        }
         if (!llvm::dyn_cast<llvm::AllocaInst>(val)) {
             arg_types.push_back(type);
         } else if (type->isArrayTy()) {

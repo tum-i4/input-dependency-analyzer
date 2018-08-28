@@ -7,6 +7,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -121,6 +122,11 @@ bool InstructionExtraction::can_extract(llvm::Instruction* instr,
     }
     if (llvm::dyn_cast<llvm::TerminatorInst>(instr)) {
         return false;
+    }
+    if (auto* intrInst = llvm::dyn_cast<llvm::IntrinsicInst>(instr)) {
+        if (intrInst->getIntrinsicID() == llvm::Intrinsic::vastart) {
+            return false;
+        }
     }
     llvm::Function* F = instr->getParent()->getParent();
     if (m_input_dep_info->isDataDependent(instr)) {

@@ -237,6 +237,13 @@ void ReflectingBasicBlockAnaliser::reflect(const DependencyAnaliser::ValueDepend
     m_valueDependentFunctionInvokeArguments.clear();
     assert(m_valueDependentFunctionInvokeArguments.empty());
     m_isReflected = true;
+    m_valueDependentInstrs.clear();
+    m_valueDependentOutArguments.clear(); 
+    m_valueDependentFunctionCallArguments.clear();
+    m_valueDependentFunctionInvokeArguments.clear();
+    m_valueDependentCallGlobals.clear();
+    m_valueDependentInvokeGlobals.clear();
+    m_instructionValueDependencies.clear();
 }
 
 void ReflectingBasicBlockAnaliser::addControlDependencies(ValueDepInfo& valueDepInfo)

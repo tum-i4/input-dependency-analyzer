@@ -542,7 +542,7 @@ void FunctionAnaliser::Impl::analyze()
     llvm::BasicBlock* bb;
     for (auto& block : blocks_in_traversal_order) {
         bb = block.first;
-        //llvm::dbgs() << "process block: " << bb->getName() << "\n";
+        //llvm::dbgs() << "   next block: " << bb->getName() << "\n";
         const auto& depInfo = getBasicBlockPredecessorInstructionsDeps(bb);
         if (block.second) {
             m_BBAnalysisResults[bb].reset(createLoopAnalysisResult(depInfo, block.second));
@@ -558,6 +558,7 @@ void FunctionAnaliser::Impl::analyze()
         updateCalledFunctionsList(m_BBAnalysisResults[bb]);
         updateReturnValueDependencies(bb);
         updateOutArgumentDependencies(bb);
+        //llvm::dbgs() << "   Done block analysis\n";
     }
     m_exit_block = bb;
     m_inputs.clear();

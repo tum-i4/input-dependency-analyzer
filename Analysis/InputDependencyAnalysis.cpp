@@ -77,6 +77,7 @@ void InputDependencyAnalysis::setDominatorTreeGetter(const DominatorTreeGetter& 
 
 void InputDependencyAnalysis::run()
 {
+    //Utils::dumpMemoryUsage("Before Starting analysis\n");
     llvm::scc_iterator<llvm::CallGraph*> CGI = llvm::scc_begin(m_callGraph);
     llvm::CallGraphSCC CurSCC(*m_callGraph, &CGI);
     while (!CGI.isAtEnd()) {
@@ -94,7 +95,9 @@ void InputDependencyAnalysis::run()
         }
         ++CGI;
     }
+    //Utils::dumpMemoryUsage("After analysis, before finalization\n");
     doFinalization();
+    //Utils::dumpMemoryUsage("After finalization\n");
     llvm::dbgs() << "Finished input dependency analysis\n\n";
 }
 

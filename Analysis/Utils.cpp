@@ -10,8 +10,34 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cxxabi.h>
+#include <fstream>
+#include <unistd.h>
 
 namespace input_dependency {
+
+void Utils::dumpMemoryUsage(const std::string& stepName)
+{
+    llvm::dbgs() << "Memory usage " << stepName << "\n";
+    double vm_usage     = 0.0;
+    double resident_set = 0.0;
+
+    // the two fields we want
+    unsigned long vsize;
+    long rss;
+    {
+        std::string ignore;
+        std::ifstream ifs("/proc/self/stat", std::ios_base::in);
+        ifs >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore
+            >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore >> ignore
+            >> ignore >> ignore >> vsize >> rss;
+    }
+
+    long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024; // in case x86-64 is configured to use 2MB pages
+    vm_usage = vsize / 1024.0;
+    resident_set = rss * page_size_kb;
+    llvm::dbgs() << "   VM usage: " << vm_usage << "\n";
+    llvm::dbgs() << "   RSS: " << resident_set << "\n";
+}
 
 bool Utils::isInputDependentForArguments(const DepInfo& depInfo, const DependencyAnaliser::ArgumentDependenciesMap& arg_deps)
 {

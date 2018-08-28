@@ -94,6 +94,7 @@ void LoopAnalysisResult::gatherResults()
     updateValueDependencies();
     reflectValueDepsOnLoopDeps();
 
+    m_latches.clear();
     auto toc = Clock::now();
     // only for outer most loops, as it includes analysis of child loops
     if (getenv("LOOP_TIME") && m_L.getLoopDepth() == 1) {
@@ -109,6 +110,13 @@ void LoopAnalysisResult::finalizeResults(const DependencyAnaliser::ArgumentDepen
     }
     m_functionCallInfo.clear();
     updateFunctionCallInfo();
+    m_outArgDependencies.clear();
+    //m_returnValueDependencies.clear();
+    m_initialDependencies.clear();
+    m_valueDependencies.clear();
+    m_functionValues.clear();
+    m_referencedGlobals.clear();
+    m_modifiedGlobals.clear();
 }
 
 void LoopAnalysisResult::finalizeGlobals(const DependencyAnaliser::GlobalVariableDependencyMap& globalsDeps)

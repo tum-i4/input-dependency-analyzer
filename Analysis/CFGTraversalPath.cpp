@@ -136,6 +136,7 @@ void CFGTraversalPathCreator::construct_with_scc()
 
 void CFGTraversalPathCreator::construct_with_cfg()
 {
+   // llvm::dbgs() << "   Constructing traversal path\n";
     std::list<llvm::BasicBlock*> work_list;
     std::unordered_set<llvm::BasicBlock*> processed_blocks;
     work_list.push_front(&m_F.getEntryBlock());

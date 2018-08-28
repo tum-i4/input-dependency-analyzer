@@ -23,6 +23,9 @@ public:
     static int getLoopDepthDiff(llvm::Loop* loop1, llvm::Loop* loop2);
 
     static std::string demangle_name(const std::string& name);
+
+    // Memory profiler functions
+    static void dumpMemoryUsage(const std::string& stepName);
 }; // class Utils
 
 } // namespace input_dependency

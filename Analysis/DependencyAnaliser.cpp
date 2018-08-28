@@ -111,6 +111,13 @@ void DependencyAnaliser::finalize(const ArgumentDependenciesMap& dependentArgs)
         callInfo.second.finalizeArgumentDependencies(dependentArgs);
     }
     m_finalized = true;
+    m_functionValues.clear();
+    m_outArgDependencies.clear();
+    //m_returnValueDependencies
+   m_valueDependencies.clear(); 
+   m_initialDependencies.clear();
+   m_referencedGlobals.clear();
+   m_modifiedGlobals.clear();
 }
 
 void DependencyAnaliser::finalize(const GlobalVariableDependencyMap& globalDeps)

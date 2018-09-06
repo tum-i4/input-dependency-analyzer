@@ -371,6 +371,7 @@ void CLibraryInfo::add_qsort()
     LibFunctionInfo qsortInfo(C_library::qsort,
                               std::move(argDeps),
                               LibFunctionInfo::LibArgDepInfo{DepInfo::INPUT_INDEP});
+    qsortInfo.setCallbackArgumentIndices({3});
     m_libFunctionInfoProcessor(std::move(qsortInfo));
 }
 

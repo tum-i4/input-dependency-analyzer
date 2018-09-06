@@ -39,6 +39,7 @@ add_library(InputDependency MODULE
     Statistics.cpp
     constants.cpp
     TransparentCachingPass.cpp
+    ReachableFunctions.cpp
 )
 
 install(DIRECTORY ./ DESTINATION /usr/local/include/input-dependency

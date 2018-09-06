@@ -23,6 +23,8 @@ public:
     const static std::string unknown;
     const static std::string unreachable;
     const static std::string extracted;
+    const static std::string main_reachables_cached;
+    const static std::string main_reachable;
 };
 
 } // namespace input_dependency

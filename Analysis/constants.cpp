@@ -17,6 +17,8 @@ const std::string metadata_strings::argument_dep_instr = "argument_dep_instr";
 const std::string metadata_strings::unknown = "unknown";
 const std::string metadata_strings::unreachable = "unreachable";
 const std::string metadata_strings::extracted = "extracted";
+const std::string metadata_strings::main_reachables_cached = "main_reachables_cached";
+const std::string metadata_strings::main_reachable = "main_reachable";
 
 }
 

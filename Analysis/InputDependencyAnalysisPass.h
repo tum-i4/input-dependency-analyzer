@@ -46,6 +46,7 @@ private:
     bool has_cached_input_dependency() const;
     void create_input_dependency_analysis(const InputDependencyAnalysisInterface::AliasAnalysisInfoGetter& AARGetter);
     void create_cached_input_dependency_analysis();
+    void mark_main_reachable_functions();
     void dump_statistics();
 
 private:

@@ -6,6 +6,7 @@
 #include "IndirectCallSitesAnalysis.h"
 #include "InputDepConfig.h"
 #include "InputDepInstructionsRecorder.h"
+#include "ReachableFunctions.h"
 #include "constants.h"
 
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -17,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -58,6 +60,11 @@ static llvm::cl::opt<bool> use_cache(
     llvm::cl::desc("Cache input dependency results"),
     llvm::cl::value_desc("boolean flag"));
 
+static llvm::cl::opt<bool> mark_main_reachables(
+        "mark-main-reachables",
+        llvm::cl::desc("Mark functions reachable from main"),
+        llvm::cl::value_desc("boolean flag"));
+
 void configure_run()
 {
     InputDepInstructionsRecorder::get().set_record();
@@ -90,10 +97,13 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
         }
         create_input_dependency_analysis(AARGetter);
     }
-
     m_analysis->run();
     if (stats) {
         dump_statistics();
+    }
+    if (mark_main_reachables) {
+        mark_main_reachable_functions();
+        return true;
     }
 
     return false;
@@ -161,6 +171,26 @@ void InputDependencyAnalysisPass::create_input_dependency_analysis(const InputDe
 void InputDependencyAnalysisPass::create_cached_input_dependency_analysis()
 {
     m_analysis.reset(new CachedInputDependencyAnalysis(m_module));
+}
+
+void InputDependencyAnalysisPass::mark_main_reachable_functions()
+{
+    llvm::Function* mainF = m_module->getFunction("main");
+    if (!mainF) {
+        llvm::dbgs() << "No function main\n";
+        return;
+    }
+    m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata_strings::main_reachables_cached, true);
+    llvm::CallGraph* CG = &getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
+    ReachableFunctions reachableFs(m_module, CG);
+    reachableFs.setInputDependencyAnalysisResult(m_analysis.get());
+    const auto& reachableFunctions = reachableFs.getReachableFunctions(mainF);
+
+    auto* main_reachable_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::main_reachable);
+    llvm::MDNode* main_reachable_md = llvm::MDNode::get(m_module->getContext(), main_reachable_md_str);
+    for (auto& F : reachableFunctions) {
+        F->setMetadata(metadata_strings::main_reachable, main_reachable_md);
+    }
 }
 
 void InputDependencyAnalysisPass::dump_statistics()

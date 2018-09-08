@@ -10,6 +10,7 @@ class CallGraph;
 class CallGraphNode;
 class Function;
 class Module;
+class User;
 }
 
 namespace input_dependency {
@@ -39,6 +40,8 @@ private:
     void collect_reachable_functions(llvm::CallGraphNode* callNode,
                                      FunctionSet& reachable_functions);
     void collect_indirectly_reachable_functions(FunctionSet& reachable_functions);
+    void collect_functions_with_uses(FunctionSet& reachable_functions);
+    FunctionSet getUserFunctions(llvm::User* user);
 
 private:
     llvm::Module* m_module;

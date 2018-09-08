@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace llvm {
 class Module;
@@ -46,8 +47,9 @@ private:
     bool has_cached_input_dependency() const;
     void create_input_dependency_analysis(const InputDependencyAnalysisInterface::AliasAnalysisInfoGetter& AARGetter);
     void create_cached_input_dependency_analysis();
-    void mark_main_reachable_functions();
-    void dump_statistics();
+    std::unordered_set<llvm::Function*> get_main_non_reachable_functions();
+    void mark_main_reachable_functions(const std::unordered_set<llvm::Function*>& functions);
+    void dump_statistics(const std::unordered_set<llvm::Function*>& functions);
 
 private:
     llvm::Module* m_module;

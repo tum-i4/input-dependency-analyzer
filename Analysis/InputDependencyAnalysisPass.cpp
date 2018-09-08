@@ -98,15 +98,17 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
         create_input_dependency_analysis(AARGetter);
     }
     m_analysis->run();
-    if (stats) {
-        dump_statistics();
-    }
+    bool modified = false;
+    std::unordered_set<llvm::Function*> reachable_functions;
     if (mark_main_reachables) {
-        mark_main_reachable_functions();
-        return true;
+        reachable_functions = get_main_non_reachable_functions();
+        mark_main_reachable_functions(reachable_functions);
+        modified = true;
     }
-
-    return false;
+    if (stats) {
+        dump_statistics(reachable_functions);
+    }
+    return modified;
 }
 
 void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
@@ -173,27 +175,32 @@ void InputDependencyAnalysisPass::create_cached_input_dependency_analysis()
     m_analysis.reset(new CachedInputDependencyAnalysis(m_module));
 }
 
-void InputDependencyAnalysisPass::mark_main_reachable_functions()
+std::unordered_set<llvm::Function*>
+InputDependencyAnalysisPass::get_main_non_reachable_functions()
 {
+    ReachableFunctions::FunctionSet functions;
     llvm::Function* mainF = m_module->getFunction("main");
     if (!mainF) {
         llvm::dbgs() << "No function main\n";
-        return;
+        return functions;
     }
     m_module->addModuleFlag(llvm::Module::ModFlagBehavior::Error, metadata_strings::main_reachables_cached, true);
     llvm::CallGraph* CG = &getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
     ReachableFunctions reachableFs(m_module, CG);
     reachableFs.setInputDependencyAnalysisResult(m_analysis.get());
-    const auto& reachableFunctions = reachableFs.getReachableFunctions(mainF);
+    return reachableFs.getReachableFunctions(mainF);
+}
 
+void InputDependencyAnalysisPass::mark_main_reachable_functions(const std::unordered_set<llvm::Function*>& functions)
+{
     auto* main_reachable_md_str = llvm::MDString::get(m_module->getContext(), metadata_strings::main_reachable);
     llvm::MDNode* main_reachable_md = llvm::MDNode::get(m_module->getContext(), main_reachable_md_str);
-    for (auto& F : reachableFunctions) {
+    for (auto& F : functions) {
         F->setMetadata(metadata_strings::main_reachable, main_reachable_md);
     }
 }
 
-void InputDependencyAnalysisPass::dump_statistics()
+void InputDependencyAnalysisPass::dump_statistics(const std::unordered_set<llvm::Function*>& functions)
 {
     std::string file_name = stats_file;
     if (file_name.empty()) {
@@ -208,6 +215,7 @@ void InputDependencyAnalysisPass::dump_statistics()
                                     m_module,
                                     &m_analysis->getAnalysisInfo());
     stats.setLoopInfoGetter(loopInfoGetter);
+    stats.setFunctions(functions);
     stats.setSectionName("inputdep_stats");
     stats.report();
     stats.flush();

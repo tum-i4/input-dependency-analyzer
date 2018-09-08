@@ -69,6 +69,7 @@ public:
                               InputDependencyAnalysisInfo* IDA);
 
     void setLoopInfoGetter(const LoopInfoGetter& loop_info_getter);
+    void setFunctions(const std::unordered_set<llvm::Function*>& functions);
 
 public:
     void report() override;
@@ -96,6 +97,7 @@ public:
     virtual void invalidate_stats_data();
 
 private:
+    bool skip_function(llvm::Function* F) const;
     void report_inputdep_data(const inputdep_data& data);
     void report_input_indep_coverage_data(const input_indep_coverage_data& data);
     void report_input_dep_coverage_data(const input_dep_coverage_data& data);
@@ -111,6 +113,7 @@ private:
     llvm::Module* m_module;
     InputDependencyAnalysisInfo* m_IDA; 
     LoopInfoGetter m_loopInfoGetter;
+    std::unordered_set<llvm::Function*> m_functions;
 
     // caching stats
     std::unordered_map<llvm::Function*, input_indep_coverage_data> m_function_input_indep_function_coverage_data;

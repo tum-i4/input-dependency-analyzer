@@ -81,6 +81,11 @@ void InputDependencyStatistics::setLoopInfoGetter(const LoopInfoGetter& loop_inf
     m_loopInfoGetter = loop_info_getter;
 }
 
+void InputDependencyStatistics::setFunctions(const std::unordered_set<llvm::Function*>& functions)
+{
+    m_functions = functions;
+}
+
 void InputDependencyStatistics::report()
 {
     reportInputDependencyInfo();
@@ -99,6 +104,9 @@ void InputDependencyStatistics::reportInputDependencyInfo()
     std::vector<std::string> input_dep_functions;
 
     for (const auto& F_inputDep : *m_IDA) {
+        if (skip_function(F_inputDep.first)) {
+            continue;
+        }
         module_instructions += get_function_instrs_count(*F_inputDep.first);
         module_inputdep_instrs += F_inputDep.second->get_input_indep_count();
         if (F_inputDep.second->isInputDepFunction() || F_inputDep.second->isExtractedFunction()) {
@@ -124,6 +132,9 @@ void InputDependencyStatistics::reportInputInDepCoverage()
             continue;
         }
         if (F.isDeclaration()) {
+            continue;
+        }
+        if (skip_function(&F)) {
             continue;
         }
         auto cached_input_indep_data = m_function_input_indep_function_coverage_data.find(&F);
@@ -167,6 +178,9 @@ void InputDependencyStatistics::reportInputDepCoverage()
         if (F.isDeclaration()) {
             continue;
         }
+        if (skip_function(&F)) {
+            continue;
+        }
         auto cached_input_dep_data = m_function_input_dep_function_coverage_data.find(&F);
         if (cached_input_dep_data != m_function_input_dep_function_coverage_data.end()) {
             report_input_dep_coverage_data(cached_input_dep_data->second);
@@ -203,6 +217,9 @@ void InputDependencyStatistics::reportDataInpdependentCoverage()
         if (F.isDeclaration()) {
             continue;
         }
+        if (skip_function(&F)) {
+            continue;
+        }
         const auto& FA = FA_pos->second;
         unsigned data_indep_count = FA->get_data_indep_count();
         unsigned instructions = get_function_instrs_count(F);
@@ -224,6 +241,14 @@ void InputDependencyStatistics::invalidate_stats_data()
 {
     m_function_input_dep_function_coverage_data.clear();
     m_function_input_indep_function_coverage_data.clear();
+}
+
+bool InputDependencyStatistics::skip_function(llvm::Function* F) const
+{
+    if (m_functions.empty()) {
+        return false;
+    }
+    return (m_functions.find(F) == m_functions.end());
 }
 
 void InputDependencyStatistics::report_inputdep_data(const inputdep_data& data)

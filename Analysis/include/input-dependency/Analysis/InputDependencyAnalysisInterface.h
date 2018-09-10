@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <functional>
 
 namespace llvm {
 class AAResults;

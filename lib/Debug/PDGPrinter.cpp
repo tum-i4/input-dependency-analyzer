@@ -15,20 +15,28 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
-#include "PDG/SVFGDefUseAnalysisResults.h"
-#include "PDG/LLVMMemorySSADefUseAnalysisResults.h"
-#include "PDG/LLVMDominanceTree.h"
-#include "PDG/PDGBuilder.h"
-#include "PDG/PDGGraphTraits.h"
-#include "analysis/SVFGIndirectCallSiteResults.h"
+#include "PDG/PDG/SVFGDefUseAnalysisResults.h"
+#include "PDG/PDG/LLVMMemorySSADefUseAnalysisResults.h"
+#include "PDG/PDG/DGDefUseAnalysisResults.h"
+#include "PDG/PDG/LLVMDominanceTree.h"
+#include "PDG/PDG/PDGGraphTraits.h"
+#include "PDG/PDG/SVFGIndirectCallSiteResults.h"
+
+#include "PDG/GraphBuilder.h"
 
 #include "SVF/MSSA/SVFG.h"
 #include "SVF/MSSA/SVFGBuilder.h"
 #include "SVF/Util/SVFModule.h"
 #include "SVF/MemoryModel/PointerAnalysis.h"
 #include "SVF/WPA/Andersen.h"
+#include "SVF/PDG/PDGPointerAnalysis.h"
 
 #include <fstream>
+
+llvm::cl::opt<std::string> def_use(
+    "def-use",
+    llvm::cl::desc("Def-use analysis to use"),
+    llvm::cl::value_desc("def-use"));
 
 class PDGPrinterPass : public llvm::ModulePass
 {
@@ -82,26 +90,33 @@ public:
         };
 
         SVFModule svfM(M);
-        AndersenWaveDiff* ander = new AndersenWaveDiff();
+        AndersenWaveDiff* ander = new svfg::PDGAndersenWaveDiff();
         ander->disablePrintStat();
         ander->analyze(svfM);
         SVFGBuilder memSSA(true);
         SVFG *svfg = memSSA.buildSVFG((BVDataPTAImpl*)ander);
 
-        using DefUseResultsTy = PDGBuilder::DefUseResultsTy;
-        using IndCSResultsTy = PDGBuilder::IndCSResultsTy;
-        using DominanceResultsTy = PDGBuilder::DominanceResultsTy;
-        DefUseResultsTy pointerDefUse = DefUseResultsTy(new SVFGDefUseAnalysisResults(svfg));
-        DefUseResultsTy scalarDefUse = DefUseResultsTy(
-                new LLVMMemorySSADefUseAnalysisResults(memSSAGetter, aliasAnalysisResGetter));
+        using DefUseResultsTy = pdg::PDGBuilder::DefUseResultsTy;
+        using IndCSResultsTy = pdg::PDGBuilder::IndCSResultsTy;
+        using DominanceResultsTy = pdg::PDGBuilder::DominanceResultsTy;
+        DefUseResultsTy defUse;
+        if (def_use == "dg") {
+            llvm::dbgs() << "Use DG def-use analysis\n";
+            defUse = DefUseResultsTy(new pdg::DGDefUseAnalysisResults(&M));
+        } else if (def_use == "llvm") {
+            llvm::dbgs() << "Use llvm def-use analysis\n";
+            defUse = DefUseResultsTy(new pdg::LLVMMemorySSADefUseAnalysisResults(memSSAGetter, aliasAnalysisResGetter));
+        } else {
+            llvm::dbgs() << "Use llvm svfg analysis\n";
+            defUse = DefUseResultsTy(new pdg::SVFGDefUseAnalysisResults(svfg));
+        }
         IndCSResultsTy indCSRes = IndCSResultsTy(new
-                input_dependency::SVFGIndirectCallSiteResults(ander->getPTACallGraph()));
-        DominanceResultsTy domResults = DominanceResultsTy(new LLVMDominanceTree(domTreeGetter,
-                                                                                 postdomTreeGetter));
+                pdg::SVFGIndirectCallSiteResults(ander->getPTACallGraph()));
+        DominanceResultsTy domResults = DominanceResultsTy(new pdg::LLVMDominanceTree(domTreeGetter,
+                                                                                      postdomTreeGetter));
 
-        pdg::PDGBuilder pdgBuilder(&M);
-        pdgBuilder.setPointerDesUseResults(pointerDefUse);
-        pdgBuilder.setScalarDesUseResults(scalarDefUse);
+        input_dependency::GraphBuilder pdgBuilder(&M);
+        pdgBuilder.setDesUseResults(defUse);
         pdgBuilder.setIndirectCallSitesResults(indCSRes);
         pdgBuilder.setDominanceResults(domResults);
         pdgBuilder.build();

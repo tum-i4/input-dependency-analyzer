@@ -15,6 +15,16 @@ add_library(InputDependency MODULE
             lib/PDG/GraphBuilder.cpp
             lib/analysis/ReachabilityAnalysis.cpp
             lib/analysis/ArgumentReachabilityAnalysis.cpp
+            lib/analysis/InputDependencySources.cpp
+            lib/analysis/LibFunctionInfo.cpp
+            lib/analysis/LibraryInfoCollector.cpp
+            lib/analysis/CLibraryInfo.cpp
+            lib/analysis/STLStringInfo.cpp
+            lib/analysis/LLVMIntrinsicsInfo.cpp
+            lib/analysis/LibraryInfoFromConfigFile.cpp
+            lib/analysis/LibraryInfoManager.cpp
+            lib/passes/GraphBuilderPass.cpp
+            lib/passes/ArgumentReachabilityAnalysisPass.cpp
             lib/Debug/PDGPrinter.cpp)
 
 target_include_directories(InputDependency PUBLIC

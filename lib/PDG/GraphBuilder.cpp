@@ -18,12 +18,12 @@ GraphBuilder::PDGNodeTy GraphBuilder::createBasicBlockNodeFor(llvm::BasicBlock* 
     return std::make_shared<LLVMBasicBlockNode>(block);
 }
 
-GraphBuilder::PDGGlobalNodeTy GraphBuilder::createGlobalNodeFor(llvm::GlobalVariable* global)
+GraphBuilder::PDGNodeTy GraphBuilder::createGlobalNodeFor(llvm::GlobalVariable* global)
 {
     return std::make_shared<LLVMGlobalVariableNode>(global);
 }
 
-GraphBuilder::ArgNodeTy GraphBuilder::createFormalArgNodeFor(llvm::Argument* arg)
+GraphBuilder::PDGNodeTy GraphBuilder::createFormalArgNodeFor(llvm::Argument* arg)
 {
     return std::make_shared<LLVMFormalArgumentNode>(arg);
 }

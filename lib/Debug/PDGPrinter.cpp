@@ -15,6 +15,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
+#include "PDG/PDG/PDG.h"
+#include "PDG/PDG/FunctionPDG.h"
 #include "PDG/PDG/SVFGDefUseAnalysisResults.h"
 #include "PDG/PDG/LLVMMemorySSADefUseAnalysisResults.h"
 #include "PDG/PDG/DGDefUseAnalysisResults.h"

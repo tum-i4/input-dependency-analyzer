@@ -23,6 +23,11 @@ public:
         m_inputDepInfo = inputDepInfo;
     }
 
+    void mergeInputDepInfo(const InputDepInfo& inputDepInfo)
+    {
+        m_inputDepInfo.mergeDependencies(inputDepInfo);
+    }
+
 private:
    InputDepInfo m_inputDepInfo; 
 };

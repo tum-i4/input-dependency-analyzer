@@ -13,6 +13,8 @@ add_definitions(-DENABLE_CFG)
 
 add_library(InputDependency MODULE
             lib/PDG/GraphBuilder.cpp
+            lib/analysis/ReachabilityAnalysis.cpp
+            lib/analysis/ArgumentReachabilityAnalysis.cpp
             lib/Debug/PDGPrinter.cpp)
 
 target_include_directories(InputDependency PUBLIC

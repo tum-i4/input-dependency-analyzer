@@ -51,22 +51,25 @@ public:
     const bool hasResolvedArgument(llvm::Argument* arg) const;
     InputDepInfo getArgumentDependencyInfo(llvm::Argument* arg) const;
     InputDepInfo getReturnDependencyInfo() const;
+    llvm::Argument* getArgument(int idx) const;
 
     bool isCallbackArgument(int index) const;
     bool isCallbackArgument(llvm::Argument* arg) const;
 
 public:
+    // TODO: consider doing resolve directly when parsing and collecting lib function info
     void resolve(llvm::Function* F);
 
 private:
-    void resolveArgumentDependencies(const IndexToArgumentMap& indexToArg);
-    void resolveReturnDependency(const IndexToArgumentMap& indexToArg);
-    void resolveCallbackArguments(const IndexToArgumentMap& indexToArg);
+    void resolveArgumentDependencies();
+    void resolveReturnDependency();
+    void resolveCallbackArguments();
 
 private:
     const std::string m_name;
     bool m_isResolved;
     LibArgumentDependenciesMap m_argumentDependencies;
+    IndexToArgumentMap m_indexToArg;
     LibArgDepInfo m_returnDependency;
     ArgumentIndices m_callbackArgumentIndices;
     ArgumentSet m_callbackArguments;

@@ -125,6 +125,13 @@ InputDepInfo LibFunctionInfo::getReturnDependencyInfo() const
     return InputDepInfo(m_returnDependency.arguments);
 }
 
+llvm::Argument* LibFunctionInfo::getArgument(int idx) const
+{
+    auto pos = m_indexToArg.find(idx);
+    assert(pos != m_indexToArg.end());
+    return pos->second;
+}
+
 bool LibFunctionInfo::isCallbackArgument(int index) const
 {
     return m_callbackArgumentIndices.find(index) != m_callbackArgumentIndices.end();
@@ -137,40 +144,40 @@ bool LibFunctionInfo::isCallbackArgument(llvm::Argument* arg) const
 
 void LibFunctionInfo::resolve(llvm::Function* F)
 {
-    const auto& indexToArg = getFunctionIndexToArgMap(F);
-    resolveArgumentDependencies(indexToArg);
-    resolveReturnDependency(indexToArg);
-    resolveCallbackArguments(indexToArg);
+    m_indexToArg = getFunctionIndexToArgMap(F);
+    resolveArgumentDependencies();
+    resolveReturnDependency();
+    resolveCallbackArguments();
     m_isResolved = true;
 }
 
-void LibFunctionInfo::resolveArgumentDependencies(const IndexToArgumentMap& indexToArg)
+void LibFunctionInfo::resolveArgumentDependencies()
 {
     for (const auto& argDeps : m_argumentDependencies) {
-        auto argPos = indexToArg.find(argDeps.first);
-        assert(argPos != indexToArg.end());
+        auto argPos = m_indexToArg.find(argDeps.first);
+        assert(argPos != m_indexToArg.end());
         auto& resolvedDeps = m_argumentDependencies[argPos->first];
         resolvedDeps.dependency = argDeps.second.dependency;
-        ArgumentSet arguments = getResolvedArguments(indexToArg, argDeps.second);
+        ArgumentSet arguments = getResolvedArguments(m_indexToArg, argDeps.second);
         resolvedDeps.arguments = std::move(arguments);
     }
     m_argumentDependencies.clear();
 }
 
-void LibFunctionInfo::resolveReturnDependency(const IndexToArgumentMap& indexToArg)
+void LibFunctionInfo::resolveReturnDependency()
 {
     m_returnDependency.dependency = m_returnDependency.dependency;
-    ArgumentSet arguments = getResolvedArguments(indexToArg, m_returnDependency);
+    ArgumentSet arguments = getResolvedArguments(m_indexToArg, m_returnDependency);
     m_returnDependency.arguments = std::move(arguments);
     m_returnDependency.arguments.clear();
     m_returnDependency.dependency = InputDepInfo::UNKNOWN;
 }
 
-void LibFunctionInfo::resolveCallbackArguments(const IndexToArgumentMap& indexToArg)
+void LibFunctionInfo::resolveCallbackArguments()
 {
     for (const auto& callbackIndex : m_callbackArgumentIndices) {
-        auto argPos = indexToArg.find(callbackIndex);
-        if (argPos != indexToArg.end()) {
+        auto argPos = m_indexToArg.find(callbackIndex);
+        if (argPos != m_indexToArg.end()) {
             m_callbackArguments.insert(argPos->second);
         }
     }

@@ -3,6 +3,10 @@
 #include <memory>
 #include <vector>
 
+namespace llvm {
+class Module;
+}
+
 namespace pdg {
 
 class PDG;
@@ -34,8 +38,13 @@ public:
 
     void computeInputSources();
 
+private:
+    void addMainArguments();
+    void addInputsFromLibraryFunctions();
+
 private:    
     const pdg::PDG& m_pdg;
+    const llvm::Module* m_module;
     PDGNodes m_inputSources;
 }; // class InputDependencySources
 

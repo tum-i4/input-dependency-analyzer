@@ -15,6 +15,7 @@ add_library(InputDependency MODULE
             lib/PDG/GraphBuilder.cpp
             lib/analysis/ReachabilityAnalysis.cpp
             lib/analysis/ArgumentReachabilityAnalysis.cpp
+            lib/analysis/InputDependencyReachabilityAnalysis.cpp
             lib/analysis/InputDependencySources.cpp
             lib/analysis/LibFunctionInfo.cpp
             lib/analysis/LibraryInfoCollector.cpp
@@ -25,6 +26,7 @@ add_library(InputDependency MODULE
             lib/analysis/LibraryInfoManager.cpp
             lib/passes/GraphBuilderPass.cpp
             lib/passes/ArgumentReachabilityAnalysisPass.cpp
+            lib/passes/InputDependencyReachabilityAnalysisPass.cpp
             lib/Debug/PDGPrinter.cpp)
 
 target_include_directories(InputDependency PUBLIC

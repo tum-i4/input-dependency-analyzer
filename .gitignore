@@ -11,3 +11,5 @@ CutVertice/.*.swp
 build/
 tests/
 
+include/passes/.*.swp
+lib/passes/.*.swp

@@ -32,6 +32,9 @@ void dumpArgumentReachability(const pdg::FunctionPDG& fPDG)
     llvm::dbgs() << "Function " << fPDG.getFunction()->getName() << "\n";
     for (auto it = fPDG.nodesBegin(); it != fPDG.nodesEnd(); ++it) {
         auto node = llvm::dyn_cast<LLVMNode>(*it);
+        if (node->getInputDepInfo().isArgumentDep()) {
+            llvm::dbgs() << "   " << *node->getNodeValue() << "\n";
+        }
     }
 }
 

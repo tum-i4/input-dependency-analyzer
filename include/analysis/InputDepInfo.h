@@ -34,6 +34,11 @@ public:
     {
     }
 
+    InputDepInfo(Dependency dep)
+        : m_dependency(dep)
+    {
+    }
+
     InputDepInfo(const ArgumentSet& arguments)
         : m_dependency(ARG_DEP)
         , m_arguments(arguments)

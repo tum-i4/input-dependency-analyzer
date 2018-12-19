@@ -2,6 +2,8 @@
 
 #include <memory>
 
+#include "analysis/ReachabilityAnalysis.h"
+
 namespace pdg {
 
 class FunctionPDG;
@@ -9,7 +11,7 @@ class FunctionPDG;
 
 namespace input_dependency {
 
-class ArgumentReachabilityAnalysis
+class ArgumentReachabilityAnalysis : public ReachabilityAnalysis
 {
 public:
     using FunctionPDGType = std::shared_ptr<pdg::FunctionPDG>;
@@ -23,7 +25,7 @@ public:
     ArgumentReachabilityAnalysis& operator =(ArgumentReachabilityAnalysis&& ) = delete;
 
 public:
-    void analyze();
+    void analyze() override;
 
 private:
    FunctionPDGType m_functionPDG; 

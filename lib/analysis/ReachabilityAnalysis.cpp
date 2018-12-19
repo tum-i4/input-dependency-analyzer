@@ -12,11 +12,6 @@
 
 namespace input_dependency {
 
-ReachabilityAnalysis::ReachabilityAnalysis(const GraphType& graph)
-    : m_graph(graph)
-{
-}
-
 void ReachabilityAnalysis::analyze(NodeType node, const ReachCallback& callback)
 {
     for (auto out_it = node->outEdgesBegin();
@@ -26,6 +21,15 @@ void ReachabilityAnalysis::analyze(NodeType node, const ReachCallback& callback)
         analyze((*out_it)->getDestination(), callback);
     }
 }
+
+void ReachabilityAnalysis::propagateDependencies(ReachabilityAnalysis::NodeType node1,
+                           ReachabilityAnalysis::NodeType node2)
+{
+    auto* llvmNode1 = llvm::dyn_cast<LLVMNode>(node1.get());
+    auto* llvmNode2 = llvm::dyn_cast<LLVMNode>(node2.get());
+    llvmNode1->mergeInputDepInfo(llvmNode2->getInputDepInfo());
+}
+
 
 } // namespace input_dependency
 

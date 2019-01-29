@@ -1,5 +1,7 @@
 #pragma once
 
+#include "analysis/InputDependencyAnalysisInterface.h"
+
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -15,13 +17,15 @@ class Function;
 class CallGraph;
 class CallSite;
 class Module;
+class Instruction;
+class BasicBlock;
 }
 
 namespace input_dependency {
 
 class InputDepInfo;
 
-class InputDependencyAnalysis
+class InputDependencyAnalysis : public InputDependencyAnalysisInterface
 {
 public:
     using PDGType = std::shared_ptr<pdg::PDG>;
@@ -43,7 +47,14 @@ public:
     void setCallGraph(llvm::CallGraph* callGraph);
 
 public:
-    void analyze();
+    void analyze() override;
+
+    bool isInputDependent(llvm::Function* F, llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::Instruction* instr) const override;
+    bool isInputDependent(llvm::BasicBlock* block) const override;
+    bool isInputDependent(llvm::Function* F) const override;
+    bool isControlDependent(llvm::Instruction* I) const override;
+    bool isDataDependent(llvm::Instruction* I) const override;
 
 private:
     void runArgumentReachabilityAnalysis();

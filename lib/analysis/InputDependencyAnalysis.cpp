@@ -53,6 +53,40 @@ void InputDependencyAnalysis::analyze()
     runArgumentReachabilityAnalysis();
 }
 
+bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
+{
+    auto Fpdg = m_pdg->getFunctionPDG(F);
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(instr).get());
+    return instrNode->getInputDepInfo().isInputDep();
+}
+
+bool InputDependencyAnalysis::isInputDependent(llvm::Instruction* instr) const
+{
+    return isInputDependent(instr->getFunction(), instr);
+}
+
+bool InputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) const
+{
+    // TODO:
+    return false;
+}
+
+bool InputDependencyAnalysis::isInputDependent(llvm::Function* F) const
+{
+}
+
+bool InputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const
+{
+    // TODO:
+    return false;
+}
+
+bool InputDependencyAnalysis::isDataDependent(llvm::Instruction* I) const
+{
+    // TODO:
+    return false;
+}
+
 void InputDependencyAnalysis::runArgumentReachabilityAnalysis()
 {
     const ReachabilityAnalysis::NodeProcessor nodeProcessor

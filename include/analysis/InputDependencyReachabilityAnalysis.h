@@ -14,10 +14,10 @@ namespace input_dependency {
 class InputDependencyReachabilityAnalysis : public ReachabilityAnalysis
 {
 public:
-    using GraphType = std::shared_ptr<pdg::PDG>;
+    using PDGType = std::shared_ptr<pdg::PDG>;
 
 public:
-    InputDependencyReachabilityAnalysis(GraphType pdg);
+    InputDependencyReachabilityAnalysis(PDGType pdg);
 
     InputDependencyReachabilityAnalysis(const InputDependencyReachabilityAnalysis& ) = delete;
     InputDependencyReachabilityAnalysis(InputDependencyReachabilityAnalysis&& ) = delete;
@@ -28,7 +28,7 @@ public:
     void analyze() override;
 
 private:
-   GraphType m_pdg; 
+   PDGType m_pdg; 
 }; // class InputDependencyReachabilityAnalysis
 
 } // namespace input_dependency

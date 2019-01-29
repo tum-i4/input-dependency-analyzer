@@ -24,9 +24,11 @@ add_library(InputDependency MODULE
             lib/analysis/LLVMIntrinsicsInfo.cpp
             lib/analysis/LibraryInfoFromConfigFile.cpp
             lib/analysis/LibraryInfoManager.cpp
+            lib/analysis/InputDependencyAnalysis.cpp
             lib/passes/GraphBuilderPass.cpp
             lib/passes/ArgumentReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyReachabilityAnalysisPass.cpp
+            lib/utils/Utils.cpp
             lib/Debug/PDGPrinter.cpp)
 
 target_include_directories(InputDependency PUBLIC
@@ -44,6 +46,6 @@ target_link_libraries(InputDependency PRIVATE
                       nlohmann_json::nlohmann_json
 )
 
-target_compile_features(InputDependency PRIVATE cxx_range_for cxx_auto_type cxx_std_14)
+target_compile_features(InputDependency PRIVATE cxx_range_for cxx_auto_type cxx_std_17)
 target_compile_options(InputDependency PRIVATE -fno-rtti -g)
 

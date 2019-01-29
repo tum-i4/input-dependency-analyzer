@@ -12,12 +12,24 @@
 
 namespace input_dependency {
 
-void ReachabilityAnalysis::analyze(NodeType node, const ReachCallback& callback)
+ReachabilityAnalysis::ReachabilityAnalysis()
+    : m_nodeProcessor([] (NodeType ) {})
+{
+}
+
+void ReachabilityAnalysis::setNodeProcessor(const NodeProcessor& nodeProcessor)
+{
+    m_nodeProcessor = nodeProcessor;
+}
+
+void ReachabilityAnalysis::analyze(NodeType node,
+                                   const ReachCallback& callback)
 {
     for (auto out_it = node->outEdgesBegin();
          out_it != node->outEdgesEnd();
          ++out_it) {
         callback(node, (*out_it)->getDestination());
+        m_nodeProcessor((*out_it)->getDestination());
         analyze((*out_it)->getDestination(), callback);
     }
 }

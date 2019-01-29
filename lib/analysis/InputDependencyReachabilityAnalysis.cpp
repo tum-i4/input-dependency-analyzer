@@ -17,7 +17,7 @@
 
 namespace input_dependency {
 
-InputDependencyReachabilityAnalysis::InputDependencyReachabilityAnalysis(GraphType pdg)
+InputDependencyReachabilityAnalysis::InputDependencyReachabilityAnalysis(PDGType pdg)
     : m_pdg(pdg)
 {
 }

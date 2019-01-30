@@ -28,6 +28,7 @@ add_library(InputDependency MODULE
             lib/passes/GraphBuilderPass.cpp
             lib/passes/ArgumentReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyReachabilityAnalysisPass.cpp
+            lib/passes/InputDependencyAnalysisPass.cpp
             lib/utils/Utils.cpp
             lib/Debug/PDGPrinter.cpp)
 

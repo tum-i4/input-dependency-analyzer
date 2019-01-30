@@ -67,12 +67,17 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Instruction* instr) const
 
 bool InputDependencyAnalysis::isInputDependent(llvm::BasicBlock* block) const
 {
-    // TODO:
-    return false;
+    auto Fpdg = m_pdg->getFunctionPDG(block->getParent());
+    auto* blockNode = llvm::dyn_cast<LLVMBasicBlockNode>(Fpdg->getNode(block).get());
+    return blockNode->getInputDepInfo().isInputDep();
 }
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F) const
 {
+    auto Fnode = m_pdg->getFunctionNode(F);
+    auto* node = llvm::dyn_cast<LLVMFunctionNode>(Fnode.get());
+    return node->getInputDepInfo().isInputDep();
+
 }
 
 bool InputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const

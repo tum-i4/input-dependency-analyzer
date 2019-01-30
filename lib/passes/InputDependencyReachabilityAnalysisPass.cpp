@@ -54,6 +54,7 @@ bool InputDependencyReachabilityAnalysisPass::runOnModule(llvm::Module& M)
 {
     auto pdg = getAnalysis<GraphBuilderPass>().getPDG();
     InputDependencyReachabilityAnalysis inputdepReachability(pdg);
+    inputdepReachability.setNodeProcessor([] (ReachabilityAnalysis::NodeType ) {});
     inputdepReachability.analyze();
     dumpInputDepReachability(*pdg);
     return false;

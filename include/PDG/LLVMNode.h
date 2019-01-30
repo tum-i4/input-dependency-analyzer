@@ -52,9 +52,8 @@ public:
     {
     }
 
-public:
-    virtual std::string getNodeAsString() const override;
-
+//public:
+//    virtual std::string getNodeAsString() const override;
 };
 
 class LLVMActualArgumentNode : public LLVMNode

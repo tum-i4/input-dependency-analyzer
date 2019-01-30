@@ -40,7 +40,6 @@ void GraphBuilderPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.addRequired<llvm::AssumptionCacheTracker>(); // otherwise run-time error
     llvm::getAAResultsAnalysisUsage(AU);
-    AU.addRequiredTransitive<llvm::MemorySSAWrapperPass>();
     AU.addRequired<llvm::PostDominatorTreeWrapperPass>();
     AU.addRequired<llvm::DominatorTreeWrapperPass>();
     AU.setPreservesAll();
@@ -48,9 +47,6 @@ void GraphBuilderPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 
 bool GraphBuilderPass::runOnModule(llvm::Module& M)
 {
-    auto memSSAGetter = [this] (llvm::Function* F) -> llvm::MemorySSA* {
-        return &this->getAnalysis<llvm::MemorySSAWrapperPass>(*F).getMSSA();
-    };
     llvm::Optional<llvm::BasicAAResult> BAR;
     llvm::Optional<llvm::AAResults> AAR;
     auto AARGetter = [&](llvm::Function* F) -> llvm::AAResults* {
@@ -105,7 +101,6 @@ bool GraphBuilderPass::runOnModule(llvm::Module& M)
 }
 
 char GraphBuilderPass::ID = 0;
-
 static llvm::RegisterPass<GraphBuilderPass> X("pdg-build","Build PDG graph");
 } // namespace input_dependency
 

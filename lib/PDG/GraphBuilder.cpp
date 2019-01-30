@@ -10,12 +10,18 @@ namespace input_dependency {
 
 GraphBuilder::PDGNodeTy GraphBuilder::createInstructionNodeFor(llvm::Instruction* instr)
 {
+    llvm::dbgs() << "instr: " << *instr << "\n";
     return std::make_shared<LLVMInstructionNode>(instr);
 }
 
 GraphBuilder::PDGNodeTy GraphBuilder::createBasicBlockNodeFor(llvm::BasicBlock* block)
 {
     return std::make_shared<LLVMBasicBlockNode>(block);
+}
+
+GraphBuilder::PDGNodeTy GraphBuilder::createFunctionNodeFor(llvm::Function* F)
+{
+    return std::make_shared<LLVMFunctionNode>(F);
 }
 
 GraphBuilder::PDGNodeTy GraphBuilder::createGlobalNodeFor(llvm::GlobalVariable* global)
@@ -28,6 +34,13 @@ GraphBuilder::PDGNodeTy GraphBuilder::createFormalArgNodeFor(llvm::Argument* arg
     return std::make_shared<LLVMFormalArgumentNode>(arg);
 }
 
+ GraphBuilder::PDGNodeTy GraphBuilder::createActualArgumentNode(llvm::CallSite& callSite,
+                                                                llvm::Value* arg,
+                                                                unsigned idx)
+{
+    return std::make_shared<LLVMActualArgumentNode>(callSite, arg, idx);
+}
+
 GraphBuilder::PDGNodeTy GraphBuilder::createNullNode()
 {
     return std::make_shared<LLVMNullNode>();
@@ -36,6 +49,11 @@ GraphBuilder::PDGNodeTy GraphBuilder::createNullNode()
 GraphBuilder::PDGNodeTy GraphBuilder::createConstantNodeFor(llvm::Constant* constant)
 {
     return std::make_shared<LLVMConstantNode>(constant);
+}
+
+GraphBuilder::PDGNodeTy GraphBuilder::createVaArgNodeFor(llvm::Function* F)
+{
+    return std::make_shared<LLVMVarArgNode>(F);
 }
 
 } // namespace input_dependency

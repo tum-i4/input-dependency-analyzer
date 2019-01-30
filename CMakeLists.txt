@@ -10,6 +10,7 @@ find_package(pdg REQUIRED)
 
 add_definitions(-DHAVE_LLVM)
 add_definitions(-DENABLE_CFG)
+add_definitions(-DNDEBUG)
 
 add_library(InputDependency MODULE
             lib/PDG/GraphBuilder.cpp
@@ -30,7 +31,8 @@ add_library(InputDependency MODULE
             lib/passes/InputDependencyReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyAnalysisPass.cpp
             lib/utils/Utils.cpp
-            lib/Debug/PDGPrinter.cpp)
+#            lib/Debug/PDGPrinter.cpp
+)
 
 target_include_directories(InputDependency PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

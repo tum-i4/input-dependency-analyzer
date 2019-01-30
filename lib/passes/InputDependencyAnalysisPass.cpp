@@ -45,9 +45,9 @@ void configure_run()
 void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesCFG();
+    AU.addRequired<GraphBuilderPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addPreserved<llvm::CallGraphWrapperPass>();
-    AU.addRequired<GraphBuilderPass>();
     AU.setPreservesAll();
 }
 

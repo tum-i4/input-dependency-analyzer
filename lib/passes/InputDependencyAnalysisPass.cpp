@@ -3,6 +3,7 @@
 #include "PDG/GraphBuilder.h"
 #include "PDG/LLVMNode.h"
 #include "analysis/InputDependencyAnalysis.h"
+#include "analysis/InputDepConfig.h"
 #include "passes/GraphBuilderPass.h"
 
 #include "PDG/PDG/PDG.h"
@@ -36,6 +37,11 @@ static llvm::cl::opt<std::string> libfunction_config(
 
 // TODO: add other cmd line options too
 
+void configure_run()
+{
+    InputDepConfig::get().set_lib_config_file(libfunction_config);
+}
+
 void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) const
 {
     AU.setPreservesCFG();
@@ -47,6 +53,7 @@ void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) cons
 
 bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
 {
+    configure_run();
     auto pdg = getAnalysis<GraphBuilderPass>().getPDG();
     llvm::CallGraph* CG = &getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
     InputDependencyAnalysis inputDepAnalysis(&M);

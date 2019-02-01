@@ -82,14 +82,16 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Function* F) const
 
 bool InputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const
 {
-    // TODO:
-    return false;
+    auto Fpdg = m_pdg->getFunctionPDG(I->getFunction());
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(I).get());
+    return instrNode->getCFInputDepInfo().isInputDep();
 }
 
 bool InputDependencyAnalysis::isDataDependent(llvm::Instruction* I) const
 {
-    // TODO:
-    return false;
+    auto Fpdg = m_pdg->getFunctionPDG(I->getFunction());
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(I).get());
+    return instrNode->getDFInputDepInfo().isInputDep();
 }
 
 void InputDependencyAnalysis::runArgumentReachabilityAnalysis()

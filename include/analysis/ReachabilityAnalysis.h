@@ -16,7 +16,7 @@ class ReachabilityAnalysis
 {
 public:
     using NodeType = std::shared_ptr<pdg::PDGNode>;
-    using ReachCallback = std::function<void (NodeType source, NodeType dest)>;
+    using ReachCallback = std::function<void (NodeType source, NodeType dest, bool isDataDep)>;
     using NodeProcessor = std::function<void (NodeType node)>;
 
 public:
@@ -33,7 +33,8 @@ public:
 
 public:
     static void propagateDependencies(ReachabilityAnalysis::NodeType node1,
-                                      ReachabilityAnalysis::NodeType node2);
+                                      ReachabilityAnalysis::NodeType node2,
+                                      bool isDataDep);
 
 protected:
     void analyze(NodeType node, const ReachCallback& callback);

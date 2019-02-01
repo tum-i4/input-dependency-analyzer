@@ -8,28 +8,53 @@ class InputDependencyNode
 {
 public:
     InputDependencyNode() = default;
-    InputDependencyNode(const InputDepInfo& inputDepInfo)
-        : m_inputDepInfo(inputDepInfo)
+    InputDependencyNode(const InputDepInfo& DFinputDepInfo,
+                        const InputDepInfo& CFinputDepInfo)
+        : m_DFinputDepInfo(DFinputDepInfo)
+        , m_CFinputDepInfo(CFinputDepInfo)
     {
     }
 
-    const InputDepInfo& getInputDepInfo() const
+    InputDepInfo getInputDepInfo() const
     {
-        return m_inputDepInfo;
+        InputDepInfo inputDepInfo= m_DFinputDepInfo;
+        inputDepInfo.mergeDependencies(m_CFinputDepInfo);
+        return inputDepInfo;
     }
 
-    void setInputDepInfo(const InputDepInfo& inputDepInfo)
+    const InputDepInfo& getDFInputDepInfo() const
     {
-        m_inputDepInfo = inputDepInfo;
+        return m_DFinputDepInfo;
     }
 
-    void mergeInputDepInfo(const InputDepInfo& inputDepInfo)
+    const InputDepInfo& getCFInputDepInfo() const
     {
-        m_inputDepInfo.mergeDependencies(inputDepInfo);
+        return m_CFinputDepInfo;
+    }
+
+    void setCFInputDepInfo(const InputDepInfo& inputDepInfo)
+    {
+        m_CFinputDepInfo = inputDepInfo;
+    }
+
+    void setDFInputDepInfo(const InputDepInfo& inputDepInfo)
+    {
+        m_DFinputDepInfo = inputDepInfo;
+    }
+
+    void mergeCFInputDepInfo(const InputDepInfo& inputDepInfo)
+    {
+        m_CFinputDepInfo.mergeDependencies(inputDepInfo);
+    }
+
+    void mergeDFInputDepInfo(const InputDepInfo& inputDepInfo)
+    {
+        m_DFinputDepInfo.mergeDependencies(inputDepInfo);
     }
 
 private:
-   InputDepInfo m_inputDepInfo; 
+   InputDepInfo m_DFinputDepInfo; 
+   InputDepInfo m_CFinputDepInfo; 
 };
 
 } // namespace input_dependency

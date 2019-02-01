@@ -30,7 +30,7 @@ void ArgumentReachabilityAnalysis::analyze()
         assert(m_functionPDG->hasFormalArgNode(&*arg_it));
         auto argNode = m_functionPDG->getFormalArgNode(&*arg_it);
         auto* llvmArgNode = llvm::dyn_cast<LLVMNode>(argNode.get());
-        llvmArgNode->setInputDepInfo(InputDepInfo({&*arg_it}));
+        llvmArgNode->setDFInputDepInfo(InputDepInfo({&*arg_it}));
         ReachabilityAnalysis::analyze(argNode, &ReachabilityAnalysis::propagateDependencies);
     }
 }

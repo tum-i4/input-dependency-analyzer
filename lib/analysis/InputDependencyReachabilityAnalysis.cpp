@@ -29,7 +29,7 @@ void InputDependencyReachabilityAnalysis::analyze()
     const auto& inputSources = inputDepSources.getInputSources();
     for (const auto& source : inputSources) {
         auto* llvmNode = llvm::dyn_cast<LLVMNode>(source.get());
-        llvmNode->setInputDepInfo(InputDepInfo(InputDepInfo::INPUT_DEP));
+        llvmNode->setDFInputDepInfo(InputDepInfo(InputDepInfo::INPUT_DEP));
         ReachabilityAnalysis::analyze(source, &ReachabilityAnalysis::propagateDependencies);
     }
 }

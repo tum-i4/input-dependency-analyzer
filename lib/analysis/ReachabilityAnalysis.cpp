@@ -30,9 +30,12 @@ void ReachabilityAnalysis::analyze(NodeType node,
     for (auto out_it = node->outEdgesBegin();
          out_it != node->outEdgesEnd();
          ++out_it) {
-        callback(node, (*out_it)->getDestination());
+        if ((*out_it)->isDataEdge()) {
+            callback(node, (*out_it)->getDestination(), true);
+        } else {
+            callback(node, (*out_it)->getDestination(), false);
+        }
         m_nodeProcessor((*out_it)->getDestination());
-
         if (llvm::dyn_cast<pdg::PDGLLVMFunctionNode>(node.get())) {
             continue;
         }
@@ -42,14 +45,19 @@ void ReachabilityAnalysis::analyze(NodeType node,
 }
 
 void ReachabilityAnalysis::propagateDependencies(ReachabilityAnalysis::NodeType node1,
-                           ReachabilityAnalysis::NodeType node2)
+                                                 ReachabilityAnalysis::NodeType node2,
+                                                 bool isDataDep)
 {
     auto* llvmNode1 = llvm::dyn_cast<LLVMNode>(node1.get());
     auto* llvmNode2 = llvm::dyn_cast<LLVMNode>(node2.get());
     //llvm::dbgs() << "source " << *llvmNode1->getNodeValue() << "\n";
     //llvm::dbgs() << "sink " << *llvmNode2->getNodeValue() << "\n";
     //llvm::dbgs() << "input dep info " << llvmNode1->getInputDepInfo().getDependencyName() << "\n";
-    llvmNode2->mergeInputDepInfo(llvmNode1->getInputDepInfo());
+    if (isDataDep) {
+        llvmNode2->mergeDFInputDepInfo(llvmNode1->getInputDepInfo());
+    } else {
+        llvmNode2->mergeCFInputDepInfo(llvmNode1->getInputDepInfo());
+    }
 }
 
 

@@ -170,7 +170,7 @@ void InputDependencyAnalysis::setArgumentDependencies()
              auto* argNode = llvm::dyn_cast<LLVMFormalArgumentNode>((*arg_it).second.get());
              auto* arg = llvm::dyn_cast<llvm::Argument>(argNode->getNodeValue());
              unsigned argIdx = arg->getArgNo();
-             argNode->mergeInputDepInfo(FargDeps->second[argIdx]);
+             argNode->mergeDFInputDepInfo(FargDeps->second[argIdx]);
         }
     }
 }
@@ -185,7 +185,8 @@ void InputDependencyAnalysis::updateFunctionArgDeps(NodeType node)
     if (!actualArg) {
         return;
     }
-    const auto& inputDepInfo = inputDepNode->getInputDepInfo();
+    const auto& DFinputDepInfo = inputDepNode->getDFInputDepInfo();
+    const auto& CFinputDepInfo = inputDepNode->getCFInputDepInfo();
     unsigned argIdx = actualArg->getArgIndex();
     const auto& functions = getCalledFunction(actualArg->getCallSite());
     for (const auto& F : functions) {
@@ -196,7 +197,8 @@ void InputDependencyAnalysis::updateFunctionArgDeps(NodeType node)
         if (argIdx >= item->second.size()) {
             item->second.reserve(argIdx + 1);
         }
-        item->second[argIdx].mergeDependencies(inputDepInfo);
+        item->second[argIdx].mergeDependencies(DFinputDepInfo);
+        item->second[argIdx].mergeDependencies(CFinputDepInfo);
     }
 }
 

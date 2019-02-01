@@ -194,10 +194,10 @@ void InputDependencyAnalysis::updateFunctionArgDeps(NodeType node)
     for (const auto& F : functions) {
         auto [item, inserted] = m_functionArgDeps.insert(std::make_pair(F, ArgInputDependencies()));
         if (inserted) {
-            item->second.reserve(F->arg_size());
+            item->second.resize(F->arg_size());
         }
         if (argIdx >= item->second.size()) {
-            item->second.reserve(argIdx + 1);
+            item->second.resize(argIdx + 1);
         }
         item->second[argIdx].mergeDependencies(DFinputDepInfo);
         item->second[argIdx].mergeDependencies(CFinputDepInfo);
@@ -221,7 +221,7 @@ InputDependencyAnalysis::getCalledFunction(const llvm::CallSite& callSite)
             continue;
         }
         auto dest = (*edge_it)->getDestination();
-        if (auto* functionNode = llvm::dyn_cast<pdg::PDGLLVMFunctionNode>(dest.get())) {
+        if (auto* functionNode = llvm::dyn_cast<LLVMFunctionNode>(dest.get())) {
             callees.insert(functionNode->getFunction());
         }
     }

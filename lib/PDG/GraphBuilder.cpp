@@ -10,7 +10,6 @@ namespace input_dependency {
 
 GraphBuilder::PDGNodeTy GraphBuilder::createInstructionNodeFor(llvm::Instruction* instr)
 {
-    llvm::dbgs() << "instr: " << *instr << "\n";
     return std::make_shared<LLVMInstructionNode>(instr);
 }
 

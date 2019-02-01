@@ -10,7 +10,7 @@ namespace input_dependency {
 class InputDependencyAnalysisPass : public llvm::ModulePass
 {
 public:
-    using InputDepAnalysisRes = std::unique_ptr<InputDependencyAnalysisInterface>;
+    using InputDepAnalysisRes = std::shared_ptr<InputDependencyAnalysisInterface>;
 
 public:
     static char ID;

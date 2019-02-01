@@ -26,11 +26,13 @@ add_library(InputDependency MODULE
             lib/analysis/LibraryInfoFromConfigFile.cpp
             lib/analysis/LibraryInfoManager.cpp
             lib/analysis/InputDependencyAnalysis.cpp
+            lib/analysis/InputDependencyStatistics.cpp
             lib/passes/GraphBuilderPass.cpp
             lib/passes/ArgumentReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyAnalysisPass.cpp
             lib/utils/Utils.cpp
+            lib/utils/Statistics.cpp
 #            lib/Debug/PDGPrinter.cpp
 )
 
@@ -41,6 +43,7 @@ target_include_directories(InputDependency PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${LLVM_INCLUDE_DIRS}
         ${pdg_INCLUDE_DIR}
+        nlohmann_json::nlohmann_json
 )
 
 target_link_libraries(InputDependency PRIVATE

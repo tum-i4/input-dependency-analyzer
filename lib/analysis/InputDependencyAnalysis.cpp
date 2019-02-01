@@ -94,6 +94,100 @@ bool InputDependencyAnalysis::isDataDependent(llvm::Instruction* I) const
     return instrNode->getDFInputDepInfo().isInputDep();
 }
 
+bool InputDependencyAnalysis::isArgumentDependent(llvm::Instruction* I) const
+{
+    auto Fpdg = m_pdg->getFunctionPDG(I->getFunction());
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(I).get());
+    return instrNode->getInputDepInfo().isArgumentDep();
+}
+
+bool InputDependencyAnalysis::isArgumentDependent(llvm::BasicBlock* B) const
+{
+    auto Fpdg = m_pdg->getFunctionPDG(B->getParent());
+    auto* blockNode = llvm::dyn_cast<LLVMBasicBlockNode>(Fpdg->getNode(B).get());
+    return blockNode->getInputDepInfo().isArgumentDep();
+}
+
+unsigned InputDependencyAnalysis::getInputIndepInstrCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.InputIndepInstrCount;
+    }
+    return pos->second.InputIndepInstrCount;
+}
+
+unsigned InputDependencyAnalysis::getInputIndepBlocksCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.InputIndepBlocksCount;
+    }
+    return pos->second.InputIndepBlocksCount;
+}
+
+unsigned InputDependencyAnalysis::getInputDepInstrCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.InputDepInstrCount;
+    }
+    return pos->second.InputDepInstrCount;
+}
+
+unsigned InputDependencyAnalysis::getInputDepBlocksCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.InputDepBlocksCount;
+    }
+    return pos->second.InputDepBlocksCount;
+}
+
+unsigned InputDependencyAnalysis::getDataIndepInstrCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.DataIndepInstrCount;
+    }
+    return pos->second.DataIndepInstrCount;
+}
+
+unsigned InputDependencyAnalysis::getArgumentDepInstrCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.ArgumentDepInstrCount;
+    }
+    return pos->second.ArgumentDepInstrCount;
+}
+
+unsigned InputDependencyAnalysis::getUnreachableBlocksCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.UnreachableBlocksCount;
+    }
+    return pos->second.UnreachableBlocksCount;
+}
+
+unsigned InputDependencyAnalysis::getUnreachableInstructionsCount(llvm::Function* F) const
+{
+    auto pos = m_functionDbgInfo.find(F);
+    if (pos == m_functionDbgInfo.end()) {
+        const_cast<InputDependencyAnalysis*>(this)->collectFunctionDebugInfo(F);
+        return m_functionDbgInfo.find(F)->second.UnreachableInstructionsCount;
+    }
+    return pos->second.UnreachableInstructionsCount;
+}
+
 void InputDependencyAnalysis::runArgumentReachabilityAnalysis()
 {
     const ReachabilityAnalysis::NodeProcessor nodeProcessor
@@ -226,6 +320,35 @@ InputDependencyAnalysis::getCalledFunction(const llvm::CallSite& callSite)
         }
     }
     return callees;
+}
+
+void InputDependencyAnalysis::collectFunctionDebugInfo(llvm::Function* F)
+{
+    DebugInfo dbgInfo;
+    for (auto& B : *F) {
+        if (isInputDependent(&B)) {
+            ++dbgInfo.InputDepBlocksCount;
+        } else {
+            ++dbgInfo.InputIndepBlocksCount;
+        }
+        for (auto& I : B) {
+            if (isInputDependent(F, &I)) {
+                ++dbgInfo.InputDepInstrCount;
+                if (!isDataDependent(&I)) {
+                    ++dbgInfo.DataIndepInstrCount;
+                }
+            } else {
+                ++dbgInfo.InputIndepInstrCount;
+            }
+            if (isArgumentDependent(&I)) {
+                ++dbgInfo.ArgumentDepInstrCount;
+            }
+        }
+    }
+    // TODO: compute these too
+    //unsigned UnreachableBlocksCount;
+    //unsigned UnreachableInstructionsCount
+    m_functionDbgInfo.insert(std::make_pair(F, dbgInfo));
 }
 
 } // namespace input_dependency

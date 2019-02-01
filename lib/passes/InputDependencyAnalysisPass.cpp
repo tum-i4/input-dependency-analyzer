@@ -3,6 +3,7 @@
 #include "PDG/GraphBuilder.h"
 #include "PDG/LLVMNode.h"
 #include "analysis/InputDependencyAnalysis.h"
+#include "analysis/InputDependencyStatistics.h"
 #include "analysis/InputDepConfig.h"
 #include "passes/GraphBuilderPass.h"
 
@@ -13,6 +14,7 @@
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/IR/Dominators.h"
@@ -37,6 +39,21 @@ static llvm::cl::opt<std::string> libfunction_config(
 
 // TODO: add other cmd line options too
 
+static llvm::cl::opt<bool> stats(
+    "input-dep-stats",
+    llvm::cl::desc("Dump statistics"),
+    llvm::cl::value_desc("boolean flag"));
+
+static llvm::cl::opt<std::string> stats_format(
+    "input-dep-stats-format",
+    llvm::cl::desc("Statistics format"),
+    llvm::cl::value_desc("format name"));
+
+static llvm::cl::opt<std::string> stats_file(
+    "iput-dep-stats-file",
+    llvm::cl::desc("Statistics file"),
+    llvm::cl::value_desc("file name"));
+
 void configure_run()
 {
     InputDepConfig::get().set_lib_config_file(libfunction_config);
@@ -48,6 +65,7 @@ void InputDependencyAnalysisPass::getAnalysisUsage(llvm::AnalysisUsage& AU) cons
     AU.addRequired<GraphBuilderPass>();
     AU.addRequired<llvm::CallGraphWrapperPass>();
     AU.addPreserved<llvm::CallGraphWrapperPass>();
+    AU.addRequired<llvm::LoopInfoWrapperPass>();
     AU.setPreservesAll();
 }
 
@@ -56,12 +74,36 @@ bool InputDependencyAnalysisPass::runOnModule(llvm::Module& M)
     configure_run();
     auto pdg = getAnalysis<GraphBuilderPass>().getPDG();
     llvm::CallGraph* CG = &getAnalysis<llvm::CallGraphWrapperPass>().getCallGraph();
-    InputDependencyAnalysis inputDepAnalysis(&M);
-    inputDepAnalysis.setPDG(pdg);
-    inputDepAnalysis.setCallGraph(CG);
-    m_inputDepAnalysisRes.reset(&inputDepAnalysis);
+    InputDependencyAnalysis* inputDepAnalysis = new InputDependencyAnalysis(&M);
+    inputDepAnalysis->setPDG(pdg);
+    inputDepAnalysis->setCallGraph(CG);
+    m_inputDepAnalysisRes.reset(inputDepAnalysis);
     m_inputDepAnalysisRes->analyze();
+
+    if (stats) {
+        dump_statistics(&M);
+    }
     return false;
+}
+
+void InputDependencyAnalysisPass::dump_statistics(llvm::Module* M)
+{
+    std::string file_name = stats_file;
+    if (file_name.empty()) {
+        file_name = "stats.json";
+    }
+    const auto& loopInfoGetter = [this] (llvm::Function* F)
+    {
+        return &this->getAnalysis<llvm::LoopInfoWrapperPass>(*F).getLoopInfo();
+    };
+
+    InputDependencyStatistics stats(stats_format, file_name,
+                                    M,
+                                    m_inputDepAnalysisRes.get());
+    stats.setLoopInfoGetter(loopInfoGetter);
+    stats.setSectionName("inputdep_stats");
+    stats.report();
+    stats.flush();
 }
 
 char InputDependencyAnalysisPass::ID = 0;

@@ -29,6 +29,9 @@ public:
     }
 
 private:
+    void dump_statistics(llvm::Module* M);
+
+private:
     InputDepAnalysisRes m_inputDepAnalysisRes;
 }; // class InputDependencyAnalysisPass
 

@@ -14,6 +14,7 @@ class Utils {
 public:
     static bool isLibraryFunction(llvm::Function* F, llvm::Module* M);
     static std::string demangle_name(const std::string& name);
+    static unsigned getFunctionInstrsCount(llvm::Function& F);
 }; // class Utils
 
 } // namespace input_dependency

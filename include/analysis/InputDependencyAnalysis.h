@@ -34,6 +34,19 @@ public:
     using ArgInputDependencies = std::vector<InputDepInfo>;
     using FunctionArgumentDependencies = std::unordered_map<llvm::Function*, ArgInputDependencies>;
 
+private:
+    struct DebugInfo
+    {
+        unsigned InputIndepInstrCount = 0;
+        unsigned InputIndepBlocksCount = 0;
+        unsigned InputDepInstrCount = 0;
+        unsigned InputDepBlocksCount = 0;
+        unsigned DataIndepInstrCount = 0;
+        unsigned ArgumentDepInstrCount = 0;
+        unsigned UnreachableBlocksCount = 0;
+        unsigned UnreachableInstructionsCount = 0;
+    };
+
 public:
     InputDependencyAnalysis(llvm::Module* module);
 
@@ -55,6 +68,17 @@ public:
     bool isInputDependent(llvm::Function* F) const override;
     bool isControlDependent(llvm::Instruction* I) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
+    bool isArgumentDependent(llvm::Instruction* I) const override;
+    bool isArgumentDependent(llvm::BasicBlock* B) const override;
+
+    unsigned getInputIndepInstrCount(llvm::Function* F) const override;
+    unsigned getInputIndepBlocksCount(llvm::Function* F) const override;
+    unsigned getInputDepInstrCount(llvm::Function* F) const override;
+    unsigned getInputDepBlocksCount(llvm::Function* F) const override;
+    unsigned getDataIndepInstrCount(llvm::Function* F) const override;
+    unsigned getArgumentDepInstrCount(llvm::Function* F) const override;
+    unsigned getUnreachableBlocksCount(llvm::Function* F) const override;
+    unsigned getUnreachableInstructionsCount(llvm::Function* F) const override;
 
 private:
     void runArgumentReachabilityAnalysis();
@@ -63,6 +87,7 @@ private:
     void setArgumentDependencies();
     void updateFunctionArgDeps(NodeType node);
     FunctionSet getCalledFunction(const llvm::CallSite& callSite);
+    void collectFunctionDebugInfo(llvm::Function* F);
 
 private:
     PDGType m_pdg;
@@ -70,6 +95,7 @@ private:
     llvm::CallGraph* m_callGraph;
     FunctionArgumentDependencies m_functionArgDeps;
     std::vector<llvm::Function*> m_functions;
+    std::unordered_map<llvm::Function*, DebugInfo> m_functionDbgInfo;
 }; // class InputDependencyAnalysis
 
 } // namespace input_dependency

@@ -30,5 +30,15 @@ std::string Utils::demangle_name(const std::string& name)
     return std::string();
 }
 
+unsigned Utils::getFunctionInstrsCount(llvm::Function& F)
+{
+    unsigned count = 0;
+    for (auto& B : F) {
+        count += B.getInstList().size();
+    }
+    return count;
+}
+
+
 }
 

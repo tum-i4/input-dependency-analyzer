@@ -94,6 +94,7 @@ class LLVMVarArgNode : public LLVMNode
 public:
     LLVMVarArgNode(llvm::Function* function)
         : LLVMNode(function, pdg::PDGLLVMNode::VaArgumentNode)
+        , m_function(function)
     {
     }
 
@@ -112,8 +113,12 @@ public:
     {
         return llvm::isa<pdg::PDGLLVMNode>(node) && classof(llvm::cast<pdg::PDGLLVMNode>(node));
     }
-//public:
-//    virtual std::string getNodeAsString() const override;
+
+public:
+    virtual std::string getNodeAsString() const override;
+
+private:
+    llvm::Function* m_function;
 };
 
 class LLVMActualArgumentNode : public LLVMNode
@@ -353,15 +358,15 @@ public:
 
 };
 
-class PhiNode : public LLVMNode
+class LLVMPhiNode : public LLVMNode
 {
 public:
     using Values = std::vector<llvm::Value*>;
     using Blocks = std::vector<llvm::BasicBlock*>;
 
 public:
-    PhiNode(const Values& values, const Blocks& blocks)
-        : LLVMNode(nullptr, NodeType::PhiNode)
+    LLVMPhiNode(const Values& values, const Blocks& blocks)
+        : LLVMNode(nullptr, pdg::PDGLLVMNode::PhiNode)
         , m_values(values)
         , m_blocks(blocks)
     {

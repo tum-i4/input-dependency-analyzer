@@ -83,6 +83,7 @@ public:
 private:
     void runArgumentReachabilityAnalysis();
     void runInputReachabilityAnalysis();
+    void runInputIndependencyReachabilityAnalysis();
     void collectFunctionsInBottomUp();
     void setArgumentDependencies();
     void updateFunctionArgDeps(NodeType node);

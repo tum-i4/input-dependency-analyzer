@@ -24,6 +24,8 @@ protected:
     virtual PDGNodeTy createNullNode() override;
     virtual PDGNodeTy createConstantNodeFor(llvm::Constant* constant) override;
     virtual PDGNodeTy createVaArgNodeFor(llvm::Function* F) override;
+    virtual PDGNodeTy createPhiNode(const std::vector<llvm::Value*>& values,
+                                    const std::vector<llvm::BasicBlock*>& blocks) override;
 
 }; // class GraphBuilder
 

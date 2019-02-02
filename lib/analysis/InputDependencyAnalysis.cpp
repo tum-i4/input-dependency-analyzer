@@ -3,6 +3,7 @@
 #include "analysis/InputDepInfo.h"
 #include "analysis/ReachabilityAnalysis.h"
 #include "analysis/InputDependencyReachabilityAnalysis.h"
+#include "analysis/InputIndependencyReachabilityAnalysis.h"
 #include "analysis/ArgumentReachabilityAnalysis.h"
 #include "PDG/InputDependencyNode.h"
 #include "utils/Utils.h"
@@ -51,6 +52,7 @@ void InputDependencyAnalysis::analyze()
     runInputReachabilityAnalysis();
     setArgumentDependencies();
     runArgumentReachabilityAnalysis();
+    runInputIndependencyReachabilityAnalysis();
 }
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
@@ -250,6 +252,11 @@ void InputDependencyAnalysis::collectFunctionsInBottomUp()
         }
         ++CGI;
     }
+}
+
+void InputDependencyAnalysis::runInputIndependencyReachabilityAnalysis()
+{
+    InputIndependencyReachabilityAnalysis(m_pdg.get()).analyze();
 }
 
 void InputDependencyAnalysis::setArgumentDependencies()

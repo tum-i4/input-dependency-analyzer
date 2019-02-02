@@ -3,6 +3,8 @@
 #include "PDG/LLVMNode.h"
 
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -54,6 +56,13 @@ GraphBuilder::PDGNodeTy GraphBuilder::createVaArgNodeFor(llvm::Function* F)
 {
     return std::make_shared<LLVMVarArgNode>(F);
 }
+
+GraphBuilder::PDGNodeTy GraphBuilder::createPhiNode(const std::vector<llvm::Value*>& values,
+                                                    const std::vector<llvm::BasicBlock*>& blocks)
+{
+    return std::make_shared<LLVMPhiNode>(values, blocks);
+}
+
 
 } // namespace input_dependency
 

@@ -14,9 +14,11 @@ add_definitions(-DNDEBUG)
 
 add_library(InputDependency MODULE
             lib/PDG/GraphBuilder.cpp
+            lib/PDG/LLVMNode.cpp
             lib/analysis/ReachabilityAnalysis.cpp
             lib/analysis/ArgumentReachabilityAnalysis.cpp
             lib/analysis/InputDependencyReachabilityAnalysis.cpp
+            lib/analysis/InputIndependencyReachabilityAnalysis.cpp
             lib/analysis/InputDependencySources.cpp
             lib/analysis/LibFunctionInfo.cpp
             lib/analysis/LibraryInfoCollector.cpp

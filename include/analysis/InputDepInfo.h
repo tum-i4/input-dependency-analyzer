@@ -81,7 +81,7 @@ public:
 
     bool isArgumentDep() const
     {
-        return m_dependency == ARG_DEP;
+        return m_dependency == ARG_DEP || !m_arguments.empty();
     }
 
     bool isInputDep() const

@@ -5,7 +5,7 @@
 
 namespace input_dependency {
 
-std::string PhiNode::getNodeAsString() const
+std::string LLVMPhiNode::getNodeAsString() const
 {
     std::string str;
     llvm::raw_string_ostream rawstr(str);

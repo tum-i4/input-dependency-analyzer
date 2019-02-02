@@ -53,6 +53,7 @@ void InputDependencyAnalysis::analyze()
     setArgumentDependencies();
     runArgumentReachabilityAnalysis();
     runInputIndependencyReachabilityAnalysis();
+    //TODO: global reachability
 }
 
 bool InputDependencyAnalysis::isInputDependent(llvm::Function* F, llvm::Instruction* instr) const
@@ -79,7 +80,13 @@ bool InputDependencyAnalysis::isInputDependent(llvm::Function* F) const
     auto Fnode = m_pdg->getFunctionNode(F);
     auto* node = llvm::dyn_cast<LLVMFunctionNode>(Fnode.get());
     return node->getInputDepInfo().isInputDep();
+}
 
+bool InputDependencyAnalysis::isInputIndependent(llvm::Instruction* I) const
+{
+    auto Fpdg = m_pdg->getFunctionPDG(I->getFunction());
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(I).get());
+    return instrNode->getInputDepInfo().isInputIndep();
 }
 
 bool InputDependencyAnalysis::isControlDependent(llvm::Instruction* I) const
@@ -108,6 +115,13 @@ bool InputDependencyAnalysis::isArgumentDependent(llvm::BasicBlock* B) const
     auto Fpdg = m_pdg->getFunctionPDG(B->getParent());
     auto* blockNode = llvm::dyn_cast<LLVMBasicBlockNode>(Fpdg->getNode(B).get());
     return blockNode->getInputDepInfo().isArgumentDep();
+}
+
+bool InputDependencyAnalysis::isGlobalDependent(llvm::Instruction* I) const
+{
+    auto Fpdg = m_pdg->getFunctionPDG(I->getFunction());
+    auto* instrNode = llvm::dyn_cast<LLVMNode>(Fpdg->getNode(I).get());
+    return instrNode->getInputDepInfo().isGlobalDep();
 }
 
 unsigned InputDependencyAnalysis::getInputIndepInstrCount(llvm::Function* F) const

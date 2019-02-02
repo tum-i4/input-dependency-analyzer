@@ -33,8 +33,10 @@ add_library(InputDependency MODULE
             lib/passes/ArgumentReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyReachabilityAnalysisPass.cpp
             lib/passes/InputDependencyAnalysisPass.cpp
+            lib/passes/TransparentCachingPass.cpp
             lib/utils/Utils.cpp
             lib/utils/Statistics.cpp
+            lib/utils/constants.cpp
 #            lib/Debug/PDGPrinter.cpp
 )
 

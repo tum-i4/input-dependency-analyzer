@@ -66,10 +66,12 @@ public:
     bool isInputDependent(llvm::Instruction* instr) const override;
     bool isInputDependent(llvm::BasicBlock* block) const override;
     bool isInputDependent(llvm::Function* F) const override;
+    bool isInputIndependent(llvm::Instruction* I) const override;
     bool isControlDependent(llvm::Instruction* I) const override;
     bool isDataDependent(llvm::Instruction* I) const override;
     bool isArgumentDependent(llvm::Instruction* I) const override;
     bool isArgumentDependent(llvm::BasicBlock* B) const override;
+    bool isGlobalDependent(llvm::Instruction* I) const override;
 
     unsigned getInputIndepInstrCount(llvm::Function* F) const override;
     unsigned getInputIndepBlocksCount(llvm::Function* F) const override;

@@ -28,10 +28,11 @@ void ArgumentReachabilityAnalysis::analyze()
          arg_it != f->arg_end();
          ++arg_it) {
         assert(m_functionPDG->hasFormalArgNode(&*arg_it));
+        NodeSet processedNodes;
         auto argNode = m_functionPDG->getFormalArgNode(&*arg_it);
         auto* llvmArgNode = llvm::dyn_cast<LLVMNode>(argNode.get());
         llvmArgNode->setDFInputDepInfo(InputDepInfo({&*arg_it}));
-        ReachabilityAnalysis::analyze(argNode, &ReachabilityAnalysis::propagateDependencies);
+        ReachabilityAnalysis::analyze(argNode, &ReachabilityAnalysis::propagateDependencies, processedNodes);
     }
 }
 

@@ -77,6 +77,7 @@ bool TransparentCachingPass::runOnModule(llvm::Module& M)
                 B.begin()->setMetadata(metadata_strings::input_indep_block, input_indep_block_md);
             }
             for (auto& I : B) {
+                llvm::dbgs() << I << "\n";
                 if (!is_input_dep_block) {
                     if (IDA->isInputDependent(&I))
                         I.setMetadata(metadata_strings::input_dep_instr, input_dep_instr_md);

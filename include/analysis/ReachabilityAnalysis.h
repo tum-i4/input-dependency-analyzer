@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <functional>
+#include <unordered_set>
 
 namespace pdg {
 
@@ -16,6 +17,7 @@ class ReachabilityAnalysis
 {
 public:
     using NodeType = std::shared_ptr<pdg::PDGNode>;
+    using NodeSet = std::unordered_set<NodeType>;
     using ReachCallback = std::function<void (NodeType source, NodeType dest, bool isDataDep)>;
     using NodeProcessor = std::function<void (NodeType node)>;
 
@@ -37,7 +39,7 @@ public:
                                       bool isDataDep);
 
 protected:
-    void analyze(NodeType node, const ReachCallback& callback);
+    void analyze(NodeType node, const ReachCallback& callback, NodeSet& processedNodes);
 
 protected:
     NodeProcessor m_nodeProcessor;

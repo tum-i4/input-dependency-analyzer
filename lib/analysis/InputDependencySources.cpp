@@ -48,13 +48,19 @@ void InputDependencySources::addInputsFromLibraryFunctions()
         if (!F.isDeclaration()) {
             continue;
         }
-        if (!libInfoMgr.hasLibFunctionInfo(F.getName()))  {
-            continue;
-        }
         if (!m_pdg.hasFunctionPDG(const_cast<llvm::Function*>(&F))) {
             continue;
         }
         auto fPDG = m_pdg.getFunctionPDG(const_cast<llvm::Function*>(&F));
+        if (!libInfoMgr.hasLibFunctionInfo(F.getName()))  {
+            for (auto arg_it = F.arg_begin(); arg_it != F.arg_end(); ++arg_it) {
+                assert(fPDG->hasFormalArgNode(arg));
+                auto argNode = fPDG->getFormalArgNode(const_cast<llvm::Argument*>(&*arg_it));
+                m_inputSources.push_back(argNode);
+            }
+            m_inputSources.push_back(m_pdg.getFunctionNode(const_cast<llvm::Function*>(&F)));
+            continue;
+        }
         // TODO: consider demangling name
         libInfoMgr.resolveLibFunctionInfo(const_cast<llvm::Function*>(&F), F.getName());
         auto& functionLibInfo = libInfoMgr.getLibFunctionInfo(F.getName());

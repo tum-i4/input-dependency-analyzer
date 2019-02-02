@@ -12,6 +12,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Debug.h"
 
 #include <functional>
 
@@ -28,9 +30,10 @@ void InputDependencyReachabilityAnalysis::analyze()
     inputDepSources.computeInputSources();
     const auto& inputSources = inputDepSources.getInputSources();
     for (const auto& source : inputSources) {
+        NodeSet processedNodes;
         auto* llvmNode = llvm::dyn_cast<LLVMNode>(source.get());
         llvmNode->setDFInputDepInfo(InputDepInfo(InputDepInfo::INPUT_DEP));
-        ReachabilityAnalysis::analyze(source, &ReachabilityAnalysis::propagateDependencies);
+        ReachabilityAnalysis::analyze(source, &ReachabilityAnalysis::propagateDependencies, processedNodes);
     }
 }
 

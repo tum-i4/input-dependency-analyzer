@@ -25,22 +25,22 @@ void ReachabilityAnalysis::setNodeProcessor(const NodeProcessor& nodeProcessor)
 }
 
 void ReachabilityAnalysis::analyze(NodeType node,
-                                   const ReachCallback& callback)
+                                   const ReachCallback& callback,
+                                   NodeSet& processedNodes)
 {
+    if (!processedNodes.insert(node).second) {
+        return;
+    }
     for (auto out_it = node->outEdgesBegin();
          out_it != node->outEdgesEnd();
          ++out_it) {
+        m_nodeProcessor((*out_it)->getDestination());
         if ((*out_it)->isDataEdge()) {
             callback(node, (*out_it)->getDestination(), true);
         } else {
             callback(node, (*out_it)->getDestination(), false);
         }
-        m_nodeProcessor((*out_it)->getDestination());
-        if (llvm::dyn_cast<pdg::PDGLLVMFunctionNode>(node.get())) {
-            continue;
-        }
-
-        analyze((*out_it)->getDestination(), callback);
+        analyze((*out_it)->getDestination(), callback, processedNodes);
     }
 }
 

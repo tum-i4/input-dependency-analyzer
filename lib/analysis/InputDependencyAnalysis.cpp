@@ -294,6 +294,7 @@ void InputDependencyAnalysis::setArgumentDependencies()
 
 void InputDependencyAnalysis::updateFunctionArgDeps(NodeType node)
 {
+    // TODO: process store instructions, which store callback
     auto* inputDepNode = llvm::dyn_cast<LLVMNode>(node.get());
     if (!inputDepNode) {
         return;
